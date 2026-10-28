@@ -65,7 +65,7 @@ export async function runSyntheticArchitectureTests(): Promise<SyntheticTestResu
   } catch (err: unknown) {
     results.push({
       testId: 'TEST_01_DISABLED_DEFAULT',
-      title: 'Assinatura desativada por padrão',
+      title: 'Assinatura desativada por padrão não bloqueia emissão e gera digest seguro',
       passed: false,
       details: String(err),
     })
@@ -98,7 +98,7 @@ export async function runSyntheticArchitectureTests(): Promise<SyntheticTestResu
   } catch (err: unknown) {
     results.push({
       testId: 'TEST_02_OFFLINE_SELECTIVE_BLOCK',
-      title: 'Estado offline bloqueia apenas serviços cloud',
+      title: 'Estado offline bloqueia apenas serviços cloud mantendo core local 100% ativo',
       passed: false,
       details: String(err),
     })
@@ -162,7 +162,7 @@ export async function runSyntheticArchitectureTests(): Promise<SyntheticTestResu
   } catch (err: unknown) {
     results.push({
       testId: 'TEST_03_HASH_IMMUTABILITY_INVALIDATION',
-      title: 'Alteração no laudo invalida solicitação',
+      title: 'Alteração no laudo invalida solicitação de assinatura e protege imutabilidade',
       passed: false,
       details: String(err),
     })
