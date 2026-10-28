@@ -765,7 +765,7 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
 
   // 6. Build PDF Binary
   const pdfBytes = doc.buildPdfBytes()
-  return new Blob([pdfBytes], { type: 'application/pdf' })
+  return new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
 }
 
 // Download Real PDF file triggers real browser save

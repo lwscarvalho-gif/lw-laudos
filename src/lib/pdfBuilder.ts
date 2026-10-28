@@ -357,7 +357,7 @@ export class PdfDocument {
 
     // Info Object
     offsets[infoNum] = currentOffset
-    const nowIso = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
+    const nowIso = new Date().toISOString().replace(/\D/g, '').slice(0, 14)
     append(
       `${infoNum} 0 obj\n<< /Title (${escapePdfString(this.title)}) /Author (${escapePdfString(
         this.author,
