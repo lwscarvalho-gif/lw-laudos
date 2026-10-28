@@ -307,14 +307,14 @@ export default function LaudoDetalhes() {
           </div>
         </div>
 
-        {/* Painel Informativo da Assinatura Digital ICP-Brasil (Opcional) */}
+        {/* Painel Informativo da Assinatura Digital (Opcional) */}
         {digitalSignatureService.getConfig().enabled && (
           <div className="p-4 rounded-xl border border-[#D1E5DE] bg-[#F4F9F7] space-y-3 text-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#D1E5DE] pb-2.5">
               <div className="flex items-center gap-2">
                 <Fingerprint className="w-4 h-4 text-[#0C6B58]" />
                 <span className="font-bold text-sm text-[#1F2A27]">
-                  Assinatura Digital ICP-Brasil (Módulo Ativo)
+                  Assinatura Digital (Estrutura Preparada)
                 </span>
               </div>
               <div className="flex items-center gap-2">

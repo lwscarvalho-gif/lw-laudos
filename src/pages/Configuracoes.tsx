@@ -124,10 +124,10 @@ export default function Configuracoes() {
     const updated = digitalSignatureService.saveConfig({ enabled })
     setSigConfig(updated)
     toast({
-      title: enabled ? 'Assinatura digital ativada' : 'Assinatura digital desativada',
+      title: enabled ? 'Módulo de Assinatura ativado' : 'Módulo de Assinatura desativado',
       description: enabled
-        ? 'O módulo está habilitado para acompanhamento de hash e status nos laudos finalizados.'
-        : 'Desativado por padrão. Laudos e PDFs continuam funcionando normalmente de forma autônoma.',
+        ? 'Assinatura digital ativada nas preferências. A emissão de laudos e exportação de PDF continuam funcionando normalmente.'
+        : 'Desativado por padrão. Laudos e PDFs continuam funcionando normalmente.',
     })
   }
 
@@ -628,7 +628,7 @@ export default function Configuracoes() {
         </div>
       </div>
 
-      {/* 3. Preferências de Assinatura Digital ICP-Brasil (Opcional) */}
+      {/* 3. Preferências de Assinatura Digital (Opcional) */}
       <div className="bg-white p-6 sm:p-8 rounded-xl border border-[#E5E9E7] shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E9E7] pb-4">
           <div className="flex items-center gap-3">
@@ -637,11 +637,10 @@ export default function Configuracoes() {
             </div>
             <div>
               <h2 className="font-bold text-base text-[#1F2A27]">
-                Assinatura Digital ICP-Brasil (Opcional)
+                Assinatura Digital (Estrutura Preparada)
               </h2>
               <p className="text-xs text-[#5F6E69]">
-                Desativado por padrão. Não bloqueia a emissão autônoma de laudos nem o download de
-                PDF.
+                Não configurado por padrão. Não bloqueia a emissão de laudos nem o download de PDF.
               </p>
             </div>
           </div>
@@ -704,7 +703,7 @@ export default function Configuracoes() {
               </span>
             </div>
             <p className="text-[11px] text-[#8A9691]">
-              Rede externa afeta apenas PSCs cloud; núcleo clínico permanece autônomo.
+              Rede externa afeta apenas serviços remotos; elaboração clínica permanece funcional.
             </p>
           </div>
         </div>

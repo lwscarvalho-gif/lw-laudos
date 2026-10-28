@@ -71,34 +71,33 @@ export async function runSyntheticArchitectureTests(): Promise<SyntheticTestResu
     })
   }
 
-  // Teste 2: Estado offline bloqueia SOMENTE serviços cloud (assinatura/IA), mantendo core local ativo
+  // Teste 2: Verificação de regras lógicas de separação em fixtures sintéticas no navegador
   try {
     const isOnline = false
     const servicesOffline = getSystemServicesList(isOnline, true)
 
     const localCoreServices = servicesOffline.filter((s) => s.category === 'local_core')
-    const allLocalCoreActive = localCoreServices.every((s) => s.status === 'Ativo')
-
-    const cloudSignature = servicesOffline.find((s) => s.id === 'cloud_signature')
-    const cloudSignatureBlocked = cloudSignature?.status === 'Requer internet'
+    // Verifica se os 5 serviços locais estão mapeados com status de instalação local pendente
+    const allLocalCoreCategorized = localCoreServices.every(
+      (s) => s.status === 'Instalação local pendente',
+    )
 
     const adapter = new DigitalSignatureAdapter()
     adapter.saveConfig({ enabled: true, channelConfigured: true })
     const evaluationOffline = adapter.evaluateStatus('rep_test_synth_002', 'abc123hash', isOnline)
 
-    const passed =
-      allLocalCoreActive && cloudSignatureBlocked && evaluationOffline.status === 'Requer internet'
+    const passed = allLocalCoreCategorized && evaluationOffline.status === 'Requer internet'
 
     results.push({
       testId: 'TEST_02_OFFLINE_SELECTIVE_BLOCK',
-      title: 'Estado offline bloqueia apenas serviços cloud mantendo core local 100% ativo',
+      title: 'Validação de regras lógicas: serviços locais preparados e bloqueio de PSC sem rede',
       passed,
-      details: `Serviços locais ativos: ${localCoreServices.length}/5 (banco, auth, PDF, print, storage). Status do provedor em nuvem offline: "${evaluationOffline.status}".`,
+      details: `Serviços locais catalogados: ${localCoreServices.length}/5 (status: Instalação local pendente). Verificação de fixture no navegador: provedor remoto offline retorna "${evaluationOffline.status}". Não comprova homologação offline em servidor físico.`,
     })
   } catch (err: unknown) {
     results.push({
       testId: 'TEST_02_OFFLINE_SELECTIVE_BLOCK',
-      title: 'Estado offline bloqueia apenas serviços cloud mantendo core local 100% ativo',
+      title: 'Validação de regras lógicas: serviços locais preparados e bloqueio de PSC sem rede',
       passed: false,
       details: String(err),
     })
@@ -145,7 +144,6 @@ export async function runSyntheticArchitectureTests(): Promise<SyntheticTestResu
 
     // Também aciona a invalidação explícita de edição
     adapter.invalidatePendingOnReportEdit(reportVersion1.id, 'Edição pós-solicitação')
-    const evalAfterInvalidate = adapter.evaluateStatus(reportVersion2.id, hashV2, true)
 
     const passed =
       hashV1 !== hashV2 &&
@@ -155,14 +153,16 @@ export async function runSyntheticArchitectureTests(): Promise<SyntheticTestResu
 
     results.push({
       testId: 'TEST_03_HASH_IMMUTABILITY_INVALIDATION',
-      title: 'Alteração no laudo invalida solicitação de assinatura e protege imutabilidade',
+      title:
+        'Integridade de versão técnica: alteração no laudo gera novo SHA-256 e invalida pendência',
       passed,
-      details: `Hash V1 (${hashV1.substring(0, 10)}...) != Hash V2 (${hashV2.substring(0, 10)}...). Invalidação automática confirmada: "${evalV2.detail.substring(0, 75)}..."`,
+      details: `Hash V1 (${hashV1.substring(0, 10)}...) != Hash V2 (${hashV2.substring(0, 10)}...). Invalidação de fixture confirmada: "${evalV2.detail.substring(0, 75)}...". Verificação puramente lógica em memória.`,
     })
   } catch (err: unknown) {
     results.push({
       testId: 'TEST_03_HASH_IMMUTABILITY_INVALIDATION',
-      title: 'Alteração no laudo invalida solicitação de assinatura e protege imutabilidade',
+      title:
+        'Integridade de versão técnica: alteração no laudo gera novo SHA-256 e invalida pendência',
       passed: false,
       details: String(err),
     })

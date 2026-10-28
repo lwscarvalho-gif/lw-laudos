@@ -28,6 +28,7 @@ import ModeloNovo from '@/pages/ModeloNovo'
 import ModeloEditar from '@/pages/ModeloEditar'
 import UltrasoundReportEditor from '@/pages/UltrasoundReportEditor'
 import Integracoes from '@/pages/Integracoes'
+import DiagnosticoDesenvolvimento from '@/pages/DiagnosticoDesenvolvimento'
 import Administracao from '@/pages/Administracao'
 import Configuracoes from '@/pages/Configuracoes'
 import NotFound from '@/pages/NotFound'
@@ -76,6 +77,10 @@ export default function App() {
 
             {/* Integrações DICOM / Equipamentos */}
             <Route path="/integracoes" element={<Integracoes />} />
+
+            {/* Diagnóstico técnico de desenvolvimento (rota direta/oculta) */}
+            <Route path="/diagnostico" element={<DiagnosticoDesenvolvimento />} />
+            <Route path="/dev-testes" element={<DiagnosticoDesenvolvimento />} />
 
             {/* Modelos */}
             <Route path="/modelos" element={<Modelos />} />

@@ -17,7 +17,13 @@ export interface ServiceAvailability {
   category: 'local_core' | 'cloud_optional'
   operatesLocally: boolean
   requiresInternet: boolean
-  status: 'Ativo' | 'Indisponível' | 'Opcional desativado' | 'Requer internet'
+  status:
+    | 'Ativo'
+    | 'Instalação local pendente'
+    | 'Não configurado'
+    | 'Indisponível'
+    | 'Opcional desativado'
+    | 'Requer internet'
   description: string
 }
 
@@ -53,9 +59,9 @@ export function getSystemServicesList(
       category: 'local_core',
       operatesLocally: true,
       requiresInternet: false,
-      status: 'Ativo',
+      status: 'Instalação local pendente',
       description:
-        'Prontuários, laudos, frases, pacientes e auditoria armazenados localmente em SQLite embarcado.',
+        'Estrutura preparada para implantação local com SQLite embarcado. No ambiente atual de nuvem, a instância é gerenciada pela infraestrutura remota.',
     },
     {
       id: 'local_auth',
@@ -63,9 +69,9 @@ export function getSystemServicesList(
       category: 'local_core',
       operatesLocally: true,
       requiresInternet: false,
-      status: 'Ativo',
+      status: 'Instalação local pendente',
       description:
-        'Isolamento estrito por owner_id gerenciado pelo servidor local, sem necessidade de login remoto.',
+        'Isolamento estrito por owner_id compatível com servidor local ou nuvem; serviço de autenticação executando atualmente no backend remoto.',
     },
     {
       id: 'local_pdf',
@@ -73,9 +79,9 @@ export function getSystemServicesList(
       category: 'local_core',
       operatesLocally: true,
       requiresInternet: false,
-      status: 'Ativo',
+      status: 'Instalação local pendente',
       description:
-        'Compilação nativa em memória no navegador/servidor sem chamadas a APIs externas de renderização.',
+        'Compilação nativa em memória no cliente/servidor com preparação para ambiente local, sem APIs externas pagas de renderização.',
     },
     {
       id: 'local_print',
@@ -83,9 +89,9 @@ export function getSystemServicesList(
       category: 'local_core',
       operatesLocally: true,
       requiresInternet: false,
-      status: 'Ativo',
+      status: 'Instalação local pendente',
       description:
-        'Envio direto para impressoras físicas da clínica via spooler do sistema operacional.',
+        'Envio para impressoras físicas da clínica via spooler do sistema operacional, pronto para homologação no posto local.',
     },
     {
       id: 'local_storage',
@@ -93,19 +99,19 @@ export function getSystemServicesList(
       category: 'local_core',
       operatesLocally: true,
       requiresInternet: false,
-      status: 'Ativo',
+      status: 'Instalação local pendente',
       description:
-        'Armazenamento de fotogramas em disco rígido local (/pb_data/storage) preservando alta resolução.',
+        'Estrutura de armazenamento de arquivos e fotogramas com suporte a disco local em futura instalação on-premise.',
     },
     {
       id: 'cloud_signature',
-      name: 'Assinatura Digital em Nuvem (VIDaaS / BirdID / PSCs)',
+      name: 'Assinatura Digital (Estrutura Preparada)',
       category: 'cloud_optional',
       operatesLocally: false,
       requiresInternet: true,
-      status: !signatureEnabled ? 'Opcional desativado' : isOnline ? 'Ativo' : 'Requer internet',
+      status: 'Não configurado',
       description:
-        'Comunicação criptográfica com Prestadores de Serviços de Confiança (PSCs) para certificados em nuvem.',
+        'Estrutura preparada para integração com provedores de assinatura digital. Não configurado; sem integração criptográfica homologada ativa.',
     },
     {
       id: 'cloud_ai',
@@ -114,8 +120,7 @@ export function getSystemServicesList(
       operatesLocally: false,
       requiresInternet: true,
       status: 'Opcional desativado',
-      description:
-        'Módulo desconectado por padrão. Chaves de API no backend; desativado para operação autônoma.',
+      description: 'Módulo não conectado por padrão. Mantido sem conexão ativa no ambiente.',
     },
   ]
 }
