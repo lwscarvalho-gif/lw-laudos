@@ -13,7 +13,18 @@ import {
   AlertCircle,
   ImageIcon,
   Trash2,
+  ShieldCheck,
+  Server,
+  Wifi,
+  WifiOff,
 } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import {
+  digitalSignatureService,
+  SUPPORTED_PROVIDERS,
+  DigitalSignatureProviderId,
+} from '@/services/digitalSignature'
+import { useNetworkStatus } from '@/lib/networkStatus'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { Button } from '@/components/ui/button'
@@ -104,6 +115,32 @@ export default function Configuracoes() {
   const [newEmail, setNewEmail] = useState('')
   const [sendingEmailChange, setSendingEmailChange] = useState(false)
   const [emailSuccessMessage, setEmailSuccessMessage] = useState<string | null>(null)
+
+  // Digital Signature Preferences
+  const { isOnline } = useNetworkStatus()
+  const [sigConfig, setSigConfig] = useState(() => digitalSignatureService.getConfig())
+
+  const handleToggleSignature = (enabled: boolean) => {
+    const updated = digitalSignatureService.saveConfig({ enabled })
+    setSigConfig(updated)
+    toast({
+      title: enabled ? 'Assinatura digital ativada' : 'Assinatura digital desativada',
+      description: enabled
+        ? 'O módulo está habilitado para acompanhamento de hash e status nos laudos finalizados.'
+        : 'Desativado por padrão. Laudos e PDFs continuam funcionando normalmente de forma autônoma.',
+    })
+  }
+
+  const handleSignatureProviderChange = (providerId: string) => {
+    const updated = digitalSignatureService.saveConfig({
+      selectedProvider: providerId as DigitalSignatureProviderId,
+    })
+    setSigConfig(updated)
+    toast({
+      title: 'Provedor atualizado',
+      description: `Adaptador de assinatura ajustado para ${updated.selectedProvider.toUpperCase()}.`,
+    })
+  }
 
   // Upload Logo
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -591,7 +628,89 @@ export default function Configuracoes() {
         </div>
       </div>
 
-      {/* 3. Preferências e Sistema */}
+      {/* 3. Preferências de Assinatura Digital ICP-Brasil (Opcional) */}
+      <div className="bg-white p-6 sm:p-8 rounded-xl border border-[#E5E9E7] shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E9E7] pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-[#E8F3F0] text-[#0C6B58] flex items-center justify-center font-bold">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-base text-[#1F2A27]">
+                Assinatura Digital ICP-Brasil (Opcional)
+              </h2>
+              <p className="text-xs text-[#5F6E69]">
+                Desativado por padrão. Não bloqueia a emissão autônoma de laudos nem o download de
+                PDF.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Label
+              htmlFor="pref-sig-toggle"
+              className="text-xs font-semibold text-[#1F2A27] cursor-pointer"
+            >
+              Ativar Assinatura Digital
+            </Label>
+            <Switch
+              id="pref-sig-toggle"
+              checked={sigConfig.enabled}
+              onCheckedChange={handleToggleSignature}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Provedor Homologável</Label>
+            <Select
+              value={sigConfig.selectedProvider}
+              onValueChange={handleSignatureProviderChange}
+              disabled={!sigConfig.enabled}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SUPPORTED_PROVIDERS.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-[#8A9691]">
+              VIDaaS, Bird ID, SafeID, SerproID e RemoteID via API segura backend.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Estado de Conexão com Nuvem</Label>
+            <div className="p-2.5 rounded-lg border border-[#E5E9E7] bg-[#F7F9F8] flex items-center justify-between text-xs">
+              <span className="text-[#5F6E69]">Interface de Rede:</span>
+              <span className="font-bold text-[#1F2A27] flex items-center gap-1.5">
+                {isOnline ? (
+                  <>
+                    <Wifi className="w-3.5 h-3.5 text-emerald-600" />
+                    Ativa (Pronto para PSCs)
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="w-3.5 h-3.5 text-amber-600" />
+                    Offline (Laudos locais OK)
+                  </>
+                )}
+              </span>
+            </div>
+            <p className="text-[11px] text-[#8A9691]">
+              Rede externa afeta apenas PSCs cloud; núcleo clínico permanece autônomo.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Preferências e Sistema */}
       <div className="bg-white p-6 sm:p-8 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">
         <div className="flex items-center gap-3 border-b border-[#E5E9E7] pb-4">
           <div className="w-9 h-9 rounded-lg bg-[#E8F3F0] text-[#0C6B58] flex items-center justify-center font-bold">

@@ -72,6 +72,9 @@ export const reportsService = {
     author_crm?: string
     author_crm_uf?: string
     signature_date?: string
+    signature_hash_sha256?: string
+    signature_provider?: string
+    signature_status?: string
   }): Promise<Report> {
     const owner_id = pb.authStore.record?.id
     const user = pb.authStore.record

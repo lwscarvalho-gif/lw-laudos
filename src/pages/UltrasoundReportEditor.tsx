@@ -22,8 +22,10 @@ import {
   Eye,
   FileText,
 } from 'lucide-react'
+import pb from '@/lib/pocketbase/client'
 import { reportsService } from '@/services/reports'
 import { examsService } from '@/services/exams'
+import { digitalSignatureService } from '@/services/digitalSignature'
 import { patientsService } from '@/services/patients'
 import { ultrasoundFindingsService } from '@/services/ultrasoundFindings'
 import { examImagesService } from '@/services/examImages'
@@ -340,6 +342,12 @@ export default function UltrasoundReportEditor() {
 
         let savedRep: Report
         if (currentReportId) {
+          // Se o laudo foi alterado e salvo, invalidar solicitações pendentes de assinatura do hash anterior
+          digitalSignatureService.invalidatePendingOnReportEdit(
+            currentReportId,
+            'Laudo modificado e salvo como rascunho',
+          )
+
           savedRep = await reportsService.update(currentReportId, {
             title: title.trim(),
             patient_id: patientId,
@@ -689,6 +697,12 @@ export default function UltrasoundReportEditor() {
 
       let finalizedReport: Report
       if (currentReportId) {
+        // Se o laudo foi alterado e finalizado, invalidar solicitações de assinatura antigas (novo hash gerado)
+        digitalSignatureService.invalidatePendingOnReportEdit(
+          currentReportId,
+          'Nova versão finalizada do laudo',
+        )
+
         finalizedReport = await reportsService.update(currentReportId, {
           title: title.trim(),
           patient_id: patientId,

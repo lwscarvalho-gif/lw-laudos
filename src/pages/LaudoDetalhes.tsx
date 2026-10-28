@@ -11,8 +11,16 @@ import {
   CheckCircle2,
   ShieldCheck,
   Printer,
+  ShieldAlert,
+  Fingerprint,
+  Info,
+  RefreshCw,
+  ExternalLink,
 } from 'lucide-react'
 import { reportsService } from '@/services/reports'
+import { digitalSignatureService, DigitalSignatureStatus } from '@/services/digitalSignature'
+import { useNetworkStatus } from '@/lib/networkStatus'
+import { computeSha256Hex, buildReportCanonicalDigestString } from '@/lib/cryptoDigest'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Report } from '@/types'
 import { formatDateBR, formatDateTimeBR } from '@/lib/formatters'
@@ -49,6 +57,19 @@ export default function LaudoDetalhes() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  // Assinatura digital do laudo
+  const { isOnline } = useNetworkStatus()
+  const [currentSha256, setCurrentSha256] = useState<string>('')
+  const [sigEvaluation, setSigEvaluation] = useState<{
+    status: DigitalSignatureStatus
+    detail: string
+    isModifiedSinceSigned: boolean
+  }>({
+    status: 'Não configurado',
+    detail: '',
+    isModifiedSinceSigned: false,
+  })
+
   const loadReport = useCallback(async () => {
     if (!id) return
     setLoading(true)
@@ -59,6 +80,18 @@ export default function LaudoDetalhes() {
       ])
       setReport(rep)
       setImages(imgs)
+
+      // Calcula hash canônico do documento atual
+      const digestStr = buildReportCanonicalDigestString(rep)
+      const hash = await computeSha256Hex(digestStr)
+      setCurrentSha256(hash)
+
+      const evalRes = digitalSignatureService.evaluateStatus(rep.id, hash, isOnline)
+      setSigEvaluation({
+        status: evalRes.status,
+        detail: evalRes.detail,
+        isModifiedSinceSigned: evalRes.isModifiedSinceSigned,
+      })
     } catch {
       toast({
         title: 'Erro',
@@ -74,6 +107,17 @@ export default function LaudoDetalhes() {
   useEffect(() => {
     loadReport()
   }, [loadReport])
+
+  // Recalcula avaliação quando muda a conectividade
+  useEffect(() => {
+    if (!report || !currentSha256) return
+    const evalRes = digitalSignatureService.evaluateStatus(report.id, currentSha256, isOnline)
+    setSigEvaluation({
+      status: evalRes.status,
+      detail: evalRes.detail,
+      isModifiedSinceSigned: evalRes.isModifiedSinceSigned,
+    })
+  }, [isOnline, report, currentSha256])
 
   const handleDelete = async () => {
     if (!id) return
@@ -262,6 +306,64 @@ export default function LaudoDetalhes() {
             <span>Emitido em: {formatDateBR(report.signature_date || report.created)}</span>
           </div>
         </div>
+
+        {/* Painel Informativo da Assinatura Digital ICP-Brasil (Opcional) */}
+        {digitalSignatureService.getConfig().enabled && (
+          <div className="p-4 rounded-xl border border-[#D1E5DE] bg-[#F4F9F7] space-y-3 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#D1E5DE] pb-2.5">
+              <div className="flex items-center gap-2">
+                <Fingerprint className="w-4 h-4 text-[#0C6B58]" />
+                <span className="font-bold text-sm text-[#1F2A27]">
+                  Assinatura Digital ICP-Brasil (Módulo Ativo)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[#5F6E69]">Status da Assinatura:</span>
+                <span
+                  className={`font-bold px-2 py-0.5 rounded text-[11px] ${
+                    sigEvaluation.status === 'Assinado'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : sigEvaluation.status === 'Pendente'
+                        ? 'bg-blue-100 text-blue-800'
+                        : sigEvaluation.status === 'Requer internet'
+                          ? 'bg-amber-100 text-amber-800'
+                          : sigEvaluation.status === 'Falhou'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  {sigEvaluation.status}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[#40524C] leading-relaxed">{sigEvaluation.detail}</p>
+
+            {currentSha256 && (
+              <div className="p-2.5 rounded bg-white border border-[#E0ECE8] font-mono text-[10px] text-[#5F6E69] break-all flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <span>
+                  <strong className="text-[#1F2A27]">Hash SHA-256 da Versão Atual:</strong>{' '}
+                  {currentSha256}
+                </span>
+                <span className="text-[9px] text-[#8A9691] shrink-0 font-sans">
+                  Imutável nesta versão
+                </span>
+              </div>
+            )}
+
+            {sigEvaluation.isModifiedSinceSigned && (
+              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded text-amber-900 text-[11px] flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Aviso de Integridade:</strong> O documento foi modificado após a última
+                  solicitação. O hash atual difere do registro anterior, invalidando qualquer
+                  assinatura pendente. Um novo envio explícito é necessário para assinar esta
+                  versão.
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Patient metadata box */}
         <div className="p-4 rounded-xl bg-[#F7F9F8] border border-[#E5E9E7] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">

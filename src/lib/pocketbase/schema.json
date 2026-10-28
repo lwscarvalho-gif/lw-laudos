@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T08:02:01.970Z",
+  "generatedAt": "2026-10-28T13:41:11.639Z",
   "collections": [
     {
       "name": "users",
@@ -448,6 +448,24 @@
         {
           "name": "images_config",
           "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "signature_hash_sha256",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "signature_provider",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "signature_status",
+          "type": "text",
           "required": false,
           "system": false
         }
