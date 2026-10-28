@@ -120,13 +120,22 @@ export default function Laudos() {
             Emita, visualize e gerencie seus laudos médicos com assinatura
           </p>
         </div>
-        <Button
-          onClick={() => navigate('/laudos/novo')}
-          className="bg-[#0C6B58] hover:bg-[#0A5949] text-white shadow-sm shrink-0"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Novo Laudo
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => navigate('/laudos/ultrassom')}
+            className="bg-[#0C6B58] hover:bg-[#0A5949] text-white shadow-sm shrink-0"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Laudo de Ultrassom
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate('/laudos/novo')}
+            className="border-[#E5E9E7] text-[#1F2A27] shrink-0"
+          >
+            Laudo Geral / Outros
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
@@ -160,13 +169,18 @@ export default function Laudos() {
           <p className="text-sm text-[#5F6E69] max-w-sm mt-1 mb-6">
             Crie seu primeiro laudo a partir de um exame ou modelo pré-formatado.
           </p>
-          <Button
-            onClick={() => navigate('/laudos/novo')}
-            className="bg-[#0C6B58] hover:bg-[#0A5949] text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Laudo
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => navigate('/laudos/ultrassom')}
+              className="bg-[#0C6B58] hover:bg-[#0A5949] text-white"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Novo Laudo de Ultrassom
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/laudos/novo')}>
+              Laudo Geral
+            </Button>
+          </div>
         </div>
       ) : (
         <>
@@ -221,7 +235,11 @@ export default function Laudos() {
                           <Eye className="w-4 h-4" />
                         </Link>
                         <Link
-                          to={`/laudos/${rep.id}/editar`}
+                          to={
+                            rep.structured_data || rep.exam_type === 'Ultrassonografia'
+                              ? `/laudos/ultrassom?id=${rep.id}`
+                              : `/laudos/${rep.id}/editar`
+                          }
                           title="Editar laudo"
                           className="p-1.5 text-[#5F6E69] hover:text-[#0C6B58] hover:bg-[#E8F3F0] rounded-md transition"
                         >
@@ -295,7 +313,11 @@ export default function Laudos() {
                       <Eye className="w-4 h-4" />
                     </Link>
                     <Link
-                      to={`/laudos/${rep.id}/editar`}
+                      to={
+                        rep.structured_data || rep.exam_type === 'Ultrassonografia'
+                          ? `/laudos/ultrassom?id=${rep.id}`
+                          : `/laudos/${rep.id}/editar`
+                      }
                       className="p-1.5 text-[#5F6E69] bg-[#F7F9F8] rounded-md"
                       title="Editar"
                     >

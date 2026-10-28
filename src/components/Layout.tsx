@@ -32,6 +32,7 @@ const NAV_ITEMS = [
   { path: '/exames', label: 'Exames', icon: ClipboardList },
   { path: '/laudos', label: 'Laudos', icon: FileText },
   { path: '/modelos', label: 'Modelos', icon: Layers },
+  { path: '/integracoes', label: 'Integrações', icon: Layers },
   { path: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
@@ -51,8 +52,10 @@ export default function Layout() {
     if (path.startsWith('/painel')) return 'Painel'
     if (path.startsWith('/pacientes')) return 'Pacientes'
     if (path.startsWith('/exames')) return 'Exames'
+    if (path.startsWith('/laudos/ultrassom')) return 'Laudo de Ultrassonografia'
     if (path.startsWith('/laudos')) return 'Laudos'
     if (path.startsWith('/modelos')) return 'Modelos'
+    if (path.startsWith('/integracoes')) return 'Integrações e DICOM'
     if (path.startsWith('/configuracoes')) return 'Configurações'
     if (path.startsWith('/administracao')) return 'Administração'
     return 'Sistema Médico'

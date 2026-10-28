@@ -62,6 +62,12 @@ export const reportsService = {
     template_id?: string
     title: string
     body: string
+    status?: 'Rascunho' | 'Finalizado'
+    is_draft?: boolean
+    exam_type?: string
+    structured_data?: any
+    conclusion?: string
+    images_config?: any
     author_name?: string
     author_crm?: string
     author_crm_uf?: string
@@ -70,15 +76,17 @@ export const reportsService = {
     const owner_id = pb.authStore.record?.id
     const user = pb.authStore.record
 
-    // Capture author identity at save time
+    // If finalizing, capture author identity at save time
     const author_name = data.author_name || user?.professional_name || user?.name || ''
     const author_crm = data.author_crm || user?.crm || ''
     const author_crm_uf = data.author_crm_uf || user?.crm_uf || ''
-    const signature_date = data.signature_date || new Date().toISOString()
+    const signature_date =
+      data.status === 'Finalizado' ? data.signature_date || new Date().toISOString() : undefined
 
     return pb.collection('reports').create<Report>(
       {
         ...data,
+        status: data.status || (data.is_draft ? 'Rascunho' : 'Finalizado'),
         author_name,
         author_crm,
         author_crm_uf,

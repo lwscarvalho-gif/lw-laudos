@@ -64,6 +64,26 @@ export interface Template extends RecordModel {
   updated?: string
 }
 
+export type ReportStatus = 'Rascunho' | 'Finalizado'
+
+export interface UltrasoundSectionData {
+  id: string
+  label: string
+  text: string
+  isCustom?: boolean
+}
+
+export interface ReportStructuredData {
+  sections: UltrasoundSectionData[]
+  conclusion: string
+  observations?: string
+  mode: 'structured' | 'freetext'
+}
+
+export interface ReportImagesConfig {
+  imagesPerPage: 2 | 4 | 6
+}
+
 export interface Report extends RecordModel {
   id: string
   owner_id: string
@@ -72,6 +92,12 @@ export interface Report extends RecordModel {
   template_id?: string
   title: string
   body: string
+  status?: ReportStatus
+  is_draft?: boolean
+  exam_type?: string
+  structured_data?: ReportStructuredData | null
+  conclusion?: string
+  images_config?: ReportImagesConfig | null
   author_name?: string
   author_crm?: string
   author_crm_uf?: string
@@ -85,6 +111,35 @@ export interface Report extends RecordModel {
     exam_id?: Exam
     template_id?: Template
   }
+}
+
+export interface UltrasoundFinding extends RecordModel {
+  id: string
+  owner_id: string
+  exam_scope: string
+  organ: string
+  title: string
+  finding_type: 'normal' | 'patologico'
+  text_content: string
+  is_default_normal?: boolean
+  is_favorite?: boolean
+  is_shared?: boolean
+  has_variables?: boolean
+  created?: string
+  updated?: string
+}
+
+export interface ExamImage extends RecordModel {
+  id: string
+  owner_id: string
+  exam_id?: string
+  report_id?: string
+  file: string
+  caption?: string
+  sort_order?: number
+  selected_for_print?: boolean
+  created?: string
+  updated?: string
 }
 
 export type InvitationStatus = 'Pendente' | 'Aceito' | 'Expirado'

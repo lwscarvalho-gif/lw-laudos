@@ -209,7 +209,13 @@ export default function ExameDetalhes() {
             </Button>
           ) : (
             <Button
-              onClick={() => navigate(`/laudos/novo?exame=${exam.id}`)}
+              onClick={() =>
+                navigate(
+                  exam.type.toLowerCase().includes('ultra')
+                    ? `/laudos/ultrassom?exame=${exam.id}&paciente=${exam.patient_id}`
+                    : `/laudos/novo?exame=${exam.id}`,
+                )
+              }
               className="bg-[#0C6B58] hover:bg-[#0A5949] text-white shadow-sm"
             >
               <FileText className="w-4 h-4 mr-1.5" />

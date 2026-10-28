@@ -26,6 +26,8 @@ import LaudoEditar from '@/pages/LaudoEditar'
 import Modelos from '@/pages/Modelos'
 import ModeloNovo from '@/pages/ModeloNovo'
 import ModeloEditar from '@/pages/ModeloEditar'
+import UltrasoundReportEditor from '@/pages/UltrasoundReportEditor'
+import Integracoes from '@/pages/Integracoes'
 import Administracao from '@/pages/Administracao'
 import Configuracoes from '@/pages/Configuracoes'
 import NotFound from '@/pages/NotFound'
@@ -68,8 +70,12 @@ export default function App() {
             {/* Laudos */}
             <Route path="/laudos" element={<Laudos />} />
             <Route path="/laudos/novo" element={<LaudoNovo />} />
+            <Route path="/laudos/ultrassom" element={<UltrasoundReportEditor />} />
             <Route path="/laudos/:id" element={<LaudoDetalhes />} />
             <Route path="/laudos/:id/editar" element={<LaudoEditar />} />
+
+            {/* Integrações DICOM / Equipamentos */}
+            <Route path="/integracoes" element={<Integracoes />} />
 
             {/* Modelos */}
             <Route path="/modelos" element={<Modelos />} />

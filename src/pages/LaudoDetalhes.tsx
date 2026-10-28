@@ -16,6 +16,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import type { Report } from '@/types'
 import { formatDateBR, formatDateTimeBR } from '@/lib/formatters'
 import { printReportPDF } from '@/lib/pdfGenerator'
+import { examImagesService } from '@/services/examImages'
+import type { ExamImage } from '@/types'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
@@ -36,6 +38,7 @@ export default function LaudoDetalhes() {
   const { toast } = useToast()
 
   const [report, setReport] = useState<Report | null>(null)
+  const [images, setImages] = useState<ExamImage[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -44,8 +47,12 @@ export default function LaudoDetalhes() {
     if (!id) return
     setLoading(true)
     try {
-      const rep = await reportsService.getById(id)
+      const [rep, imgs] = await Promise.all([
+        reportsService.getById(id),
+        examImagesService.getByReportId(id),
+      ])
       setReport(rep)
+      setImages(imgs)
     } catch {
       toast({
         title: 'Erro',
@@ -84,18 +91,31 @@ export default function LaudoDetalhes() {
 
   const handleDownloadPDF = () => {
     if (!report) return
+    const printableImages = images
+      .filter((img) => img.selected_for_print !== false)
+      .map((img) => ({
+        id: img.id,
+        url: examImagesService.getImageUrl(img),
+        caption: img.caption,
+        sortOrder: img.sort_order,
+      }))
+
     printReportPDF({
       title: report.title,
       patientName: report.expand?.patient_id?.name || 'Paciente',
       patientDocument: report.expand?.patient_id?.document,
       examDate: formatDateBR(report.expand?.exam_id?.exam_date || report.created),
       bodyHtml: report.body,
+      conclusionHtml: report.conclusion || report.structured_data?.conclusion || undefined,
       authorName: report.author_name || user?.professional_name || 'Médico Responsável',
       authorCrm: report.author_crm || user?.crm,
       authorCrmUf: report.author_crm_uf || user?.crm_uf,
       authorTitle: user?.professional_title,
       headerText: user?.header,
       signatureDate: report.signature_date || report.created,
+      isDraft: report.status === 'Rascunho' || report.is_draft,
+      images: printableImages,
+      imagesPerPage: report.images_config?.imagesPerPage || 4,
     })
   }
 
@@ -139,7 +159,13 @@ export default function LaudoDetalhes() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => navigate(`/laudos/${report.id}/editar`)}
+            onClick={() =>
+              navigate(
+                report.structured_data || report.exam_type === 'Ultrassonografia'
+                  ? `/laudos/ultrassom?id=${report.id}`
+                  : `/laudos/${report.id}/editar`,
+              )
+            }
             className="border-[#E5E9E7] text-[#1F2A27]"
           >
             <Edit2 className="w-4 h-4 mr-1.5" />
@@ -198,10 +224,19 @@ export default function LaudoDetalhes() {
         </div>
 
         {/* Title */}
-        <div className="text-center sm:text-left">
+        <div className="text-center sm:text-left flex items-center justify-between">
           <h1 className="text-xl sm:text-2xl font-bold text-[#1F2A27] uppercase tracking-wide">
             {report.title}
           </h1>
+          {report.status === 'Rascunho' || report.is_draft ? (
+            <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded">
+              Rascunho (Não finalizado)
+            </span>
+          ) : (
+            <span className="text-xs font-bold text-[#0C6B58] bg-[#E8F3F0] px-2.5 py-1 rounded">
+              Finalizado
+            </span>
+          )}
         </div>
 
         {/* Report Body (Georgia Serif stack) */}
@@ -209,6 +244,44 @@ export default function LaudoDetalhes() {
           className="font-serif-report text-base text-[#1F2A27] leading-relaxed prose max-w-none pt-2"
           dangerouslySetInnerHTML={{ __html: report.body }}
         />
+
+        {/* Separate conclusion if present */}
+        {(report.conclusion || report.structured_data?.conclusion) && (
+          <div className="p-4 rounded-xl bg-[#FAFBFB] border-l-4 border-[#0C6B58] border-t border-r border-b border-[#E5E9E7]">
+            <span className="font-bold text-sm text-[#0C6B58] uppercase block mb-1">
+              Conclusão Diagnóstica
+            </span>
+            <p className="text-sm font-semibold text-[#1F2A27] whitespace-pre-wrap">
+              {report.conclusion || report.structured_data?.conclusion}
+            </p>
+          </div>
+        )}
+
+        {/* Attached Images preview */}
+        {images.length > 0 && (
+          <div className="pt-6 border-t border-[#E5E9E7] space-y-4">
+            <h3 className="font-bold text-sm text-[#0C6B58] uppercase">
+              Documentação Fotográfica ({images.length} imagens)
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {images.map((img, i) => (
+                <div
+                  key={img.id}
+                  className="bg-black/90 rounded-lg p-2 flex flex-col items-center border border-[#E5E9E7]"
+                >
+                  <img
+                    src={examImagesService.getImageUrl(img)}
+                    alt={img.caption || `Registro ${i + 1}`}
+                    className="h-32 object-contain"
+                  />
+                  <span className="text-[10px] text-gray-300 mt-1 text-center truncate w-full">
+                    {img.caption || `Figura ${i + 1}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Signature Block (bottom) */}
         <div className="pt-12 border-t border-[#E5E9E7] flex flex-col items-center text-center space-y-1.5">

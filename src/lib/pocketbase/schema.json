@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-26T19:32:44.854Z",
+  "generatedAt": "2026-10-28T03:21:52.462Z",
   "collections": [
     {
       "name": "users",
@@ -413,6 +413,43 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Rascunho", "Finalizado"]
+        },
+        {
+          "name": "is_draft",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "exam_type",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "structured_data",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "conclusion",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "images_config",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -629,6 +666,177 @@
         }
       ],
       "indexes": ["CREATE UNIQUE INDEX idx_user_perms_user ON user_permissions (user)"]
+    },
+    {
+      "name": "ultrasound_findings",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && (is_shared = true || owner_id = @request.auth.id)",
+        "view": "@request.auth.id != '' && (is_shared = true || owner_id = @request.auth.id)",
+        "create": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "update": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "delete": "@request.auth.id != '' && owner_id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "owner_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "exam_scope",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "organ",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "finding_type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["normal", "patologico"]
+        },
+        {
+          "name": "text_content",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "is_default_normal",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_favorite",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_shared",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "has_variables",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_us_findings_owner ON ultrasound_findings (owner_id)",
+        "CREATE INDEX idx_us_findings_organ ON ultrasound_findings (organ)",
+        "CREATE INDEX idx_us_findings_scope ON ultrasound_findings (exam_scope)"
+      ]
+    },
+    {
+      "name": "exam_images",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "view": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "create": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "update": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "delete": "@request.auth.id != '' && owner_id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "owner_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "exam_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "exams"
+        },
+        {
+          "name": "report_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "reports"
+        },
+        {
+          "name": "file",
+          "type": "file",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "caption",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sort_order",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "selected_for_print",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_exam_images_owner ON exam_images (owner_id)",
+        "CREATE INDEX idx_exam_images_report ON exam_images (report_id)",
+        "CREATE INDEX idx_exam_images_exam ON exam_images (exam_id)"
+      ]
     }
   ]
 }
