@@ -48,6 +48,30 @@ export function formatDateTimeBR(dateStr?: string | null): string {
   }
 }
 
+// Returns current local civil date formatted as YYYY-MM-DD
+export function getLocalTodayYMD(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// Converts a local civil date input (YYYY-MM-DD) into an ISO string preserving the local civil calendar day (noon UTC)
+export function parseLocalYMDToISO(ymd: string): string {
+  if (!ymd) return ''
+  const parts = ymd.split('-')
+  if (parts.length === 3) {
+    const year = Number(parts[0])
+    const month = Number(parts[1]) - 1
+    const day = Number(parts[2])
+    // Use UTC noon to guarantee safety across timezones from UTC-12 to UTC+12
+    const d = new Date(Date.UTC(year, month, day, 12, 0, 0))
+    return d.toISOString()
+  }
+  return new Date(ymd).toISOString()
+}
+
 // Relative time in Portuguese (ex.: "há 2 dias", "hoje", "ontem")
 export function formatRelativeDate(dateStr?: string | null): string {
   if (!dateStr) return '—'

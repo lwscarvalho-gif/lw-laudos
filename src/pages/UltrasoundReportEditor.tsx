@@ -18,6 +18,9 @@ import {
   Loader2,
   FileCheck2,
   LayoutGrid,
+  Download,
+  Eye,
+  FileText,
 } from 'lucide-react'
 import { reportsService } from '@/services/reports'
 import { examsService } from '@/services/exams'
@@ -33,7 +36,7 @@ import type {
   UltrasoundSectionData,
   ReportStructuredData,
 } from '@/types'
-import { printReportPDF } from '@/lib/pdfGenerator'
+import { printReportPDF, buildReportHTML, downloadReportHTML } from '@/lib/pdfGenerator'
 import { formatDateBR } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -124,6 +127,10 @@ export default function UltrasoundReportEditor() {
   const [activeOrganLabel, setActiveOrganLabel] = useState<string>('Fígado')
 
   // Replacement confirmation state
+  // PDF inside app preview state
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
+  const [pdfPreviewHtml, setPdfPreviewHtml] = useState('')
+
   const [replaceConfirmOpen, setReplaceConfirmOpen] = useState(false)
   const [pendingTextToInsert, setPendingTextToInsert] = useState<{
     targetId: string
@@ -353,6 +360,13 @@ export default function UltrasoundReportEditor() {
           })
           setCurrentReportId(savedRep.id)
 
+          // Update URL query string with the newly created draft id without page reload
+          const currentUrl = new URL(window.location.href)
+          if (currentUrl.searchParams.get('id') !== savedRep.id) {
+            currentUrl.searchParams.set('id', savedRep.id)
+            window.history.replaceState({}, '', currentUrl.toString())
+          }
+
           // Link any pending images to this newly created report
           if (images.length > 0) {
             await examImagesService.linkImagesToReport(
@@ -441,10 +455,18 @@ export default function UltrasoundReportEditor() {
     }
     setHasUnsavedChanges(true)
 
-    // Focus back to active textarea
+    // Only restore focus if the user hasn't actively switched to another input/textarea
     setTimeout(() => {
-      const el = textareaRefs.current[targetId]
-      if (el) el.focus()
+      const activeEl = document.activeElement
+      const isUserTypingElsewhere =
+        activeEl &&
+        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') &&
+        activeEl !== textareaRefs.current[targetId]
+
+      if (!isUserTypingElsewhere) {
+        const el = textareaRefs.current[targetId]
+        if (el) el.focus()
+      }
     }, 50)
   }
 
@@ -544,12 +566,10 @@ export default function UltrasoundReportEditor() {
     setLibraryModalOpen(true)
   }
 
-  // Print / PDF action
-  const handlePrint = () => {
+  const buildCurrentReportProps = useCallback(() => {
     const patientObj = patients.find((p) => p.id === patientId)
     const selectedExam = exams.find((e) => e.id === examId)
 
-    // Filter only images that are checked for printing
     const selectedImgs = images
       .filter((img) => img.selected_for_print !== false)
       .map((img) => ({
@@ -559,7 +579,7 @@ export default function UltrasoundReportEditor() {
         sortOrder: img.sort_order,
       }))
 
-    printReportPDF({
+    return {
       title: title || 'Laudo de Ultrassonografia',
       patientName: patientObj?.name || 'Paciente',
       patientDocument: patientObj?.document,
@@ -576,7 +596,39 @@ export default function UltrasoundReportEditor() {
       isDraft: autosaveStatus !== 'saved' || !currentReportId,
       images: selectedImgs,
       imagesPerPage,
-    })
+    }
+  }, [
+    patients,
+    patientId,
+    exams,
+    examId,
+    images,
+    title,
+    generateFullHtmlBody,
+    conclusion,
+    user,
+    autosaveStatus,
+    currentReportId,
+    imagesPerPage,
+  ])
+
+  // Open in-app PDF preview modal
+  const handleOpenPdfPreview = () => {
+    const reportProps = buildCurrentReportProps()
+    const html = buildReportHTML({ ...reportProps, autoPrint: false })
+    setPdfPreviewHtml(html)
+    setPdfPreviewOpen(true)
+  }
+
+  // Print / PDF action
+  const handlePrint = () => {
+    const reportProps = buildCurrentReportProps()
+    printReportPDF(reportProps)
+  }
+
+  const handleDownloadHtml = () => {
+    const reportProps = buildCurrentReportProps()
+    downloadReportHTML(reportProps)
   }
 
   // FINALIZATION FLOW
@@ -717,7 +769,7 @@ export default function UltrasoundReportEditor() {
                 </span>
               )}
               {autosaveStatus === 'idle' && (
-                <span>{hasUnsavedChanges ? 'Alterações pendentes...' : 'Pronto para edição'}</span>
+                <span>{hasUnsavedChanges ? 'Alterações pendentes...' : 'Edição ativa'}</span>
               )}
             </div>
           </div>
@@ -740,11 +792,22 @@ export default function UltrasoundReportEditor() {
             type="button"
             variant="outline"
             size="sm"
+            onClick={handleOpenPdfPreview}
+            className="border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0] text-xs h-9 font-medium"
+          >
+            <Eye className="w-3.5 h-3.5 mr-1.5" />
+            Prévia do Laudo / PDF
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={handlePrint}
             className="border-[#E5E9E7] text-[#1F2A27] text-xs h-9"
           >
             <Printer className="w-3.5 h-3.5 mr-1.5" />
-            Imprimir / PDF A4
+            Imprimir A4
           </Button>
 
           <Button
@@ -1352,6 +1415,53 @@ export default function UltrasoundReportEditor() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL: IN-APP PDF / DOCUMENT PREVIEW */}
+      <Dialog open={pdfPreviewOpen} onOpenChange={setPdfPreviewOpen}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b border-[#E5E9E7] flex flex-row items-center justify-between">
+            <div>
+              <DialogTitle className="text-base font-bold text-[#1F2A27] flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#0C6B58]" />
+                Prévia do Laudo / PDF Integrada
+              </DialogTitle>
+              <DialogDescription className="text-xs text-[#5F6E69]">
+                Visualização do documento com formatação clínica A4, sem bloqueio de popups
+              </DialogDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadHtml}
+                className="text-xs h-8 border-[#E5E9E7]"
+                title="Baixar arquivo HTML/PDF do laudo"
+              >
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+                Baixar Documento
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handlePrint}
+                className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs h-8"
+              >
+                <Printer className="w-3.5 h-3.5 mr-1.5" />
+                Imprimir
+              </Button>
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 bg-gray-100 p-4 overflow-hidden">
+            <iframe
+              title="Prévia do Laudo em PDF"
+              srcDoc={pdfPreviewHtml}
+              className="w-full h-full bg-white rounded-lg shadow-sm border border-gray-300"
+            />
+          </div>
         </DialogContent>
       </Dialog>
 

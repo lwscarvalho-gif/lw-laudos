@@ -343,8 +343,11 @@ export default function Layout() {
         </main>
 
         {/* Slim Footer */}
-        <footer className="py-4 px-6 border-t border-[#E5E9E7] text-center text-xs text-[#8A9691] bg-white">
-          Sistema Médico Multiperfil © 2025
+        <footer className="py-4 px-6 border-t border-[#E5E9E7] text-center text-xs text-[#8A9691] bg-white flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>Sistema Médico Multiperfil © 2025</span>
+          <span className="text-[11px] bg-[#F4F6F5] text-[#5F6E69] px-2.5 py-0.5 rounded-full border border-[#E5E9E7]">
+            v0.0.2 • Versão preliminar para avaliação (não homologada para uso real)
+          </span>
         </footer>
       </div>
     </div>

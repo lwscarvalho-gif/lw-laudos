@@ -16,7 +16,7 @@ import { reportsService } from '@/services/reports'
 import { patientsService } from '@/services/patients'
 import { useRealtime } from '@/hooks/use-realtime'
 import type { Exam, Report, ExamStatus, Patient } from '@/types'
-import { formatDateBR } from '@/lib/formatters'
+import { formatDateBR, parseLocalYMDToISO } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -104,7 +104,7 @@ export default function ExameDetalhes() {
     try {
       const updated = await examsService.update(id, {
         type: type.trim(),
-        exam_date: new Date(examDate).toISOString(),
+        exam_date: parseLocalYMDToISO(examDate),
         status,
         indication: indication.trim(),
         technical_notes: technicalNotes.trim(),

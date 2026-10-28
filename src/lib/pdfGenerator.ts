@@ -25,7 +25,7 @@ export interface PrintReportProps {
   imagesPerPage?: 2 | 4 | 6
 }
 
-export function printReportPDF({
+export function buildReportHTML({
   title,
   patientName,
   patientDocument,
@@ -42,13 +42,8 @@ export function printReportPDF({
   isDraft,
   images = [],
   imagesPerPage = 4,
-}: PrintReportProps) {
-  const printWindow = window.open('', '_blank')
-  if (!printWindow) {
-    alert('Permita popups neste navegador para baixar ou imprimir o laudo em PDF.')
-    return
-  }
-
+  autoPrint = false,
+}: PrintReportProps & { autoPrint?: boolean }): string {
   const crmFormatted = authorCrm ? `CRM ${authorCrmUf ? `${authorCrmUf} ` : ''}${authorCrm}` : ''
   const sigDateFormatted = signatureDate
     ? new Date(signatureDate).toLocaleDateString('pt-BR', {
@@ -82,7 +77,7 @@ export function printReportPDF({
   const gridClass =
     imagesPerPage === 2 ? 'images-grid-2' : imagesPerPage === 6 ? 'images-grid-6' : 'images-grid-4'
 
-  const html = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
@@ -451,22 +446,48 @@ export function printReportPDF({
   <div class="footer">
     ${
       isDraft
-        ? 'DOCUMENTO EM RASCUNHO — NÃO CONCLUÍDO PELO MÉDICO RESPONSÁVEL TÉCNICO.'
-        : 'Documento assinado eletronicamente pelo responsável técnico. Válido como laudo médico oficial.'
+        ? 'DOCUMENTO EM RASCUNHO — VERSÃO PRELIMINAR PARA AVALIAÇÃO, NÃO CONCLUÍDO PELO MÉDICO RESPONSÁVEL TÉCNICO.'
+        : 'Identificação profissional registrada pelo médico responsável técnico. Versão preliminar para avaliação do sistema médico.'
     }
   </div>
 
-  <script>
+  ${
+    autoPrint
+      ? `<script>
     window.onload = function() {
       setTimeout(function() {
         window.print();
       }, 400);
     };
-  </script>
+  </script>`
+      : ''
+  }
 </body>
 </html>`
+}
 
+export function printReportPDF(props: PrintReportProps) {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    alert('Permita popups neste navegador para baixar ou imprimir o laudo em PDF.')
+    return
+  }
+  const html = buildReportHTML({ ...props, autoPrint: true })
   printWindow.document.open()
   printWindow.document.write(html)
   printWindow.document.close()
+}
+
+// Download report directly as HTML / Print ready file
+export function downloadReportHTML(props: PrintReportProps, filename?: string) {
+  const html = buildReportHTML({ ...props, autoPrint: false })
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename || `${props.title || 'Laudo'}-${props.patientName || 'Paciente'}.html`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

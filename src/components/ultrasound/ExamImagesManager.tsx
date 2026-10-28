@@ -215,20 +215,20 @@ export default function ExamImagesManager({
         </div>
 
         <div className="flex items-center gap-2">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            accept="image/jpeg,image/png"
-            multiple
-            className="hidden"
-          />
-          <Button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs h-9 shadow-sm"
+          <label
+            className={`inline-flex items-center justify-center rounded-md font-medium transition cursor-pointer select-none text-white text-xs h-9 px-4 shadow-sm bg-[#0C6B58] hover:bg-[#0A5949] ${
+              uploading ? 'opacity-50 pointer-events-none' : ''
+            }`}
           >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept="image/jpeg,image/png"
+              multiple
+              disabled={uploading}
+              className="sr-only"
+            />
             {uploading ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
@@ -240,7 +240,7 @@ export default function ExamImagesManager({
                 Adicionar Imagens (JPG/PNG)
               </>
             )}
-          </Button>
+          </label>
         </div>
       </div>
 
@@ -256,15 +256,24 @@ export default function ExamImagesManager({
 
       {/* Images Grid */}
       {images.length === 0 ? (
-        <div className="p-8 text-center border-2 border-dashed border-[#E5E9E7] rounded-xl bg-white space-y-2">
+        <label className="block p-8 text-center border-2 border-dashed border-[#E5E9E7] hover:border-[#0C6B58] rounded-xl bg-white space-y-2 cursor-pointer transition">
+          <input
+            type="file"
+            onChange={handleFileSelect}
+            accept="image/jpeg,image/png"
+            multiple
+            disabled={uploading}
+            className="sr-only"
+          />
           <ImageIcon className="w-8 h-8 text-[#8A9691] mx-auto stroke-1" />
           <p className="text-xs font-semibold text-[#1F2A27]">
             Nenhuma imagem anexada a este exame ainda
           </p>
           <p className="text-[11px] text-[#5F6E69]">
-            Envie as capturas ultrassonográficas do paciente em formato JPG ou PNG (até 15MB cada).
+            Clique aqui ou no botão acima para selecionar capturas ultrassonográficas (JPG ou PNG
+            até 15MB cada).
           </p>
-        </div>
+        </label>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {images.map((img, index) => {

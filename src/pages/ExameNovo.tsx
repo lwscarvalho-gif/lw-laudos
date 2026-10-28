@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Loader2, Save } from 'lucide-react'
 import { examsService } from '@/services/exams'
+import { getLocalTodayYMD, parseLocalYMDToISO } from '@/lib/formatters'
 import { patientsService } from '@/services/patients'
 import type { Patient, ExamStatus } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -42,7 +43,7 @@ export default function ExameNovo() {
 
   const [patientId, setPatientId] = useState(prefilledPatientId)
   const [type, setType] = useState('')
-  const [examDate, setExamDate] = useState(new Date().toISOString().slice(0, 10))
+  const [examDate, setExamDate] = useState(getLocalTodayYMD())
   const [status, setStatus] = useState<ExamStatus>('Pendente')
   const [indication, setIndication] = useState('')
   const [technicalNotes, setTechnicalNotes] = useState('')
@@ -80,7 +81,7 @@ export default function ExameNovo() {
       const created = await examsService.create({
         patient_id: patientId,
         type: type.trim(),
-        exam_date: new Date(examDate).toISOString(),
+        exam_date: parseLocalYMDToISO(examDate),
         status,
         indication: indication.trim(),
         technical_notes: technicalNotes.trim(),

@@ -18,7 +18,7 @@ import { examsService } from '@/services/exams'
 import { reportsService } from '@/services/reports'
 import { useRealtime } from '@/hooks/use-realtime'
 import type { Patient, Exam, Report } from '@/types'
-import { formatDateBR, maskCPF, maskPhone } from '@/lib/formatters'
+import { formatDateBR, maskCPF, maskPhone, parseLocalYMDToISO } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -133,7 +133,7 @@ export default function PacienteDetalhes() {
       const updated = await patientsService.update(id, {
         name: formData.name.trim(),
         document: formData.document.trim(),
-        birth_date: formData.birth_date ? new Date(formData.birth_date).toISOString() : undefined,
+        birth_date: formData.birth_date ? parseLocalYMDToISO(formData.birth_date) : undefined,
         sex: formData.sex,
         phone: formData.phone.trim(),
         email: formData.email.trim(),

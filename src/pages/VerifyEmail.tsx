@@ -53,7 +53,9 @@ export default function VerifyEmail() {
             <div className="p-4 rounded-xl bg-[#E8F3F0] border border-[#0C6B58]/20 flex flex-col items-center gap-3">
               <CheckCircle2 className="w-10 h-10 text-[#0C6B58]" />
               <p className="text-sm text-[#1F2A27] font-semibold">E-mail confirmado com sucesso!</p>
-              <p className="text-xs text-[#5F6E69]">Sua conta está ativa e pronta para uso.</p>
+              <p className="text-xs text-[#5F6E69]">
+                Sua conta está ativa e habilitada para avaliação preliminar.
+              </p>
             </div>
             <Link
               to="/login"
