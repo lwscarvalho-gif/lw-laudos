@@ -18,7 +18,7 @@ import { reportsService } from '@/services/reports'
 import { useRealtime } from '@/hooks/use-realtime'
 import type { Report } from '@/types'
 import { formatDateBR } from '@/lib/formatters'
-import { printReportPDF } from '@/lib/pdfGenerator'
+import { printReportPDF, downloadReportRealPdf } from '@/lib/pdfGenerator'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -91,20 +91,49 @@ export default function Laudos() {
     }
   }
 
-  const handleDownloadPDF = (rep: Report) => {
-    printReportPDF({
-      title: rep.title,
-      patientName: rep.expand?.patient_id?.name || 'Paciente',
-      patientDocument: rep.expand?.patient_id?.document,
-      examDate: formatDateBR(rep.expand?.exam_id?.exam_date || rep.created),
-      bodyHtml: rep.body,
-      authorName: rep.author_name || user?.professional_name || user?.name || 'Médico Responsável',
-      authorCrm: rep.author_crm || user?.crm,
-      authorCrmUf: rep.author_crm_uf || user?.crm_uf,
-      authorTitle: user?.professional_title,
-      headerText: user?.header,
-      signatureDate: rep.signature_date || rep.created,
-    })
+  const handleDownloadPDF = async (rep: Report) => {
+    const crmNum = rep.author_crm || user?.crm
+    const crmUf = rep.author_crm_uf || user?.crm_uf
+    const crmStr = crmNum ? `CRM ${crmUf ? `${crmUf} ` : ''}${crmNum}` : 'CRM não informado'
+    const defaultAuthorTitle = user?.professional_title || `Médico / ${crmStr}`
+
+    try {
+      await downloadReportRealPdf({
+        title: rep.title,
+        patientName: rep.expand?.patient_id?.name || 'Paciente',
+        patientDocument: rep.expand?.patient_id?.document,
+        examDate: formatDateBR(rep.expand?.exam_id?.exam_date || rep.created),
+        bodyHtml: rep.body,
+        authorName:
+          rep.author_name || user?.professional_name || user?.name || 'Médico Responsável',
+        authorCrm: crmNum,
+        authorCrmUf: crmUf,
+        authorTitle: defaultAuthorTitle,
+        headerText: user?.header,
+        signatureDate: rep.signature_date || rep.created,
+        isDraft: rep.status === 'Rascunho' || rep.is_draft,
+      })
+      toast({
+        title: 'Download iniciado',
+        description: 'O arquivo PDF verdadeiro do laudo foi baixado.',
+      })
+    } catch (err: unknown) {
+      console.error(err)
+      printReportPDF({
+        title: rep.title,
+        patientName: rep.expand?.patient_id?.name || 'Paciente',
+        patientDocument: rep.expand?.patient_id?.document,
+        examDate: formatDateBR(rep.expand?.exam_id?.exam_date || rep.created),
+        bodyHtml: rep.body,
+        authorName:
+          rep.author_name || user?.professional_name || user?.name || 'Médico Responsável',
+        authorCrm: crmNum,
+        authorCrmUf: crmUf,
+        authorTitle: defaultAuthorTitle,
+        headerText: user?.header,
+        signatureDate: rep.signature_date || rep.created,
+      })
+    }
   }
 
   const startIdx = totalItems === 0 ? 0 : (page - 1) * 15 + 1

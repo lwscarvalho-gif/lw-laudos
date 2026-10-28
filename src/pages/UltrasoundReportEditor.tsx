@@ -36,7 +36,12 @@ import type {
   UltrasoundSectionData,
   ReportStructuredData,
 } from '@/types'
-import { printReportPDF, buildReportHTML, downloadReportHTML } from '@/lib/pdfGenerator'
+import {
+  printReportPDF,
+  buildReportHTML,
+  downloadReportRealPdf,
+  downloadReportHTML,
+} from '@/lib/pdfGenerator'
 import { formatDateBR } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -130,6 +135,7 @@ export default function UltrasoundReportEditor() {
   // PDF inside app preview state
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
   const [pdfPreviewHtml, setPdfPreviewHtml] = useState('')
+  const [downloadingRealPdf, setDownloadingRealPdf] = useState(false)
 
   const [replaceConfirmOpen, setReplaceConfirmOpen] = useState(false)
   const [pendingTextToInsert, setPendingTextToInsert] = useState<{
@@ -572,12 +578,22 @@ export default function UltrasoundReportEditor() {
 
     const selectedImgs = images
       .filter((img) => img.selected_for_print !== false)
-      .map((img) => ({
+      .map((img, idx) => ({
         id: img.id,
         url: examImagesService.getImageUrl(img),
-        caption: img.caption,
-        sortOrder: img.sort_order,
+        caption: img.caption || '',
+        sortOrder: img.sort_order ?? idx,
       }))
+
+    const authorCrmStr = user?.crm
+      ? `CRM ${user?.crm_uf ? `${user?.crm_uf} ` : ''}${user.crm}`
+      : 'CRM não informado'
+    const defaultAuthorTitle = user?.professional_title || `Médico / ${authorCrmStr}`
+
+    // Physician logo if configured
+    const logoUrl = user?.logo
+      ? pb.files.getURL(user as unknown as Record<string, unknown>, user.logo)
+      : undefined
 
     return {
       title: title || 'Laudo de Ultrassonografia',
@@ -590,7 +606,8 @@ export default function UltrasoundReportEditor() {
       authorName: user?.professional_name || user?.name || 'Médico Responsável Técnico',
       authorCrm: user?.crm,
       authorCrmUf: user?.crm_uf,
-      authorTitle: user?.professional_title,
+      authorTitle: defaultAuthorTitle,
+      logoUrl,
       headerText: user?.header,
       signatureDate: new Date().toISOString(),
       isDraft: autosaveStatus !== 'saved' || !currentReportId,
@@ -626,9 +643,25 @@ export default function UltrasoundReportEditor() {
     printReportPDF(reportProps)
   }
 
-  const handleDownloadHtml = () => {
-    const reportProps = buildCurrentReportProps()
-    downloadReportHTML(reportProps)
+  const handleDownloadRealPdf = async () => {
+    setDownloadingRealPdf(true)
+    try {
+      const reportProps = buildCurrentReportProps()
+      await downloadReportRealPdf(reportProps)
+      toast({
+        title: 'Download iniciado',
+        description: 'O arquivo PDF verdadeiro (application/pdf) foi gerado e baixado.',
+      })
+    } catch (err: unknown) {
+      console.error('Erro ao gerar PDF:', err)
+      toast({
+        title: 'Falha no download do PDF',
+        description: 'Não foi possível gerar o arquivo PDF. Tente novamente ou use Imprimir.',
+        variant: 'destructive',
+      })
+    } finally {
+      setDownloadingRealPdf(false)
+    }
   }
 
   // FINALIZATION FLOW
@@ -1245,7 +1278,10 @@ export default function UltrasoundReportEditor() {
                 CRM {user?.crm_uf ? `${user?.crm_uf} ` : ''}
                 {user?.crm || 'Não informado'}
               </p>
-              {user?.professional_title && <p>{user.professional_title}</p>}
+              <p className="text-[11px] text-[#0C6B58] font-medium">
+                {user?.professional_title ||
+                  `Médico / CRM ${user?.crm_uf ? `${user?.crm_uf} ` : ''}${user?.crm || 'Não informado'}`}
+              </p>
             </div>
 
             <p className="text-[11px] text-[#8A9691] pt-1 border-t border-[#E5E9E7]">
@@ -1361,7 +1397,8 @@ export default function UltrasoundReportEditor() {
                 <span className="font-semibold text-[#0C6B58]">
                   {user?.professional_name || user?.name || 'Médico'} • CRM{' '}
                   {user?.crm_uf ? `${user?.crm_uf} ` : ''}
-                  {user?.crm || '—'}
+                  {user?.crm || '—'} (
+                  {user?.professional_title || `Médico / CRM ${user?.crm || '—'}`})
                 </span>
               </div>
               <div>
@@ -1436,12 +1473,22 @@ export default function UltrasoundReportEditor() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={handleDownloadHtml}
-                className="text-xs h-8 border-[#E5E9E7]"
-                title="Baixar arquivo HTML/PDF do laudo"
+                onClick={handleDownloadRealPdf}
+                disabled={downloadingRealPdf}
+                className="text-xs h-8 border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0] font-medium"
+                title="Baixar arquivo PDF autêntico (%PDF- / application/pdf)"
               >
-                <Download className="w-3.5 h-3.5 mr-1.5" />
-                Baixar Documento
+                {downloadingRealPdf ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    Gerando PDF...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                    Baixar Documento
+                  </>
+                )}
               </Button>
               <Button
                 type="button"
@@ -1454,6 +1501,16 @@ export default function UltrasoundReportEditor() {
               </Button>
             </div>
           </DialogHeader>
+
+          <div className="bg-[#FFFBEB] px-4 py-2 border-b border-[#FDE68A] flex items-center justify-between text-xs text-[#92400E]">
+            <span>
+              <strong>Atenção:</strong> Versão preliminar para avaliação (não homologada para uso
+              real).
+            </span>
+            <span className="text-[11px] text-[#B45309]">
+              O botão &quot;Baixar Documento&quot; produz arquivo PDF nativo (application/pdf).
+            </span>
+          </div>
 
           <div className="flex-1 bg-gray-100 p-4 overflow-hidden">
             <iframe

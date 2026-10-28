@@ -36,29 +36,31 @@ export default function ExamImagesManager({
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
   const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null)
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
+  const processAndUploadFiles = async (fileList: FileList | File[]) => {
+    if (!fileList || fileList.length === 0) return
 
     const validFiles: File[] = []
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
+    const filesArray = Array.from(fileList)
+
+    for (const file of filesArray) {
       // Validate type: JPG/PNG
       if (!file.type.match(/^image\/(jpeg|png)$/)) {
         toast({
-          title: 'Arquivo inválido',
-          description: `O arquivo "${file.name}" não é JPG ou PNG válido. Apenas JPG e PNG são aceitos.`,
+          title: 'Arquivo não suportado',
+          description: `O arquivo "${file.name}" (${file.type || 'tipo desconhecido'}) não é JPG ou PNG. Selecione apenas imagens JPG ou PNG.`,
           variant: 'destructive',
         })
         continue
       }
       // Validate size: 15MB max
       if (file.size > 15 * 1024 * 1024) {
+        const sizeMb = (file.size / (1024 * 1024)).toFixed(1)
         toast({
-          title: 'Tamanho excessivo',
-          description: `A imagem "${file.name}" excede o limite máximo permitido de 15MB.`,
+          title: 'Tamanho excedido (limite 15 MB)',
+          description: `A imagem "${file.name}" possui ${sizeMb} MB e ultrapassa o limite máximo permitido de 15 MB por arquivo.`,
           variant: 'destructive',
         })
         continue
@@ -72,11 +74,12 @@ export default function ExamImagesManager({
     }
 
     setUploading(true)
-    try {
-      const uploadedResults: ExamImage[] = []
-      let startOrder = images.length
+    const uploadedResults: ExamImage[] = []
+    const errors: string[] = []
+    let startOrder = images.length
 
-      for (const file of validFiles) {
+    for (const file of validFiles) {
+      try {
         const created = await examImagesService.upload(file, {
           report_id: reportId || undefined,
           exam_id: examId || undefined,
@@ -85,22 +88,61 @@ export default function ExamImagesManager({
           caption: '',
         })
         uploadedResults.push(created)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Falha na requisição'
+        errors.push(`"${file.name}": ${msg}`)
       }
+    }
 
+    if (uploadedResults.length > 0) {
       onImagesChange([...images, ...uploadedResults])
       toast({
-        title: 'Imagens enviadas',
-        description: `${uploadedResults.length} imagem(ns) adicionada(s) ao exame.`,
+        title: 'Imagens anexadas',
+        description: `${uploadedResults.length} imagem(ns) enviada(s) e vinculada(s) ao exame com sucesso.`,
       })
-    } catch {
+    }
+
+    if (errors.length > 0) {
       toast({
-        title: 'Erro no envio',
-        description: 'Falha ao salvar as imagens no servidor seguro.',
+        title: 'Falha no envio de arquivo(s)',
+        description: `Não foi possível enviar: ${errors.join(', ')}. Verifique o servidor e tente novamente.`,
         variant: 'destructive',
       })
-    } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      processAndUploadFiles(e.target.files)
+    }
+  }
+
+  // Accessible Drag-and-Drop Handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!uploading) {
+      setIsDragOver(true)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+    if (uploading) return
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processAndUploadFiles(e.dataTransfer.files)
     }
   }
 
@@ -201,46 +243,84 @@ export default function ExamImagesManager({
 
   return (
     <div className="space-y-4">
-      {/* Top Header info */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-[#E5E9E7]">
-        <div>
-          <h3 className="font-bold text-sm text-[#1F2A27] flex items-center gap-2">
-            <ImageIcon className="w-4 h-4 text-[#0C6B58]" />
-            Documentação Fotográfica do Exame
-          </h3>
-          <p className="text-xs text-[#5F6E69] mt-0.5">
-            Anexe imagens JPG ou PNG. Todas vêm selecionadas para o anexo do laudo; desmarcar não
-            apaga o arquivo.
-          </p>
+      {/* Top Header info & Native Visible File Input */}
+      <div className="bg-white p-4 rounded-xl border border-[#E5E9E7] space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="font-bold text-sm text-[#1F2A27] flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-[#0C6B58]" />
+              Documentação Fotográfica do Exame
+            </h3>
+            <p className="text-xs text-[#5F6E69] mt-0.5">
+              Anexe imagens JPG ou PNG (até 15 MB cada). Todas vêm selecionadas para o anexo do
+              laudo; desmarcar não apaga o arquivo.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {uploading && (
+              <span className="flex items-center gap-1.5 text-xs text-[#0C6B58] font-medium">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Enviando imagens...
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <label
-            className={`inline-flex items-center justify-center rounded-md font-medium transition cursor-pointer select-none text-white text-xs h-9 px-4 shadow-sm bg-[#0C6B58] hover:bg-[#0A5949] ${
-              uploading ? 'opacity-50 pointer-events-none' : ''
-            }`}
+        {/* Option: Visible Native File Input */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-[#E5E9E7]">
+          <Label
+            htmlFor="native-file-input"
+            className="text-xs font-semibold text-[#1F2A27] shrink-0"
           >
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileSelect}
-              accept="image/jpeg,image/png"
-              multiple
-              disabled={uploading}
-              className="sr-only"
-            />
-            {uploading ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                Enviando imagens...
-              </>
-            ) : (
-              <>
-                <Upload className="w-3.5 h-3.5 mr-1.5" />
-                Adicionar Imagens (JPG/PNG)
-              </>
-            )}
-          </label>
+            Seletor direto de arquivo:
+          </Label>
+          <input
+            id="native-file-input"
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept="image/jpeg,image/png"
+            multiple
+            disabled={uploading}
+            className="text-xs text-[#1F2A27] file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#0C6B58] file:text-white hover:file:bg-[#0A5949] cursor-pointer"
+          />
+        </div>
+      </div>
+
+      {/* Accessible Drag & Drop Zone */}
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`p-6 text-center border-2 border-dashed rounded-xl transition cursor-pointer select-none ${
+          isDragOver
+            ? 'border-[#0C6B58] bg-[#E8F3F0] scale-[0.998]'
+            : 'border-[#D6DDD9] bg-white hover:border-[#0C6B58] hover:bg-[#F7F9F8]'
+        }`}
+        onClick={() => fileInputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            fileInputRef.current?.click()
+          }
+        }}
+        aria-label="Área de arrastar e soltar imagens para o exame"
+      >
+        <div className="flex flex-col items-center gap-2 pointer-events-none">
+          <Upload className={`w-7 h-7 ${isDragOver ? 'text-[#0C6B58]' : 'text-[#8A9691]'}`} />
+          <div>
+            <p className="text-xs font-semibold text-[#1F2A27]">
+              {isDragOver
+                ? 'Solte as imagens aqui para iniciar o envio'
+                : 'Arraste e solte imagens JPG / PNG aqui'}
+            </p>
+            <p className="text-[11px] text-[#5F6E69] mt-0.5">
+              ou clique para abrir a janela de seleção (suporta seleção múltipla, máx. 15 MB cada)
+            </p>
+          </div>
         </div>
       </div>
 
@@ -256,24 +336,16 @@ export default function ExamImagesManager({
 
       {/* Images Grid */}
       {images.length === 0 ? (
-        <label className="block p-8 text-center border-2 border-dashed border-[#E5E9E7] hover:border-[#0C6B58] rounded-xl bg-white space-y-2 cursor-pointer transition">
-          <input
-            type="file"
-            onChange={handleFileSelect}
-            accept="image/jpeg,image/png"
-            multiple
-            disabled={uploading}
-            className="sr-only"
-          />
+        <div className="p-8 text-center rounded-xl bg-white border border-[#E5E9E7] space-y-2">
           <ImageIcon className="w-8 h-8 text-[#8A9691] mx-auto stroke-1" />
           <p className="text-xs font-semibold text-[#1F2A27]">
             Nenhuma imagem anexada a este exame ainda
           </p>
           <p className="text-[11px] text-[#5F6E69]">
-            Clique aqui ou no botão acima para selecionar capturas ultrassonográficas (JPG ou PNG
-            até 15MB cada).
+            Utilize o seletor nativo visível ou a área de arrastar e soltar acima para adicionar
+            capturas ecográficas.
           </p>
-        </label>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {images.map((img, index) => {

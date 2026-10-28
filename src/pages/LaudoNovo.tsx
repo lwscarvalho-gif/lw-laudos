@@ -17,7 +17,7 @@ import { templatesService } from '@/services/templates'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Patient, Exam, Template } from '@/types'
 import RichTextEditor from '@/components/RichTextEditor'
-import { printReportPDF } from '@/lib/pdfGenerator'
+import { printReportPDF, downloadReportRealPdf } from '@/lib/pdfGenerator'
 import { formatDateBR } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -227,20 +227,51 @@ export default function LaudoNovo() {
     }
   }
 
-  const handleDownloadDraft = () => {
+  const [downloadingRealPdf, setDownloadingRealPdf] = useState(false)
+
+  const handleDownloadDraft = async () => {
     const selectedPatient = patients.find((p) => p.id === patientId)
-    printReportPDF({
-      title: title || 'Laudo Médico',
-      patientName: selectedPatient?.name || 'Paciente Não Selecionado',
-      patientDocument: selectedPatient?.document,
-      bodyHtml: body,
-      authorName: user?.professional_name || user?.name || 'Médico Responsável',
-      authorCrm: user?.crm,
-      authorCrmUf: user?.crm_uf,
-      authorTitle: user?.professional_title,
-      headerText: user?.header,
-      signatureDate: new Date().toISOString(),
-    })
+    const crmNum = user?.crm
+    const crmUf = user?.crm_uf
+    const crmStr = crmNum ? `CRM ${crmUf ? `${crmUf} ` : ''}${crmNum}` : 'CRM não informado'
+    const defaultAuthorTitle = user?.professional_title || `Médico / ${crmStr}`
+
+    setDownloadingRealPdf(true)
+    try {
+      await downloadReportRealPdf({
+        title: title || 'Laudo Médico',
+        patientName: selectedPatient?.name || 'Paciente Não Selecionado',
+        patientDocument: selectedPatient?.document,
+        bodyHtml: body,
+        authorName: user?.professional_name || user?.name || 'Médico Responsável',
+        authorCrm: crmNum,
+        authorCrmUf: crmUf,
+        authorTitle: defaultAuthorTitle,
+        headerText: user?.header,
+        signatureDate: new Date().toISOString(),
+        isDraft: true,
+      })
+      toast({
+        title: 'Download iniciado',
+        description: 'O PDF verdadeiro foi baixado com sucesso.',
+      })
+    } catch (err: unknown) {
+      console.error(err)
+      printReportPDF({
+        title: title || 'Laudo Médico',
+        patientName: selectedPatient?.name || 'Paciente Não Selecionado',
+        patientDocument: selectedPatient?.document,
+        bodyHtml: body,
+        authorName: user?.professional_name || user?.name || 'Médico Responsável',
+        authorCrm: crmNum,
+        authorCrmUf: crmUf,
+        authorTitle: defaultAuthorTitle,
+        headerText: user?.header,
+        signatureDate: new Date().toISOString(),
+      })
+    } finally {
+      setDownloadingRealPdf(false)
+    }
   }
 
   if (loadingInitial) {
@@ -278,10 +309,20 @@ export default function LaudoNovo() {
             type="button"
             variant="outline"
             onClick={handleDownloadDraft}
-            className="border-[#E5E9E7] text-[#1F2A27]"
+            disabled={downloadingRealPdf}
+            className="border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0] text-xs h-9 font-medium"
           >
-            <Download className="w-4 h-4 mr-1.5" />
-            Baixar PDF
+            {downloadingRealPdf ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                Gerando PDF...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 mr-1.5" />
+                Baixar PDF Real
+              </>
+            )}
           </Button>
           <Button
             type="button"

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import {
   User,
   Shield,
@@ -11,6 +11,8 @@ import {
   Upload,
   CheckCircle2,
   AlertCircle,
+  ImageIcon,
+  Trash2,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
@@ -79,6 +81,16 @@ export default function Configuracoes() {
   const [header, setHeader] = useState(user?.header || '')
   const [savingProfile, setSavingProfile] = useState(false)
 
+  // Logo upload state
+  const logoInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(() => {
+    if (user?.logo) {
+      return pb.files.getURL(user as unknown as Record<string, unknown>, user.logo)
+    }
+    return null
+  })
+
   // Change Password State
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -92,6 +104,85 @@ export default function Configuracoes() {
   const [newEmail, setNewEmail] = useState('')
   const [sendingEmailChange, setSendingEmailChange] = useState(false)
   const [emailSuccessMessage, setEmailSuccessMessage] = useState<string | null>(null)
+
+  // Upload Logo
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+
+    // Limit format: PNG / JPEG
+    if (!file.type.match(/^image\/(jpeg|png)$/)) {
+      toast({
+        title: 'Formato inválido',
+        description: 'O logotipo deve ser um arquivo de imagem nos formatos PNG ou JPEG.',
+        variant: 'destructive',
+      })
+      if (logoInputRef.current) logoInputRef.current.value = ''
+      return
+    }
+
+    // Limit size: ~2 MB
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: 'Tamanho excedido',
+        description: 'O arquivo de logotipo deve ter no máximo 2 MB.',
+        variant: 'destructive',
+      })
+      if (logoInputRef.current) logoInputRef.current.value = ''
+      return
+    }
+
+    setUploadingLogo(true)
+    try {
+      const formData = new FormData()
+      formData.append('logo', file)
+
+      const updated = await pb.collection('users').update(user.id, formData)
+      await refreshUser()
+      if (updated.logo) {
+        setLogoPreviewUrl(pb.files.getURL(updated, updated.logo))
+      }
+      toast({
+        title: 'Logotipo atualizado',
+        description: 'Seu logotipo foi salvo e será exibido no cabeçalho dos laudos.',
+      })
+    } catch {
+      toast({
+        title: 'Erro no envio',
+        description: 'Falha ao enviar o logotipo. Verifique sua conexão e tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setUploadingLogo(false)
+      if (logoInputRef.current) logoInputRef.current.value = ''
+    }
+  }
+
+  // Remove Logo
+  const handleRemoveLogo = async () => {
+    if (!user) return
+    setUploadingLogo(true)
+    try {
+      await pb.collection('users').update(user.id, {
+        logo: null,
+      })
+      await refreshUser()
+      setLogoPreviewUrl(null)
+      toast({
+        title: 'Logotipo removido',
+        description: 'O cabeçalho voltará a usar a marca tipográfica provisória LW Laudos.',
+      })
+    } catch {
+      toast({
+        title: 'Erro ao remover',
+        description: 'Não foi possível remover o logotipo no servidor.',
+        variant: 'destructive',
+      })
+    } finally {
+      setUploadingLogo(false)
+      if (logoInputRef.current) logoInputRef.current.value = ''
+    }
+  }
 
   const handleSaveIdentification = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -237,8 +328,11 @@ export default function Configuracoes() {
                 id="prof_title"
                 value={professionalTitle}
                 onChange={(e) => setProfessionalTitle(e.target.value)}
-                placeholder="Ex.: Médico Radiologista"
+                placeholder="Ex.: Médico / CRM 6955"
               />
+              <p className="text-[11px] text-[#8A9691]">
+                Caso não informado, o laudo exibirá por padrão &quot;Médico / CRM&quot;.
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -285,6 +379,77 @@ export default function Configuracoes() {
             <p className="text-[11px] text-[#8A9691]">
               Texto renderizado no topo de cada laudo gerado ou exportado em PDF.
             </p>
+          </div>
+
+          {/* Logotipo do Médico */}
+          <div className="space-y-3 pt-4 border-t border-[#E5E9E7]">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-xs font-semibold text-[#1F2A27] flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-[#0C6B58]" />
+                  Logotipo do Médico / Clínica
+                </Label>
+                <p className="text-[11px] text-[#5F6E69] mt-0.5">
+                  Exibido no cabeçalho do PDF e da prévia impressa do laudo. Se não enviado, será
+                  mantida a marca tipográfica provisória &quot;LW Laudos&quot;.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-xl border border-[#E5E9E7] bg-[#F7F9F8]">
+              {/* Preview Box */}
+              <div className="w-40 h-20 bg-white rounded-lg border border-[#D6DDD9] flex items-center justify-center overflow-hidden p-2">
+                {logoPreviewUrl ? (
+                  <img
+                    src={logoPreviewUrl}
+                    alt="Prévia do Logotipo"
+                    className="max-h-full max-w-full object-contain"
+                  />
+                ) : (
+                  <div className="text-center">
+                    <span className="block font-bold text-xs text-[#0C6B58] tracking-wider">
+                      LW LAUDOS
+                    </span>
+                    <span className="block text-[8px] text-[#8A9691] uppercase">
+                      Marca Provisória
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Upload & Remove Controls with Visible Native Input */}
+              <div className="space-y-2 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Native visible file input */}
+                  <input
+                    type="file"
+                    ref={logoInputRef}
+                    onChange={handleLogoUpload}
+                    accept="image/png,image/jpeg"
+                    disabled={uploadingLogo}
+                    className="text-xs text-[#1F2A27] file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#0C6B58] file:text-white hover:file:bg-[#0A5949] cursor-pointer"
+                  />
+
+                  {logoPreviewUrl && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRemoveLogo}
+                      disabled={uploadingLogo}
+                      className="text-xs h-8 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                      Remover logotipo
+                    </Button>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-[#8A9691]">
+                  Formatos aceitos: PNG ou JPEG (máximo 2 MB). Não distorce a proporção original.
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="pt-3 flex justify-end">

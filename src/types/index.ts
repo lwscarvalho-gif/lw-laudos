@@ -101,6 +101,7 @@ export interface Report extends RecordModel {
   author_name?: string
   author_crm?: string
   author_crm_uf?: string
+  author_title?: string
   author_logo?: string
   signature_date?: string
   created?: string

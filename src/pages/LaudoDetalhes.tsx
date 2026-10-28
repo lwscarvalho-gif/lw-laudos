@@ -10,12 +10,18 @@ import {
   Loader2,
   CheckCircle2,
   ShieldCheck,
+  Printer,
 } from 'lucide-react'
 import { reportsService } from '@/services/reports'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Report } from '@/types'
 import { formatDateBR, formatDateTimeBR } from '@/lib/formatters'
-import { printReportPDF } from '@/lib/pdfGenerator'
+import {
+  printReportPDF,
+  downloadReportRealPdf,
+  PRELIMINARY_VERSION_DISCLAIMER,
+} from '@/lib/pdfGenerator'
+import pb from '@/lib/pocketbase/client'
 import { examImagesService } from '@/services/examImages'
 import type { ExamImage } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -89,8 +95,10 @@ export default function LaudoDetalhes() {
     }
   }
 
-  const handleDownloadPDF = () => {
-    if (!report) return
+  const [downloadingRealPdf, setDownloadingRealPdf] = useState(false)
+
+  const buildPrintReportProps = () => {
+    if (!report) return null
     const printableImages = images
       .filter((img) => img.selected_for_print !== false)
       .map((img) => ({
@@ -100,7 +108,16 @@ export default function LaudoDetalhes() {
         sortOrder: img.sort_order,
       }))
 
-    printReportPDF({
+    const crmNum = report.author_crm || user?.crm
+    const crmUf = report.author_crm_uf || user?.crm_uf
+    const crmStr = crmNum ? `CRM ${crmUf ? `${crmUf} ` : ''}${crmNum}` : 'CRM não informado'
+    const defaultAuthorTitle = user?.professional_title || `Médico / ${crmStr}`
+
+    const logoUrl = user?.logo
+      ? pb.files.getURL(user as unknown as Record<string, unknown>, user.logo)
+      : undefined
+
+    return {
       title: report.title,
       patientName: report.expand?.patient_id?.name || 'Paciente',
       patientDocument: report.expand?.patient_id?.document,
@@ -108,15 +125,45 @@ export default function LaudoDetalhes() {
       bodyHtml: report.body,
       conclusionHtml: report.conclusion || report.structured_data?.conclusion || undefined,
       authorName: report.author_name || user?.professional_name || 'Médico Responsável',
-      authorCrm: report.author_crm || user?.crm,
-      authorCrmUf: report.author_crm_uf || user?.crm_uf,
-      authorTitle: user?.professional_title,
+      authorCrm: crmNum,
+      authorCrmUf: crmUf,
+      authorTitle: defaultAuthorTitle,
+      logoUrl,
       headerText: user?.header,
       signatureDate: report.signature_date || report.created,
       isDraft: report.status === 'Rascunho' || report.is_draft,
       images: printableImages,
-      imagesPerPage: report.images_config?.imagesPerPage || 4,
-    })
+      imagesPerPage: (report.images_config?.imagesPerPage || 4) as 2 | 4 | 6,
+    }
+  }
+
+  const handleDownloadPDF = async () => {
+    const props = buildPrintReportProps()
+    if (!props) return
+
+    setDownloadingRealPdf(true)
+    try {
+      await downloadReportRealPdf(props)
+      toast({
+        title: 'Download iniciado',
+        description: 'O laudo em PDF real (%PDF-) foi gerado com sucesso.',
+      })
+    } catch (err: unknown) {
+      console.error(err)
+      toast({
+        title: 'Erro ao gerar PDF',
+        description: 'Falha na compilação do arquivo PDF.',
+        variant: 'destructive',
+      })
+    } finally {
+      setDownloadingRealPdf(false)
+    }
+  }
+
+  const handlePrintPDF = () => {
+    const props = buildPrintReportProps()
+    if (!props) return
+    printReportPDF(props)
   }
 
   if (loading) {
@@ -152,10 +199,29 @@ export default function LaudoDetalhes() {
         <div className="flex items-center gap-2">
           <Button
             onClick={handleDownloadPDF}
-            className="bg-[#0C6B58] hover:bg-[#0A5949] text-white shadow-sm font-semibold"
+            disabled={downloadingRealPdf}
+            className="bg-[#0C6B58] hover:bg-[#0A5949] text-white shadow-sm font-semibold text-xs h-9"
+            title="Baixar arquivo PDF autêntico (application/pdf)"
           >
-            <Download className="w-4 h-4 mr-1.5" />
-            Baixar PDF
+            {downloadingRealPdf ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                Gerando PDF...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 mr-1.5" />
+                Baixar PDF Real
+              </>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handlePrintPDF}
+            className="border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0] text-xs h-9"
+          >
+            <Printer className="w-4 h-4 mr-1.5" />
+            Imprimir
           </Button>
           <Button
             variant="outline"
@@ -296,13 +362,15 @@ export default function LaudoDetalhes() {
                 ? `CRM ${user?.crm_uf ? `${user?.crm_uf} ` : ''}${user.crm}`
                 : 'CRM não informado'}
           </p>
-          {user?.professional_title && (
-            <p className="text-xs text-[#5F6E69]">{user.professional_title}</p>
-          )}
+          <p className="text-xs text-[#5F6E69]">
+            {user?.professional_title ||
+              `Médico / CRM ${report.author_crm_uf || user?.crm_uf ? `${report.author_crm_uf || user?.crm_uf} ` : ''}${report.author_crm || user?.crm || 'Não informado'}`}
+          </p>
           <p className="text-[11px] text-[#8A9691] pt-1 flex items-center gap-1 justify-center">
             <ShieldCheck className="w-3.5 h-3.5 text-[#0C6B58]" />
             Assinado em {formatDateTimeBR(report.signature_date || report.created)}
           </p>
+          <p className="text-[10px] text-[#8A9691] pt-1 italic">{PRELIMINARY_VERSION_DISCLAIMER}</p>
         </div>
       </div>
 
