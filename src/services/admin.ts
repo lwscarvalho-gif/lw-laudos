@@ -1,5 +1,5 @@
 import pb from '@/lib/pocketbase/client'
-import type { Invitation, User, UserPermissions } from '@/types'
+import type { Invitation, User, UserPermissions, UserRole } from '@/types'
 
 export const adminService = {
   // Invitations

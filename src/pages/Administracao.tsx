@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { adminService } from '@/services/admin'
 import { useAuth } from '@/contexts/AuthContext'
-import type { Invitation, User, UserPermissions } from '@/types'
+import type { Invitation, User, UserPermissions, UserRole } from '@/types'
 import { formatDateBR } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

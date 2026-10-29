@@ -63,6 +63,7 @@ export default function PacienteDetalhes() {
     phone: '',
     email: '',
     address: '',
+    sus_card: '',
     notes: '',
   })
   const [savingPatient, setSavingPatient] = useState(false)
@@ -93,7 +94,7 @@ export default function PacienteDetalhes() {
         phone: p.phone || '',
         email: p.email || '',
         address: p.address || '',
-        sus_card: (p as any).sus_card || '',
+        sus_card: p.sus_card || '',
         notes: p.notes || '',
       })
     } catch {
@@ -139,7 +140,7 @@ export default function PacienteDetalhes() {
         phone: formData.phone.trim(),
         email: formData.email.trim(),
         address: formData.address.trim(),
-        sus_card: (formData as any).sus_card?.trim() || '',
+        sus_card: formData.sus_card?.trim() || '',
         notes: formData.notes.trim(),
       })
       setPatient(updated)
@@ -363,8 +364,8 @@ export default function PacienteDetalhes() {
                 </Label>
                 <Input
                   id="det_sus"
-                  value={(formData as any).sus_card || ''}
-                  onChange={(e) => setFormData({ ...formData, sus_card: e.target.value } as any)}
+                  value={formData.sus_card || ''}
+                  onChange={(e) => setFormData({ ...formData, sus_card: e.target.value })}
                   placeholder="000 0000 0000 0000"
                 />
               </div>

@@ -32,6 +32,7 @@ import {
   getCuiabaTodayYMD,
   formatCuiabaDate,
   formatCuiabaTime,
+  formatCuiabaDateTime,
   combineCuiabaDateTimeToISO,
   CLINIC_TIMEZONE,
   maskCPF,
@@ -83,8 +84,12 @@ const COMMON_EXAM_TYPES = [
   'Ultrassonografia Músculo-esquelética',
 ]
 
-// Day hour slots from 07:00 to 19:00
-const DAY_HOURS = Array.from({ length: 13 }, (_, i) => i + 7)
+// Helper to format minutes from midnight to HH:mm
+function formatMinutesToTime(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
 
 export default function Agenda() {
   const { user } = useAuth()
@@ -116,16 +121,23 @@ export default function Agenda() {
     'Feminino',
   )
   const [formNewPatientBirthDate, setFormNewPatientBirthDate] = useState<string>('')
+  const [formNewPatientSusCard, setFormNewPatientSusCard] = useState<string>('')
+  const [formNewPatientAddress, setFormNewPatientAddress] = useState<string>('')
 
   const [formDate, setFormDate] = useState<string>(selectedDate)
   const [formTime, setFormTime] = useState<string>('08:00')
-  const [formDuration, setFormDuration] = useState<number>(30)
+  const [formDuration, setFormDuration] = useState<number>(user?.default_appointment_duration || 30)
   const [formExamType, setFormExamType] = useState<string>('Ultrassonografia Abdome Total')
   const [customExamType, setCustomExamType] = useState<string>('')
   const [formClinic, setFormClinic] = useState<string>('')
   const [formStatus, setFormStatus] = useState<AppointmentStatus>('Agendado')
   const [formNotes, setFormNotes] = useState<string>('')
   const [formReferring, setFormReferring] = useState<string>('')
+  const [formRequestFiles, setFormRequestFiles] = useState<File[]>([])
+  const [existingRequestImages, setExistingRequestImages] = useState<string[]>([])
+  const [selectedAppointmentForDetail, setSelectedAppointmentForDetail] =
+    useState<Appointment | null>(null)
+  const [previewImageModalUrl, setPreviewImageModalUrl] = useState<string | null>(null)
   const [savingAppointment, setSavingAppointment] = useState(false)
 
   // Delete modal
@@ -135,21 +147,27 @@ export default function Agenda() {
 
   // Doctor's configured clinics
   const doctorClinics = useMemo(() => {
+    const defaultClinics = ['HM Samuel Marques dos Santos', 'Gastroimagem']
     if (!user?.clinics_config) {
-      return ['Gastroimagem', 'Clínica Principal']
+      return defaultClinics
     }
     if (Array.isArray(user.clinics_config)) {
-      return user.clinics_config.length
-        ? user.clinics_config
-        : ['Gastroimagem', 'Clínica Principal']
+      const list = user.clinics_config.map((c) =>
+        c === 'Clínica Principal' || c === 'Principal' ? 'HM Samuel Marques dos Santos' : c,
+      )
+      return list.length ? list : defaultClinics
     }
     try {
       const parsed = JSON.parse(user.clinics_config)
-      if (Array.isArray(parsed) && parsed.length) return parsed
+      if (Array.isArray(parsed) && parsed.length) {
+        return parsed.map((c: string) =>
+          c === 'Clínica Principal' || c === 'Principal' ? 'HM Samuel Marques dos Santos' : c,
+        )
+      }
     } catch {
       /* intentionally ignored */
     }
-    return ['Gastroimagem', 'Clínica Principal']
+    return defaultClinics
   }, [user?.clinics_config])
 
   // Set default clinic for form
@@ -244,12 +262,16 @@ export default function Agenda() {
     setFormNewPatientPhone('')
     setFormNewPatientSex('Feminino')
     setFormNewPatientBirthDate('')
+    setFormNewPatientSusCard('')
+    setFormNewPatientAddress('')
+    setFormRequestFiles([])
+    setExistingRequestImages([])
     setFormDate(dateStr)
     setFormTime(timeStr)
-    setFormDuration(30)
+    setFormDuration(user?.default_appointment_duration || 30)
     setFormExamType('Ultrassonografia Abdome Total')
     setCustomExamType('')
-    setFormClinic(doctorClinics[0] || 'Gastroimagem')
+    setFormClinic(doctorClinics[0] || 'HM Samuel Marques dos Santos')
     setFormStatus('Agendado')
     setFormNotes('')
     setFormReferring('')
@@ -273,10 +295,17 @@ export default function Agenda() {
       setCustomExamType(appt.exam_type)
     }
 
-    setFormClinic(appt.clinic_location || doctorClinics[0] || 'Gastroimagem')
+    setFormClinic(appt.clinic_location || doctorClinics[0] || 'HM Samuel Marques dos Santos')
     setFormStatus(appt.status)
     setFormNotes(appt.notes || '')
     setFormReferring(appt.referring_physician || '')
+    setFormRequestFiles([])
+    const imgs = Array.isArray(appt.request_images)
+      ? appt.request_images
+      : appt.request_images
+        ? [appt.request_images]
+        : []
+    setExistingRequestImages(imgs)
     setModalOpen(true)
   }
 
@@ -304,6 +333,8 @@ export default function Agenda() {
       return
     }
 
+    const isHospitalSamuel = formClinic.toLowerCase().includes('samuel')
+
     setSavingAppointment(true)
     try {
       let finalPatientId = formPatientId
@@ -321,12 +352,47 @@ export default function Agenda() {
           return
         }
 
+        if (isHospitalSamuel) {
+          if (!formNewPatientCpf.trim() || formNewPatientCpf.trim().length < 14) {
+            toast({
+              title: 'CPF obrigatório no HM Samuel Marques dos Santos',
+              description:
+                'Para agendamento na rede do HM Samuel Marques dos Santos, o CPF completo é obrigatório.',
+              variant: 'destructive',
+            })
+            setSavingAppointment(false)
+            return
+          }
+          if (!formNewPatientSusCard.trim()) {
+            toast({
+              title: 'Cartão do SUS obrigatório',
+              description:
+                'Para atendimento no HM Samuel Marques dos Santos é obrigatório informar o número do Cartão Nacional de Saúde (SUS).',
+              variant: 'destructive',
+            })
+            setSavingAppointment(false)
+            return
+          }
+          if (!formNewPatientAddress.trim()) {
+            toast({
+              title: 'Endereço obrigatório',
+              description:
+                'Informe o endereço residencial do paciente para atendimento no HM Samuel Marques dos Santos.',
+              variant: 'destructive',
+            })
+            setSavingAppointment(false)
+            return
+          }
+        }
+
         const newPt = await patientsService.create({
           name: formNewPatientName.trim(),
           document: formNewPatientCpf.trim(),
           phone: formNewPatientPhone.trim(),
           sex: formNewPatientSex,
           birth_date: formNewPatientBirthDate || undefined,
+          sus_card: formNewPatientSusCard.trim() || undefined,
+          address: formNewPatientAddress.trim() || undefined,
         })
         finalPatientId = newPt.id
         finalPatientObj = newPt
@@ -343,6 +409,29 @@ export default function Agenda() {
         return
       }
 
+      // Check existing patient when hospital Samuel requires SUS / CPF / Address
+      if (isHospitalSamuel && finalPatientObj) {
+        const missingFields: string[] = []
+        if (!finalPatientObj.document || finalPatientObj.document.trim().length < 11) {
+          missingFields.push('CPF válido')
+        }
+        if (!finalPatientObj.sus_card?.trim()) {
+          missingFields.push('Cartão do SUS')
+        }
+        if (!finalPatientObj.address?.trim()) {
+          missingFields.push('Endereço completo')
+        }
+        if (missingFields.length > 0) {
+          toast({
+            title: 'Cadastro do paciente incompleto para HM Samuel Marques dos Santos',
+            description: `A unidade HM Samuel Marques dos Santos exige: ${missingFields.join(', ')}. Complete o cadastro na aba Pacientes ou edite a ficha.`,
+            variant: 'destructive',
+          })
+          setSavingAppointment(false)
+          return
+        }
+      }
+
       // Convert civil Cuiaba date + time to ISO UTC
       const startIso = combineCuiabaDateTimeToISO(formDate, formTime)
 
@@ -356,10 +445,11 @@ export default function Agenda() {
           status: formStatus,
           notes: formNotes,
           referring_physician: formReferring,
+          request_images: formRequestFiles.length > 0 ? formRequestFiles : undefined,
         })
         toast({
           title: 'Agendamento atualizado',
-          description: 'Os dados da consulta foram salvos com sucesso.',
+          description: 'Os dados da consulta e solicitações foram salvos com sucesso.',
         })
       } else {
         await appointmentsService.create(
@@ -372,12 +462,13 @@ export default function Agenda() {
             status: formStatus,
             notes: formNotes,
             referring_physician: formReferring,
+            request_images: formRequestFiles.length > 0 ? formRequestFiles : undefined,
           },
           finalPatientObj,
         )
         toast({
           title: 'Agendamento criado',
-          description: 'Paciente agendado com identificadores DICOM MWL gerados.',
+          description: 'Paciente agendado com fotos da solicitação e MWL DICOM preparados.',
         })
       }
 
@@ -514,6 +605,27 @@ export default function Agenda() {
     const list = appointmentsByDate.get(selectedDate) || []
     return [...list].sort((a, b) => a.start_time.localeCompare(b.start_time))
   }, [appointmentsByDate, selectedDate])
+
+  // Dynamic day time slots according to user's default duration (from 07:00 to 19:00)
+  const slotIntervalMinutes = useMemo(() => {
+    const dur = user?.default_appointment_duration
+    if (dur && [10, 15, 20, 30, 40, 45, 60].includes(dur)) return dur
+    return 30
+  }, [user?.default_appointment_duration])
+
+  const scheduleSlots = useMemo(() => {
+    const slots: { startMinutes: number; endMinutes: number; timeStr: string }[] = []
+    const startM = 7 * 60 // 07:00
+    const endM = 19 * 60 // 19:00
+    for (let cur = startM; cur < endM; cur += slotIntervalMinutes) {
+      slots.push({
+        startMinutes: cur,
+        endMinutes: cur + slotIntervalMinutes,
+        timeStr: formatMinutesToTime(cur),
+      })
+    }
+    return slots
+  }, [slotIntervalMinutes])
 
   const getStatusBadge = (status: AppointmentStatus) => {
     switch (status) {
@@ -763,26 +875,32 @@ export default function Agenda() {
             </div>
 
             <div className="divide-y divide-[#E5E9E7]">
-              {DAY_HOURS.map((hour) => {
-                const hourStr = `${String(hour).padStart(2, '0')}:00`
-                // Find appointments falling in this hour slot
+              {scheduleSlots.map((slot) => {
+                const hourStr = slot.timeStr
+                // Find appointments falling into this slot interval
                 const slotAppointments = dayAppointments.filter((appt) => {
                   const t = formatCuiabaTime(appt.start_time)
-                  const apptHour = parseInt(t.split(':')[0], 10)
-                  return apptHour === hour
+                  const [hStr, mStr] = t.split(':')
+                  const apptMinutes = parseInt(hStr, 10) * 60 + parseInt(mStr || '0', 10)
+                  return apptMinutes >= slot.startMinutes && apptMinutes < slot.endMinutes
                 })
 
                 return (
                   <div
-                    key={hour}
-                    className="flex flex-col sm:flex-row sm:items-start min-h-[72px] hover:bg-[#FAFBFB] transition group"
+                    key={slot.timeStr}
+                    className="flex flex-col sm:flex-row sm:items-start min-h-[64px] hover:bg-[#FAFBFB] transition group"
                   >
                     {/* Hour Column */}
-                    <div className="w-24 p-3.5 sm:border-r border-[#E5E9E7] shrink-0 flex items-center sm:items-start justify-between sm:justify-start">
-                      <span className="font-bold text-xs text-[#1F2A27] flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-[#0C6B58]" />
-                        {hourStr}
-                      </span>
+                    <div className="w-28 p-3 sm:border-r border-[#E5E9E7] shrink-0 flex items-center sm:items-start justify-between sm:justify-start bg-[#FAFBFB]/50">
+                      <div className="space-y-0.5">
+                        <span className="font-bold text-xs text-[#1F2A27] flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-[#0C6B58]" />
+                          {hourStr}
+                        </span>
+                        <span className="text-[10px] text-[#8A9691] block">
+                          Slot: {slotIntervalMinutes}m
+                        </span>
+                      </div>
                       {/* Mobile quick add button */}
                       <button
                         onClick={() => openNewAppointmentModal(selectedDate, hourStr)}
@@ -799,6 +917,11 @@ export default function Agenda() {
                           {slotAppointments.map((appt) => {
                             const patient = appt.expand?.patient_id
                             const timeFormatted = formatCuiabaTime(appt.start_time)
+                            const reqImgs = Array.isArray(appt.request_images)
+                              ? appt.request_images
+                              : appt.request_images
+                                ? [appt.request_images]
+                                : []
 
                             return (
                               <div
@@ -857,6 +980,39 @@ export default function Agenda() {
                                   </p>
                                 )}
 
+                                {/* Badges & Thumbnails of Request Images */}
+                                {reqImgs.length > 0 && (
+                                  <div className="pt-1 flex items-center gap-2">
+                                    <span className="text-[11px] font-semibold text-[#0C6B58] flex items-center gap-1">
+                                      <FileText className="w-3.5 h-3.5" />
+                                      {reqImgs.length} foto(s) da solicitação:
+                                    </span>
+                                    <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+                                      {reqImgs.map((fn, idx) => {
+                                        const url = appointmentsService.getRequestImageUrl(appt, fn)
+                                        return (
+                                          <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              setPreviewImageModalUrl(url)
+                                            }}
+                                            className="relative group/thumb w-8 h-8 rounded border border-[#E5E9E7] overflow-hidden bg-white hover:ring-2 hover:ring-[#0C6B58] transition"
+                                            title="Clique para ampliar solicitação"
+                                          >
+                                            <img
+                                              src={url}
+                                              alt={`Solicitação ${idx + 1}`}
+                                              className="w-full h-full object-cover"
+                                            />
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
                                 {/* Action Buttons */}
                                 <div className="flex items-center justify-between pt-1 border-t border-[#E5E9E7]/60">
                                   <div className="flex items-center gap-1">
@@ -869,6 +1025,16 @@ export default function Agenda() {
                                     >
                                       <Edit className="w-3.5 h-3.5 mr-1" />
                                       Editar
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setSelectedAppointmentForDetail(appt)}
+                                      className="h-7 text-xs px-2 text-[#0C6B58] hover:bg-[#E8F3F0]"
+                                      title="Ver Detalhes e Solicitações"
+                                    >
+                                      <FileText className="w-3.5 h-3.5 mr-1" />
+                                      Detalhes
                                     </Button>
                                     <Button
                                       variant="ghost"
@@ -907,10 +1073,11 @@ export default function Agenda() {
                       ) : (
                         <div
                           onClick={() => openNewAppointmentModal(selectedDate, hourStr)}
-                          className="h-full min-h-[44px] flex items-center justify-between px-3 rounded-md border border-dashed border-transparent hover:border-[#0C6B58]/40 hover:bg-[#E8F3F0]/20 cursor-pointer text-xs text-[#8A9691] transition"
+                          className="h-full min-h-[40px] flex items-center justify-between px-3 rounded-md border border-dashed border-transparent hover:border-[#0C6B58]/40 hover:bg-[#E8F3F0]/20 cursor-pointer text-xs text-[#8A9691] transition"
                         >
                           <span className="opacity-0 group-hover:opacity-100 transition">
-                            Horário livre — clique para agendar às {hourStr}
+                            Horário livre ({slotIntervalMinutes}m) — clique para agendar às{' '}
+                            {hourStr}
                           </span>
                           <span className="opacity-0 group-hover:opacity-100 transition text-[#0C6B58] font-semibold text-xs flex items-center gap-1">
                             <Plus className="w-3.5 h-3.5" /> Agendar
@@ -1160,6 +1327,45 @@ export default function Agenda() {
                         className="text-xs bg-white"
                       />
                     </div>
+                    {/* Campos SUS e Endereço */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        Cartão Nacional de Saúde (SUS)
+                        {formClinic.toLowerCase().includes('samuel') && (
+                          <span className="text-red-500 font-bold ml-1">*</span>
+                        )}
+                      </Label>
+                      <Input
+                        value={formNewPatientSusCard}
+                        onChange={(e) => setFormNewPatientSusCard(e.target.value)}
+                        placeholder="000 0000 0000 0000"
+                        className="text-xs bg-white"
+                      />
+                      {formClinic.toLowerCase().includes('samuel') && (
+                        <p className="text-[10px] text-amber-700">
+                          Obrigatório para HM Samuel Marques dos Santos
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label className="text-xs">
+                        Endereço Completo
+                        {formClinic.toLowerCase().includes('samuel') && (
+                          <span className="text-red-500 font-bold ml-1">*</span>
+                        )}
+                      </Label>
+                      <Input
+                        value={formNewPatientAddress}
+                        onChange={(e) => setFormNewPatientAddress(e.target.value)}
+                        placeholder="Rua, número, bairro, cidade - estado"
+                        className="text-xs bg-white"
+                      />
+                      {formClinic.toLowerCase().includes('samuel') && (
+                        <p className="text-[10px] text-amber-700">
+                          Obrigatório para HM Samuel Marques dos Santos
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1323,6 +1529,98 @@ export default function Agenda() {
               />
             </div>
 
+            {/* Anexos de Solicitação Médica (Xerox / Fotos) */}
+            <div className="p-3 bg-[#F7F9F8] rounded-xl border border-[#E5E9E7] space-y-2.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-[#1F2A27] flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-[#0C6B58]" />
+                  Fotos da Solicitação Médica / Pedido (Xerox/Foto)
+                </Label>
+                <span className="text-[10px] text-[#8A9691]">JPG, PNG, WebP</span>
+              </div>
+              <p className="text-[11px] text-[#5F6E69]">
+                Anexe fotos da requisição/encaminhamento do SUS ou convênio. Ficarão visíveis para o
+                médico durante a realização do exame e confecção do laudo.
+              </p>
+
+              {/* Existing images list if editing */}
+              {existingRequestImages.length > 0 && (
+                <div className="space-y-1">
+                  <span className="text-[11px] font-medium text-[#5F6E69] block">
+                    Fotos já anexadas anteriormente:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {existingRequestImages.map((imgName, idx) => {
+                      const url = editingAppointment
+                        ? appointmentsService.getRequestImageUrl(editingAppointment, imgName)
+                        : ''
+                      return (
+                        <div
+                          key={idx}
+                          className="relative group border rounded-lg overflow-hidden bg-white w-16 h-16 shrink-0 shadow-2xs"
+                        >
+                          <img
+                            src={url}
+                            alt="Solicitação médica"
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setPreviewImageModalUrl(url)}
+                            className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-[10px] font-medium"
+                          >
+                            Ver
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Upload input for new photos */}
+              <div className="space-y-2">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || [])
+                    setFormRequestFiles((prev) => [...prev, ...files])
+                  }}
+                  className="text-xs bg-white file:text-xs file:font-medium file:text-[#0C6B58]"
+                />
+
+                {formRequestFiles.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    <span className="text-[11px] font-semibold text-[#0C6B58]">
+                      {formRequestFiles.length} novo(s) arquivo(s) selecionado(s):
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {formRequestFiles.map((file, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-1.5 bg-white border border-[#E5E9E7] px-2 py-1 rounded text-xs text-[#1F2A27]"
+                        >
+                          <span className="max-w-[140px] truncate">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFormRequestFiles((prev) => prev.filter((_, i) => i !== idx))
+                            }
+                            className="text-red-500 hover:text-red-700 font-bold ml-1"
+                            title="Remover anexo"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {editingAppointment?.accession_number && (
               <div className="p-2.5 rounded bg-[#F7F9F8] border border-[#E5E9E7] text-[11px] text-[#5F6E69] flex items-center justify-between">
                 <span>Accession Number único:</span>
@@ -1359,6 +1657,234 @@ export default function Agenda() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL DETALHES DO AGENDAMENTO (INCLUINDO FOTOS DA SOLICITAÇÃO) */}
+      <Dialog
+        open={Boolean(selectedAppointmentForDetail)}
+        onOpenChange={(open) => !open && setSelectedAppointmentForDetail(null)}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {selectedAppointmentForDetail && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <User className="w-5 h-5 text-[#0C6B58]" />
+                  {selectedAppointmentForDetail.expand?.patient_id?.name ||
+                    'Detalhes do Agendamento'}
+                </DialogTitle>
+                <DialogDescription>
+                  Informações completas do agendamento, preparo e requisição médica anexada.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 pt-2 text-sm text-[#1F2A27]">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-[#F7F9F8] p-3.5 rounded-xl border border-[#E5E9E7]">
+                  <div>
+                    <span className="text-[11px] text-[#5F6E69] block">Horário e Duração</span>
+                    <span className="font-bold text-[#0C6B58]">
+                      {formatCuiabaDateTime(selectedAppointmentForDetail.start_time)} (
+                      {selectedAppointmentForDetail.duration_minutes || 30} min)
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-[#5F6E69] block">Status</span>
+                    {getStatusBadge(selectedAppointmentForDetail.status)}
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-[#5F6E69] block">Unidade</span>
+                    <span className="font-semibold text-xs">
+                      {selectedAppointmentForDetail.clinic_location}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-[#5F6E69] block">Exame</span>
+                    <span className="font-semibold text-xs">
+                      {selectedAppointmentForDetail.exam_type}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-[#5F6E69] block">Médico Solicitante</span>
+                    <span className="text-xs">
+                      {selectedAppointmentForDetail.referring_physician || 'Não informado'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-[#5F6E69] block">Accession Number</span>
+                    <span className="font-mono text-xs font-bold">
+                      {selectedAppointmentForDetail.accession_number}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Patient details */}
+                {selectedAppointmentForDetail.expand?.patient_id && (
+                  <div className="p-3 bg-white rounded-xl border border-[#E5E9E7] text-xs space-y-1.5">
+                    <span className="font-bold text-[#1F2A27] block">Dados do Paciente:</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[#5F6E69]">
+                      <div>
+                        <span>CPF: </span>
+                        <strong className="text-[#1F2A27]">
+                          {maskCPF(selectedAppointmentForDetail.expand.patient_id.document)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Cartão SUS: </span>
+                        <strong className="text-[#1F2A27]">
+                          {selectedAppointmentForDetail.expand.patient_id.sus_card ||
+                            'Não informado'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Telefone: </span>
+                        <strong className="text-[#1F2A27]">
+                          {maskPhone(selectedAppointmentForDetail.expand.patient_id.phone || '') ||
+                            '—'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Endereço: </span>
+                        <strong
+                          className="text-[#1F2A27] truncate block"
+                          title={selectedAppointmentForDetail.expand.patient_id.address}
+                        >
+                          {selectedAppointmentForDetail.expand.patient_id.address || '—'}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Request Photos (Xerox / fotos do pedido médico) */}
+                <div className="space-y-2 p-3 bg-white rounded-xl border border-[#E5E9E7]">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-[#1F2A27] flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-[#0C6B58]" />
+                      Fotos da Solicitação Médica / Encaminhamento
+                    </span>
+                    <span className="text-[11px] text-[#5F6E69]">
+                      {Array.isArray(selectedAppointmentForDetail.request_images)
+                        ? selectedAppointmentForDetail.request_images.length
+                        : selectedAppointmentForDetail.request_images
+                          ? 1
+                          : 0}{' '}
+                      anexo(s)
+                    </span>
+                  </div>
+
+                  {(() => {
+                    const imgs = Array.isArray(selectedAppointmentForDetail.request_images)
+                      ? selectedAppointmentForDetail.request_images
+                      : selectedAppointmentForDetail.request_images
+                        ? [selectedAppointmentForDetail.request_images]
+                        : []
+
+                    if (imgs.length === 0) {
+                      return (
+                        <p className="text-xs text-[#8A9691] py-3 text-center bg-[#FAFBFB] rounded-lg border border-dashed border-[#E5E9E7]">
+                          Nenhuma foto ou xerox da solicitação anexada a este agendamento.
+                        </p>
+                      )
+                    }
+
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                        {imgs.map((fn, idx) => {
+                          const url = appointmentsService.getRequestImageUrl(
+                            selectedAppointmentForDetail,
+                            fn,
+                          )
+                          return (
+                            <div
+                              key={idx}
+                              className="group relative border rounded-xl overflow-hidden bg-slate-50 aspect-4/3 flex items-center justify-center shadow-xs hover:border-[#0C6B58] transition"
+                            >
+                              <img
+                                src={url}
+                                alt={`Solicitação médica ${idx + 1}`}
+                                className="w-full h-full object-contain cursor-pointer"
+                                onClick={() => setPreviewImageModalUrl(url)}
+                              />
+                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-white flex items-center justify-between opacity-0 group-hover:opacity-100 transition">
+                                <span className="text-[10px] font-medium">Foto #{idx + 1}</span>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setPreviewImageModalUrl(url)}
+                                  className="h-6 px-2 text-[10px] text-white hover:bg-white/20"
+                                >
+                                  Ampliar
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
+                </div>
+
+                {selectedAppointmentForDetail.notes && (
+                  <div className="p-3 bg-[#FAFBFB] rounded-lg border border-[#E5E9E7] text-xs">
+                    <span className="font-semibold text-[#1F2A27] block mb-0.5">Observações:</span>
+                    <p className="text-[#5F6E69]">{selectedAppointmentForDetail.notes}</p>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="pt-2 flex items-center justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSelectedAppointmentForDetail(null)}
+                >
+                  Fechar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const appt = selectedAppointmentForDetail
+                    setSelectedAppointmentForDetail(null)
+                    handleStartReport(appt)
+                  }}
+                  className="bg-[#0C6B58] hover:bg-[#0A5949] text-white"
+                >
+                  <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
+                  Iniciar / Abrir Laudo
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL AMPLIAÇÃO DE IMAGEM */}
+      <Dialog
+        open={Boolean(previewImageModalUrl)}
+        onOpenChange={(open) => !open && setPreviewImageModalUrl(null)}
+      >
+        <DialogContent className="max-w-4xl max-h-[92vh] p-2 flex flex-col items-center justify-center bg-black/95 border-none">
+          {previewImageModalUrl && (
+            <div className="relative w-full h-full flex flex-col items-center">
+              <img
+                src={previewImageModalUrl}
+                alt="Solicitação médica ampliada"
+                className="max-h-[82vh] max-w-full object-contain rounded-lg"
+              />
+              <div className="pt-2 text-center text-xs text-white/80">
+                <a
+                  href={previewImageModalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline hover:text-white"
+                >
+                  Abrir imagem em nova aba
+                </a>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

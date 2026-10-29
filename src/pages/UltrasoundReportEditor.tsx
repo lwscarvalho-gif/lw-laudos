@@ -38,7 +38,9 @@ import type {
   Report,
   UltrasoundSectionData,
   ReportStructuredData,
+  Appointment,
 } from '@/types'
+import { Badge } from '@/components/ui/badge'
 import {
   printReportPDF,
   buildReportHTML,
@@ -176,6 +178,9 @@ export default function UltrasoundReportEditor() {
 
   // Linked appointment state
   const [linkedAppointmentId, setLinkedAppointmentId] = useState<string>(prefilledAppointmentId)
+  const [linkedAppointment, setLinkedAppointment] = useState<Appointment | null>(null)
+  const [requestPhotosModalOpen, setRequestPhotosModalOpen] = useState(false)
+  const [activeRequestPhotoUrl, setActiveRequestPhotoUrl] = useState<string | null>(null)
   const [updateAppointmentStatusToRealizado, setUpdateAppointmentStatusToRealizado] = useState(true)
 
   // Finalize Dialog
@@ -229,12 +234,16 @@ export default function UltrasoundReportEditor() {
           if (rep.exam_id) {
             try {
               const examRecord = await examsService.getById(rep.exam_id)
-              if (examRecord?.appointment_id && !prefilledAppointmentId) {
-                setLinkedAppointmentId(examRecord.appointment_id)
-              } else if (!prefilledAppointmentId) {
+              const resolvedApptId = prefilledAppointmentId || examRecord?.appointment_id || ''
+              if (resolvedApptId) {
+                setLinkedAppointmentId(resolvedApptId)
+                const appt = await appointmentsService.getById(resolvedApptId).catch(() => null)
+                if (appt) setLinkedAppointment(appt)
+              } else {
                 const apptRecord = await appointmentsService.getByExamId(rep.exam_id)
                 if (apptRecord) {
                   setLinkedAppointmentId(apptRecord.id)
+                  setLinkedAppointment(apptRecord)
                 }
               }
             } catch {
@@ -260,6 +269,16 @@ export default function UltrasoundReportEditor() {
           // Also fetch exam images if any exist
           const imgs = await examImagesService.getByExamId(ex.id)
           setImages(imgs)
+        }
+
+        // Fetch appointment object directly if linkedAppointmentId is known or prefilled
+        if (prefilledAppointmentId) {
+          try {
+            const appt = await appointmentsService.getById(prefilledAppointmentId)
+            setLinkedAppointment(appt)
+          } catch {
+            /* ignore */
+          }
         }
       } catch (err) {
         console.error(err)
@@ -1349,6 +1368,110 @@ export default function UltrasoundReportEditor() {
             }}
           />
 
+          {/* PAINEL DE FOTOS DA SOLICITAÇÃO MÉDICA / ENCAMINHAMENTO */}
+          {linkedAppointment && (
+            <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#0C6B58]" />
+                  <span className="font-bold text-xs text-[#1F2A27]">
+                    Solicitação Médica do Exame
+                  </span>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] bg-[#E8F3F0] text-[#0C6B58] border-[#C8DFD7]"
+                >
+                  {linkedAppointment.clinic_location}
+                </Badge>
+              </div>
+
+              <div className="text-xs space-y-1 text-[#5F6E69]">
+                <p>
+                  <strong className="text-[#1F2A27]">Exame solicitado: </strong>
+                  {linkedAppointment.exam_type}
+                </p>
+                {linkedAppointment.referring_physician && (
+                  <p>
+                    <strong className="text-[#1F2A27]">Médico solicitante: </strong>
+                    {linkedAppointment.referring_physician}
+                  </p>
+                )}
+                {linkedAppointment.notes && (
+                  <p className="text-[11px] italic bg-[#FAFBFB] p-2 rounded border border-[#E5E9E7]">
+                    Obs: {linkedAppointment.notes}
+                  </p>
+                )}
+              </div>
+
+              {/* Photos from appointment */}
+              {(() => {
+                const imgs = Array.isArray(linkedAppointment.request_images)
+                  ? linkedAppointment.request_images
+                  : linkedAppointment.request_images
+                    ? [linkedAppointment.request_images]
+                    : []
+
+                if (imgs.length === 0) {
+                  return (
+                    <div className="p-3 text-center bg-[#FAFBFB] rounded-lg border border-dashed border-[#E5E9E7] text-[11px] text-[#8A9691]">
+                      Sem fotos da requisição médica anexadas na agenda.
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="space-y-2 pt-1">
+                    <span className="text-[11px] font-semibold text-[#1F2A27] block">
+                      Fotos / Xerox da Requisição ({imgs.length}):
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      {imgs.map((fn, idx) => {
+                        const url = appointmentsService.getRequestImageUrl(linkedAppointment, fn)
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              setActiveRequestPhotoUrl(url)
+                              setRequestPhotosModalOpen(true)
+                            }}
+                            className="group relative border rounded-lg overflow-hidden bg-slate-50 aspect-4/3 cursor-pointer hover:border-[#0C6B58] transition"
+                          >
+                            <img
+                              src={url}
+                              alt={`Requisição médica ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold">
+                              Ampliar
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const first = appointmentsService.getRequestImageUrl(
+                          linkedAppointment,
+                          imgs[0],
+                        )
+                        setActiveRequestPhotoUrl(first)
+                        setRequestPhotosModalOpen(true)
+                      }}
+                      className="w-full h-7 text-xs border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
+                    >
+                      <Eye className="w-3.5 h-3.5 mr-1" />
+                      Visualizar Requisição Completa
+                    </Button>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
           {/* Professional Identification Preview */}
           <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
@@ -1638,6 +1761,91 @@ export default function UltrasoundReportEditor() {
           requestInsertText(libraryTargetOrgan.id, text)
         }}
       />
+
+      {/* MODAL: VISUALIZAÇÃO AMPLIADA DA SOLICITAÇÃO MÉDICA */}
+      <Dialog open={requestPhotosModalOpen} onOpenChange={setRequestPhotosModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-4 overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <FileText className="w-5 h-5 text-[#0C6B58]" />
+              Solicitação Médica / Requisição do Exame
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Requisição e guia anexadas no agendamento para consulta durante a realização do exame.
+            </DialogDescription>
+          </DialogHeader>
+
+          {linkedAppointment && (
+            <div className="flex-1 flex flex-col min-h-0 space-y-3 pt-2">
+              <div className="flex-1 bg-black/95 rounded-lg flex items-center justify-center p-2 overflow-hidden">
+                {activeRequestPhotoUrl ? (
+                  <img
+                    src={activeRequestPhotoUrl}
+                    alt="Solicitação médica"
+                    className="max-h-[62vh] max-w-full object-contain rounded"
+                  />
+                ) : (
+                  <p className="text-white text-xs">Selecione uma imagem abaixo</p>
+                )}
+              </div>
+
+              {/* Thumbnails row */}
+              {(() => {
+                const imgs = Array.isArray(linkedAppointment.request_images)
+                  ? linkedAppointment.request_images
+                  : linkedAppointment.request_images
+                    ? [linkedAppointment.request_images]
+                    : []
+
+                if (imgs.length <= 1) return null
+
+                return (
+                  <div className="flex items-center gap-2 overflow-x-auto py-1">
+                    {imgs.map((fn, idx) => {
+                      const url = appointmentsService.getRequestImageUrl(linkedAppointment, fn)
+                      const isSelected = activeRequestPhotoUrl === url
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setActiveRequestPhotoUrl(url)}
+                          className={`w-14 h-14 rounded-lg overflow-hidden border-2 shrink-0 transition ${
+                            isSelected
+                              ? 'border-[#0C6B58] ring-2 ring-[#0C6B58]/30'
+                              : 'border-[#E5E9E7]'
+                          }`}
+                        >
+                          <img
+                            src={url}
+                            alt={`Miniatura ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+
+              <div className="flex items-center justify-between text-xs text-[#5F6E69] pt-1">
+                <span>
+                  {linkedAppointment.expand?.patient_id?.name} • {linkedAppointment.exam_type}
+                </span>
+                {activeRequestPhotoUrl && (
+                  <a
+                    href={activeRequestPhotoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#0C6B58] underline font-medium hover:text-[#0A5949]"
+                  >
+                    Abrir em tela cheia / nova aba
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

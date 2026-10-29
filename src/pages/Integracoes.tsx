@@ -246,40 +246,44 @@ export default function Integracoes() {
           {/* Configuração em Duas Clínicas */}
           <div className="bg-white p-6 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">
             <h3 className="font-bold text-sm text-[#1F2A27]">
-              Operação em Duas Clínicas (Gastroimagem e Clínica Principal)
+              Operação em Duas Unidades (HM Samuel Marques dos Santos e Gastroimagem)
             </h3>
             <p className="text-xs text-[#5F6E69] leading-relaxed">
               Como nenhuma das duas clínicas possui servidor MWL aberto para os agendamentos do
               médico, cada unidade recebe a sua própria instalação local do Orthanc. Ambas apontam
               para o mesmo aplicativo em nuvem, filtrando exclusivamente a unidade correspondente
-              via parâmetro <code>?clinic=Gastroimagem</code>.
+              via parâmetro <code>?clinic=HM Samuel Marques dos Santos</code> ou{' '}
+              <code>?clinic=Gastroimagem</code>.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2">
               <div className="p-3.5 rounded-lg border border-[#E5E9E7] bg-[#F7F9F8] space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#1F2A27]">Unidade 1: Gastroimagem</span>
+                  <span className="font-bold text-[#1F2A27]">
+                    Unidade 1: HM Samuel Marques dos Santos
+                  </span>
                   <Badge variant="outline" className="text-[10px]">
                     Orthanc Local A
                   </Badge>
                 </div>
                 <p className="text-[#5F6E69] text-[11px]">
-                  Filtro do agente: <code>--clinic &quot;Gastroimagem&quot;</code>. Os agendamentos
-                  desta unidade são transmitidos apenas aos aparelhos da Gastroimagem.
+                  Filtro do agente: <code>--clinic &quot;HM Samuel Marques dos Santos&quot;</code>.
+                  Os agendamentos com CPF e SUS desta unidade são transmitidos apenas aos aparelhos
+                  do Hospital Municipal.
                 </p>
               </div>
 
               <div className="p-3.5 rounded-lg border border-[#E5E9E7] bg-[#F7F9F8] space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#1F2A27]">Unidade 2: Clínica Principal</span>
+                  <span className="font-bold text-[#1F2A27]">Unidade 2: Gastroimagem</span>
                   <Badge variant="outline" className="text-[10px]">
                     Orthanc Local B
                   </Badge>
                 </div>
                 <p className="text-[#5F6E69] text-[11px]">
-                  Filtro do agente: <code>--clinic &quot;Clínica Principal&quot;</code>. Permite
-                  manter a agenda unificada do médico na nuvem sem misturar pacientes entre os
-                  aparelhos físicos.
+                  Filtro do agente: <code>--clinic &quot;Gastroimagem&quot;</code>. Permite manter a
+                  agenda unificada do médico na nuvem sem misturar pacientes entre os aparelhos
+                  físicos.
                 </p>
               </div>
             </div>
