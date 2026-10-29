@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useMemo } from 'react'
 import {
   User,
   Shield,
@@ -22,6 +22,8 @@ import {
   Copy,
   RefreshCw,
   Plus,
+  ClipboardList,
+  Edit2,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -52,6 +54,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
+import { ExamPreparation } from '@/types'
+import { examPreparationsService } from '@/services/examPreparations'
 
 const BRAZILIAN_STATES = [
   'AC',
@@ -153,6 +157,115 @@ export default function Configuracoes() {
     user?.default_appointment_duration || 30,
   )
   const [savingDuration, setSavingDuration] = useState(false)
+
+  // Exam preparations management state
+  const [preparations, setPreparations] = useState<ExamPreparation[]>([])
+  const [loadingPreparations, setLoadingPreparations] = useState(false)
+  const [prepModalOpen, setPrepModalOpen] = useState(false)
+  const [editingPrep, setEditingPrep] = useState<ExamPreparation | null>(null)
+  const [prepExamType, setPrepExamType] = useState('')
+  const [prepSpecialty, setPrepSpecialty] = useState('')
+  const [prepInstructions, setPrepInstructions] = useState('')
+  const [prepGeneralNotice, setPrepGeneralNotice] = useState('')
+  const [savingPrep, setSavingPrep] = useState(false)
+  const [prepSearchQuery, setPrepSearchQuery] = useState('')
+
+  const loadPreparations = React.useCallback(async () => {
+    setLoadingPreparations(true)
+    try {
+      const data = await examPreparationsService.getAll()
+      setPreparations(data)
+    } catch {
+      /* intentionally ignored */
+    } finally {
+      setLoadingPreparations(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadPreparations()
+  }, [loadPreparations])
+
+  const openNewPrepModal = () => {
+    setEditingPrep(null)
+    setPrepExamType('')
+    setPrepSpecialty('Ultrassonografia')
+    setPrepInstructions('')
+    setPrepGeneralNotice(
+      'Trazer exames anteriores, documentos pessoais, cartão SUS e chegar 15 minutos antes do horário agendado.',
+    )
+    setPrepModalOpen(true)
+  }
+
+  const openEditPrepModal = (item: ExamPreparation) => {
+    setEditingPrep(item)
+    setPrepExamType(item.exam_type)
+    setPrepSpecialty(item.specialty || '')
+    setPrepInstructions(item.instructions)
+    setPrepGeneralNotice(item.general_notice || '')
+    setPrepModalOpen(true)
+  }
+
+  const handleSavePrep = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!prepExamType.trim() || !prepInstructions.trim()) {
+      toast({
+        title: 'Campos obrigatórios',
+        description: 'Informe o tipo de exame e as instruções de preparo.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setSavingPrep(true)
+    try {
+      if (editingPrep) {
+        await examPreparationsService.update(editingPrep.id, {
+          exam_type: prepExamType.trim(),
+          specialty: prepSpecialty.trim() || undefined,
+          instructions: prepInstructions.trim(),
+          general_notice: prepGeneralNotice.trim() || undefined,
+        })
+        toast({
+          title: 'Preparo atualizado',
+          description: `Instruções de "${prepExamType}" salvas com sucesso.`,
+        })
+      } else {
+        await examPreparationsService.create({
+          exam_type: prepExamType.trim(),
+          specialty: prepSpecialty.trim() || undefined,
+          instructions: prepInstructions.trim(),
+          general_notice: prepGeneralNotice.trim() || undefined,
+          is_active: true,
+        })
+        toast({
+          title: 'Preparo cadastrado',
+          description: `Novo preparo para "${prepExamType}" cadastrado.`,
+        })
+      }
+      setPrepModalOpen(false)
+      loadPreparations()
+    } catch {
+      toast({
+        title: 'Erro ao salvar',
+        description: 'Não foi possível salvar o preparo do exame.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingPrep(false)
+    }
+  }
+
+  const filteredPreparations = useMemo(() => {
+    if (!prepSearchQuery.trim()) return preparations
+    const q = prepSearchQuery.toLowerCase()
+    return preparations.filter(
+      (p) =>
+        p.exam_type.toLowerCase().includes(q) ||
+        (p.specialty && p.specialty.toLowerCase().includes(q)) ||
+        p.instructions.toLowerCase().includes(q),
+    )
+  }, [preparations, prepSearchQuery])
 
   // Digital Signature Preferences
   const { isOnline } = useNetworkStatus()
@@ -1117,6 +1230,199 @@ export default function Configuracoes() {
           </div>
         </div>
       </div>
+
+      {/* 3.2 Catálogo de Preparos de Exames */}
+      <div className="bg-white p-6 sm:p-8 rounded-xl border border-[#E5E9E7] shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E9E7] pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-[#E8F3F0] text-[#0C6B58] flex items-center justify-center font-bold">
+              <ClipboardList className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-base text-[#1F2A27]">
+                  Preparos de Exames (Catálogo Clínico)
+                </h2>
+                <span className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded font-semibold">
+                  {preparations.length} tipos cadastrados
+                </span>
+              </div>
+              <p className="text-xs text-[#5F6E69]">
+                Orientações clínicas aplicadas automaticamente ao agendar exames e no comprovante do
+                paciente
+              </p>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            size="sm"
+            onClick={openNewPrepModal}
+            className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs font-semibold shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            Novo Preparo
+          </Button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <Input
+              value={prepSearchQuery}
+              onChange={(e) => setPrepSearchQuery(e.target.value)}
+              placeholder="Buscar preparo por exame ou especialidade..."
+              className="text-xs max-w-sm bg-[#F7F9F8]"
+            />
+            <span className="text-[11px] text-[#8A9691]">
+              Preenchimento automático na tela /agenda
+            </span>
+          </div>
+
+          {loadingPreparations ? (
+            <div className="p-8 text-center text-xs text-[#5F6E69] flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-[#0C6B58]" />
+              Carregando catálogo de preparos...
+            </div>
+          ) : filteredPreparations.length === 0 ? (
+            <div className="p-6 text-center rounded-xl bg-[#F7F9F8] border border-[#E5E9E7] text-xs text-[#5F6E69]">
+              Nenhum preparo encontrado para os termos da busca.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 max-h-[460px] overflow-y-auto pr-1">
+              {filteredPreparations.map((item) => (
+                <div
+                  key={item.id}
+                  className="p-4 rounded-xl border border-[#E5E9E7] bg-[#FAFCFB] hover:border-[#0C6B58]/40 transition-colors flex flex-col justify-between space-y-3"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-xs text-[#1F2A27]">{item.exam_type}</h4>
+                        {item.specialty && (
+                          <span className="inline-block text-[10px] font-medium text-[#0C6B58] bg-[#E8F3F0] px-1.5 py-0.5 rounded mt-0.5">
+                            {item.specialty}
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditPrepModal(item)}
+                        className="h-7 w-7 text-[#5F6E69] hover:text-[#0C6B58]"
+                        title="Editar preparo"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+
+                    <p className="text-[11px] text-[#42524D] mt-2 leading-relaxed bg-white p-2.5 rounded-lg border border-[#EAEFEA]">
+                      <span className="font-semibold text-[#1F2A27]">Preparo: </span>
+                      {item.instructions}
+                    </p>
+
+                    {item.general_notice && (
+                      <p className="text-[10px] text-[#71827C] mt-1.5">
+                        <span className="font-semibold text-[#5F6E69]">Geral: </span>
+                        {item.general_notice}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal Adicionar / Editar Preparo */}
+      <Dialog open={prepModalOpen} onOpenChange={setPrepModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingPrep ? 'Editar Preparo de Exame' : 'Novo Preparo de Exame'}
+            </DialogTitle>
+            <DialogDescription>
+              Configure as instruções que serão sugeridas ao agendar este exame.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSavePrep} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Tipo de Exame *</Label>
+              <Input
+                value={prepExamType}
+                onChange={(e) => setPrepExamType(e.target.value)}
+                placeholder="Ex.: Ultrassonografia Abdome Total"
+                className="text-xs"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Especialidade / Grupo</Label>
+              <Input
+                value={prepSpecialty}
+                onChange={(e) => setPrepSpecialty(e.target.value)}
+                placeholder="Ex.: Ultrassonografia Geral, Ginecologia, Obstetrícia..."
+                className="text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">
+                Instruções Específicas de Preparo Clínico *
+              </Label>
+              <Textarea
+                rows={4}
+                value={prepInstructions}
+                onChange={(e) => setPrepInstructions(e.target.value)}
+                placeholder="Ex.: Jejum absoluto de 8 horas. Bexiga cheia (beber 1L de água 1 hora antes)..."
+                className="text-xs leading-relaxed"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Orientações Gerais do Paciente</Label>
+              <Textarea
+                rows={2}
+                value={prepGeneralNotice}
+                onChange={(e) => setPrepGeneralNotice(e.target.value)}
+                placeholder="Ex.: Trazer exames anteriores, documentos e chegar com 15 min de antecedência."
+                className="text-xs leading-relaxed"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setPrepModalOpen(false)}
+                disabled={savingPrep}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={savingPrep}
+                className="bg-[#0C6B58] hover:bg-[#0A5949] text-white font-semibold"
+              >
+                {savingPrep ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar Preparo'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* 4. Preferências e Sistema */}
       <div className="bg-white p-6 sm:p-8 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">

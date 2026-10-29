@@ -281,6 +281,17 @@ export interface Invitation {
   updated?: string
 }
 
+export interface ExamPreparation extends RecordModel {
+  id: string
+  exam_type: string
+  specialty?: string
+  instructions: string
+  general_notice?: string
+  is_active?: boolean
+  created?: string
+  updated?: string
+}
+
 export interface UserPermissions {
   id: string
   user: string

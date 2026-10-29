@@ -21,6 +21,11 @@ import {
   Edit,
   Tag,
   Stethoscope,
+  Printer,
+  Sparkles,
+  Camera,
+  RefreshCw,
+  HelpCircle,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { appointmentsService } from '@/services/appointments'
@@ -69,6 +74,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
+import { AppointmentVoucherModal } from '@/components/AppointmentVoucherModal'
+import { examPreparationsService } from '@/services/examPreparations'
+import { requestAnalysisService, ExtractedRequestData } from '@/services/requestAnalysis'
 
 // Default standard exam types for quick selection
 const COMMON_EXAM_TYPES = [
@@ -139,6 +147,37 @@ export default function Agenda() {
     useState<Appointment | null>(null)
   const [previewImageModalUrl, setPreviewImageModalUrl] = useState<string | null>(null)
   const [savingAppointment, setSavingAppointment] = useState(false)
+
+  // Voucher modal state
+  const [voucherModalOpen, setVoucherModalOpen] = useState(false)
+  const [voucherAppointment, setVoucherAppointment] = useState<Appointment | null>(null)
+
+  // Exam preparations catalog state & confirmation dialog
+  const [prepCatalog, setPrepCatalog] = useState<{ exam_type: string; instructions: string }[]>([])
+  const [pendingPrepReplacement, setPendingPrepReplacement] = useState<{
+    newExam: string
+    newText: string
+  } | null>(null)
+  const [prepConfirmDialogOpen, setPrepConfirmDialogOpen] = useState(false)
+
+  // AI Request Image Analysis state
+  const [analyzingImage, setAnalyzingImage] = useState(false)
+  const [aiReviewDialogOpen, setAiReviewDialogOpen] = useState(false)
+  const [extractedData, setExtractedData] = useState<ExtractedRequestData | null>(null)
+  const [aiErrorMsg, setAiErrorMsg] = useState<string | null>(null)
+  const [pendingAnalyzedFile, setPendingAnalyzedFile] = useState<File | null>(null)
+
+  // Load preparations catalog
+  useEffect(() => {
+    examPreparationsService.getAll().then((data) => {
+      setPrepCatalog(
+        data.map((d) => ({
+          exam_type: d.exam_type,
+          instructions: d.instructions,
+        })),
+      )
+    })
+  }, [])
 
   // Delete modal
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -252,6 +291,30 @@ export default function Agenda() {
     setSelectedDate(getCuiabaTodayYMD())
   }
 
+  // Auto-fill or ask before replacing notes with exam preparation
+  const handleExamTypeChange = (newType: string) => {
+    setFormExamType(newType)
+    const effectiveType = newType === 'Outro (personalizado)' ? customExamType : newType
+    if (!effectiveType) return
+
+    // Find in prepCatalog
+    const found = prepCatalog.find((p) => p.exam_type.toLowerCase() === effectiveType.toLowerCase())
+    if (!found || !found.instructions) return
+
+    const currentNotes = formNotes.trim()
+    if (!currentNotes) {
+      // Empty -> auto fill directly
+      setFormNotes(found.instructions)
+    } else if (currentNotes !== found.instructions) {
+      // Already has text -> ask confirmation before replacing
+      setPendingPrepReplacement({
+        newExam: effectiveType,
+        newText: found.instructions,
+      })
+      setPrepConfirmDialogOpen(true)
+    }
+  }
+
   // Open modal for new appointment at specific hour
   const openNewAppointmentModal = (dateStr = selectedDate, timeStr = '08:00') => {
     setEditingAppointment(null)
@@ -273,7 +336,12 @@ export default function Agenda() {
     setCustomExamType('')
     setFormClinic(doctorClinics[0] || 'HM Samuel Marques dos Santos')
     setFormStatus('Agendado')
-    setFormNotes('')
+    // Pre-fill initial default exam prep
+    const defaultPrep = prepCatalog.find((p) => p.exam_type === 'Ultrassonografia Abdome Total')
+    setFormNotes(
+      defaultPrep?.instructions ||
+        'Jejum absoluto de 8 horas. Bexiga confortavelmente cheia (beber 4 a 5 copos de água 1h antes e não urinar).',
+    )
     setFormReferring('')
     setModalOpen(true)
   }
@@ -470,6 +538,19 @@ export default function Agenda() {
           title: 'Agendamento criado',
           description: 'Paciente agendado com fotos da solicitação e MWL DICOM preparados.',
         })
+        // Abre automaticamente o comprovante de agendamento para impressão/visualização
+        try {
+          const latestList = await appointmentsService.getAll()
+          const justCreated = latestList.find(
+            (a) => a.patient_id === finalPatientId && a.start_time === startIso,
+          )
+          if (justCreated) {
+            setVoucherAppointment(justCreated)
+            setVoucherModalOpen(true)
+          }
+        } catch {
+          /* intentionally ignored */
+        }
       }
 
       setModalOpen(false)
@@ -1040,6 +1121,19 @@ export default function Agenda() {
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => {
+                                        setVoucherAppointment(appt)
+                                        setVoucherModalOpen(true)
+                                      }}
+                                      className="h-7 text-xs px-2 text-[#0C6B58] hover:bg-[#E8F3F0]"
+                                      title="Imprimir Comprovante do Paciente com Preparo"
+                                    >
+                                      <Printer className="w-3.5 h-3.5 mr-1" />
+                                      Comprovante
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
                                         setAppointmentToDelete(appt)
                                         setDeleteConfirmOpen(true)
                                       }}
@@ -1437,8 +1531,13 @@ export default function Agenda() {
             {/* Exam Type & Clinic */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Tipo de Exame *</Label>
-                <Select value={formExamType} onValueChange={setFormExamType}>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Tipo de Exame *</Label>
+                  <span className="text-[10px] text-[#0C6B58] font-medium">
+                    Preparo preenchido automaticamente
+                  </span>
+                </div>
+                <Select value={formExamType} onValueChange={handleExamTypeChange}>
                   <SelectTrigger className="text-xs bg-white">
                     <SelectValue />
                   </SelectTrigger>
@@ -1457,7 +1556,10 @@ export default function Agenda() {
                 {formExamType === 'Outro (personalizado)' && (
                   <Input
                     value={customExamType}
-                    onChange={(e) => setCustomExamType(e.target.value)}
+                    onChange={(e) => {
+                      setCustomExamType(e.target.value)
+                      handleExamTypeChange('Outro (personalizado)')
+                    }}
                     placeholder="Digite o nome do exame"
                     className="text-xs bg-white mt-1.5"
                     required
@@ -1529,18 +1631,85 @@ export default function Agenda() {
               />
             </div>
 
-            {/* Anexos de Solicitação Médica (Xerox / Fotos) */}
+            {/* Anexos de Solicitação Médica (Xerox / Fotos) e Leitor Inteligente por IA */}
             <div className="p-3 bg-[#F7F9F8] rounded-xl border border-[#E5E9E7] space-y-2.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-[#1F2A27] flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-[#0C6B58]" />
-                  Fotos da Solicitação Médica / Pedido (Xerox/Foto)
-                </Label>
-                <span className="text-[10px] text-[#8A9691]">JPG, PNG, WebP</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <Label className="text-xs font-semibold text-[#1F2A27] flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-[#0C6B58]" />
+                    Fotos da Solicitação Médica / Pedido (Xerox/Foto)
+                  </Label>
+                  <span className="text-[10px] text-[#8A9691]">JPG, PNG, WebP</span>
+                </div>
+
+                {/* Botão de Leitura / Análise por IA */}
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={analyzingImage}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      setPendingAnalyzedFile(file)
+                      setAnalyzingImage(true)
+                      setAiErrorMsg(null)
+                      try {
+                        const result = await requestAnalysisService.analyzeImage(file)
+                        if (result.success && result.extracted) {
+                          setExtractedData(result.extracted)
+                          setAiReviewDialogOpen(true)
+                          // Também inclui o arquivo na lista de anexos
+                          setFormRequestFiles((prev) => [...prev, file])
+                        } else {
+                          setAiErrorMsg(
+                            result.error ||
+                              'Não foi possível extrair dados estruturados desta imagem. O preenchimento manual continua disponível.',
+                          )
+                          setExtractedData(null)
+                          setAiReviewDialogOpen(true)
+                        }
+                      } catch (err: unknown) {
+                        const msg =
+                          err instanceof Error
+                            ? err.message
+                            : 'Falha na conexão com o gateway de IA'
+                        setAiErrorMsg(msg)
+                        setAiReviewDialogOpen(true)
+                      } finally {
+                        setAnalyzingImage(false)
+                        // Reset input
+                        e.target.value = ''
+                      }
+                    }}
+                  />
+                  <div
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow-xs ${
+                      analyzingImage
+                        ? 'bg-amber-100 text-amber-800 cursor-wait'
+                        : 'bg-[#E8F3F0] text-[#0C6B58] hover:bg-[#d5ebe5] border border-[#0C6B58]/30'
+                    }`}
+                  >
+                    {analyzingImage ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0C6B58]" />
+                        <span>Analisando foto com IA...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 text-[#0C6B58]" />
+                        <span>Importar solicitação por foto (IA)</span>
+                      </>
+                    )}
+                  </div>
+                </label>
               </div>
+
               <p className="text-[11px] text-[#5F6E69]">
-                Anexe fotos da requisição/encaminhamento do SUS ou convênio. Ficarão visíveis para o
-                médico durante a realização do exame e confecção do laudo.
+                Anexe fotos da requisição/encaminhamento do SUS ou convênio. Use o botão{' '}
+                <strong className="text-[#0C6B58]">Importar solicitação por foto</strong> para
+                preencher automaticamente o paciente, exame e indicação após sua revisão.
               </p>
 
               {/* Existing images list if editing */}
@@ -1910,6 +2079,324 @@ export default function Agenda() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ALERT DIALOG CONFIRMAR SUBSTITUIÇÃO DE PREPARO CLÍNICO */}
+      <AlertDialog open={prepConfirmDialogOpen} onOpenChange={setPrepConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Substituir texto de preparo do exame?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O campo de Observações/Preparo já possui orientações digitadas. Deseja substituir pelo
+              preparo padrão de <strong>&quot;{pendingPrepReplacement?.newExam}&quot;</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="bg-[#F7F9F8] p-3 rounded-lg border border-[#E5E9E7] text-xs space-y-1">
+            <span className="font-semibold text-[#1F2A27]">Novo preparo sugerido:</span>
+            <p className="text-[#5F6E69] leading-relaxed">{pendingPrepReplacement?.newText}</p>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setPendingPrepReplacement(null)
+                setPrepConfirmDialogOpen(false)
+              }}
+            >
+              Manter meu texto atual
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingPrepReplacement) {
+                  setFormNotes(pendingPrepReplacement.newText)
+                }
+                setPendingPrepReplacement(null)
+                setPrepConfirmDialogOpen(false)
+              }}
+              className="bg-[#0C6B58] hover:bg-[#0A5949] text-white"
+            >
+              Substituir pelo novo preparo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* MODAL DE REVISÃO DOS DADOS EXTRAÍDOS PELA IA (VISÃO) */}
+      <Dialog open={aiReviewDialogOpen} onOpenChange={setAiReviewDialogOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-[#E8F3F0] text-[#0C6B58] flex items-center justify-center font-bold">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-[#1F2A27]">
+                  Revisão da Solicitação Médica (Extração IA)
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#5F6E69]">
+                  Revise atentamente os dados extraídos da foto da guia antes de confirmar o
+                  preenchimento.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {aiErrorMsg ? (
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
+              <div className="flex items-center gap-2 font-bold">
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>Reconhecimento não concluído ou IA indisponível</span>
+              </div>
+              <p className="text-amber-800 leading-relaxed">{aiErrorMsg}</p>
+              <p className="text-[11px] text-[#5F6E69] pt-1">
+                Você pode preencher os campos do formulário manualmente. A foto selecionada
+                continuará anexada ao agendamento.
+              </p>
+              <DialogFooter className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAiReviewDialogOpen(false)}
+                >
+                  Continuar Preenchimento Manual
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : extractedData ? (
+            <div className="space-y-4 pt-1">
+              <div className="p-3 bg-[#E8F3F0]/60 rounded-xl border border-[#0C6B58]/20 text-xs text-[#0C6B58] flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>
+                  Campos identificados pelo modelo de visão. Você pode aprovar para preencher o
+                  formulário ou editar qualquer dado diretamente.
+                </span>
+              </div>
+
+              <div className="space-y-3 bg-[#FAFBFB] p-3.5 rounded-xl border border-[#E5E9E7] text-xs">
+                {/* Paciente */}
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#5F6E69] block">
+                    Nome do Paciente
+                  </span>
+                  {extractedData.patient_name ? (
+                    <span className="font-bold text-sm text-[#1F2A27]">
+                      {extractedData.patient_name}
+                    </span>
+                  ) : (
+                    <span className="text-amber-700 italic">
+                      Campo não identificado — preencher manualmente
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#5F6E69] block">
+                      CPF
+                    </span>
+                    {extractedData.cpf ? (
+                      <span className="font-semibold text-[#1F2A27]">
+                        {maskCPF(extractedData.cpf)}
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 text-[11px] italic">Não identificado</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#5F6E69] block">
+                      Cartão SUS (CNS)
+                    </span>
+                    {extractedData.sus_card ? (
+                      <span className="font-semibold text-[#1F2A27]">{extractedData.sus_card}</span>
+                    ) : (
+                      <span className="text-amber-700 text-[11px] italic">Não identificado</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#5F6E69] block">
+                      Data de Nascimento
+                    </span>
+                    {extractedData.birth_date ? (
+                      <span className="font-semibold text-[#1F2A27]">
+                        {extractedData.birth_date}
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 text-[11px] italic">Não identificada</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#5F6E69] block">
+                      Telefone
+                    </span>
+                    {extractedData.phone ? (
+                      <span className="font-semibold text-[#1F2A27]">{extractedData.phone}</span>
+                    ) : (
+                      <span className="text-gray-400 text-[11px] italic">Não consta</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#5F6E69] block">
+                    Endereço
+                  </span>
+                  {extractedData.address ? (
+                    <span className="font-medium text-[#1F2A27]">{extractedData.address}</span>
+                  ) : (
+                    <span className="text-amber-700 text-[11px] italic">
+                      Não identificado — preencher manualmente se unidade for HM Samuel
+                    </span>
+                  )}
+                </div>
+
+                <div className="border-t border-[#E5E9E7] pt-2 space-y-2">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#5F6E69] block">
+                      Exame Solicitado
+                    </span>
+                    {extractedData.requested_exam ? (
+                      <span className="font-bold text-[#0C6B58]">
+                        {extractedData.requested_exam}
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 text-[11px] italic">
+                        Não identificado claramente
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#5F6E69] block">
+                      Médico Solicitante
+                    </span>
+                    {extractedData.referring_physician ? (
+                      <span className="font-medium text-[#1F2A27]">
+                        {extractedData.referring_physician}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-[11px] italic">Não identificado</span>
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#5F6E69] block">
+                      Indicação Clínica / Hipótese
+                    </span>
+                    {extractedData.clinical_indication ? (
+                      <p className="font-normal text-[#1F2A27] leading-relaxed bg-white p-2 rounded border border-[#E5E9E7]">
+                        {extractedData.clinical_indication}
+                      </p>
+                    ) : (
+                      <span className="text-gray-400 text-[11px] italic">
+                        Nenhuma indicação específica transcrita
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="pt-2 flex items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAiReviewDialogOpen(false)}
+                >
+                  Descartar Proposta
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    // Preencher o formulário explicitamente
+                    if (extractedData.patient_name) {
+                      setPatientMode('new')
+                      setFormNewPatientName(extractedData.patient_name)
+                    }
+                    if (extractedData.cpf) {
+                      setFormNewPatientCpf(maskCPF(extractedData.cpf))
+                    }
+                    if (extractedData.sus_card) {
+                      setFormNewPatientSusCard(extractedData.sus_card)
+                    }
+                    if (extractedData.phone) {
+                      setFormNewPatientPhone(maskPhone(extractedData.phone))
+                    }
+                    if (extractedData.address) {
+                      setFormNewPatientAddress(extractedData.address)
+                    }
+                    if (extractedData.birth_date) {
+                      // Se formato DD/MM/AAAA, converter para YYYY-MM-DD
+                      if (extractedData.birth_date.includes('/')) {
+                        const parts = extractedData.birth_date.split('/')
+                        if (parts.length === 3) {
+                          setFormNewPatientBirthDate(`${parts[2]}-${parts[1]}-${parts[0]}`)
+                        }
+                      } else {
+                        setFormNewPatientBirthDate(extractedData.birth_date)
+                      }
+                    }
+
+                    if (extractedData.referring_physician) {
+                      setFormReferring(extractedData.referring_physician)
+                    }
+
+                    // Tentar casar requested_exam com a lista conhecida
+                    if (extractedData.requested_exam) {
+                      const reqLower = extractedData.requested_exam.toLowerCase()
+                      const matched = COMMON_EXAM_TYPES.find((t) =>
+                        reqLower.includes(t.toLowerCase().replace('ultrassonografia', '').trim()),
+                      )
+                      if (matched) {
+                        handleExamTypeChange(matched)
+                      } else {
+                        setFormExamType('Outro (personalizado)')
+                        setCustomExamType(extractedData.requested_exam)
+                        handleExamTypeChange('Outro (personalizado)')
+                      }
+                    }
+
+                    // Se veio indicação clínica e o campo de notas está vazio ou é só o preparo, acrescentar
+                    if (extractedData.clinical_indication) {
+                      setFormNotes((prev) => {
+                        if (!prev.trim()) {
+                          return `Indicação clínica: ${extractedData.clinical_indication}`
+                        }
+                        return `${prev}\n\nIndicação clínica: ${extractedData.clinical_indication}`
+                      })
+                    }
+
+                    toast({
+                      title: 'Campos preenchidos',
+                      description:
+                        'Os dados da requisição foram transferidos para o formulário. Você pode editá-los livremente antes de salvar.',
+                    })
+                    setAiReviewDialogOpen(false)
+                  }}
+                  className="bg-[#0C6B58] hover:bg-[#0A5949] text-white font-semibold"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                  Confirmar e Preencher Formulário
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* COMPROVANTE DE AGENDAMENTO IMPRIMÍVEL DO PACIENTE */}
+      <AppointmentVoucherModal
+        open={voucherModalOpen}
+        onOpenChange={setVoucherModalOpen}
+        appointment={voucherAppointment}
+        patient={
+          voucherAppointment?.expand?.patient_id ||
+          patients.find((p) => p.id === voucherAppointment?.patient_id) ||
+          null
+        }
+      />
     </div>
   )
 }

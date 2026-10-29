@@ -288,3 +288,247 @@ routerAdd('GET', '/backend/v1/mwl/appointments', (c) => {
     items: items,
   })
 })
+
+/**
+ * Endpoint de Análise de Solicitação Médica por Foto / Imagem (IA Gateway com Visão)
+ * POST /backend/v1/ai/analyze-request-image
+ * Autenticação: Token de sessão de usuário logado ($apis.requireAuth())
+ * Aceita:
+ *   - JSON com { imageBase64: "data:image/jpeg;base64,...", mimeType: "image/jpeg" }
+ *   - OU multipart/form-data com campo "file" ou "image"
+ * Retorna dados estruturados em JSON:
+ *   patient_name, birth_date, cpf, sus_card, address, referring_physician,
+ *   requesting_unit, requested_exam, request_date, clinical_indication, notes
+ */
+routerAdd(
+  'POST',
+  '/backend/v1/ai/analyze-request-image',
+  (c) => {
+    // 1. Identificar autenticação do usuário logado
+    const authRecord = c.authRecord
+    if (!authRecord) {
+      return c.json(401, { error: 'Autenticação necessária.' })
+    }
+
+    // 2. Extrair dados da imagem (JSON com dataUrl ou multipart)
+    let base64Data = ''
+    let mimeType = 'image/jpeg'
+
+    try {
+      const body = c.requestInfo().body || {}
+      if (body.imageBase64) {
+        let raw = String(body.imageBase64).trim()
+        if (raw.startsWith('data:')) {
+          const parts = raw.split(',')
+          const meta = parts[0]
+          raw = parts[1] || ''
+          const m = meta.match(/data:([^;]+);base64/)
+          if (m && m[1]) mimeType = m[1]
+        }
+        base64Data = raw
+      } else if (body.image) {
+        base64Data = String(body.image).trim()
+      }
+    } catch (_) {}
+
+    // Fallback para multipart file upload se base64 não veio no body
+    if (!base64Data) {
+      try {
+        const files = c.findUploadedFiles('file') || c.findUploadedFiles('image')
+        if (files && files.length > 0) {
+          const f = files[0]
+          // Em goja PocketBase, se findUploadedFiles não disponibiliza bytes base64 diretos,
+          // preferimos envio em base64 pelo cliente
+          return c.json(400, {
+            error:
+              'Envie a imagem preferencialmente codificada em base64 no formato { imageBase64: "data:image/jpeg;base64,..." }',
+          })
+        }
+      } catch (_) {}
+    }
+
+    if (!base64Data || base64Data.length < 50) {
+      return c.json(400, {
+        error: 'Nenhuma imagem válida recebida para análise. Envie a foto da solicitação médica.',
+      })
+    }
+
+    // 3. Montar a requisição para o Gateway de IA com Visão
+    // Verifica credenciais do gateway
+    const gatewayUrl =
+      $os.getenv('SKIP_AI_GATEWAY_URL') ||
+      $os.getenv('SKIP_AI_CHAT_URL') ||
+      'https://ai-gateway.goskip.dev'
+    const apiKey = $os.getenv('SKIP_AI_GATEWAY_API_KEY') || $os.getenv('SKIP_AI_CHAT_API_KEY') || ''
+
+    if (!apiKey) {
+      return c.json(503, {
+        error:
+          'Gateway de IA não provisionado ou indisponível nesta instância. O preenchimento manual continua funcionando normalmente.',
+      })
+    }
+
+    const systemPrompt =
+      'Você é um assistente médico especialista em extração e leitura de guias de encaminhamento, pedidos médicos de exames e requisições do SUS (Sistema Único de Saúde, formulários do PEC/e-SUS, SISREG, prontuários impressos e receitas manuscritas). ' +
+      'Sua missão é extrair estritamente as informações presentes na foto ou xerox da guia médica com precisão clínica absoluta.\n' +
+      'REGRAS ESTRITAS:\n' +
+      '1. NUNCA INVENTE OU SUPONHA DADOS. Se um campo não estiver legível, rasurado ou ausente, retorne string vazia ("").\n' +
+      '2. Nome do paciente deve ser mantido em maiúsculas ou formato nominal padrão.\n' +
+      '3. CPF deve ser mantido se legível (formatado ou apenas dígitos).\n' +
+      '4. Cartão do SUS (CNS): exatamente os 15 dígitos se legíveis.\n' +
+      '5. Data de nascimento e data da solicitação no formato DD/MM/AAAA ou AAAA-MM-DD.\n' +
+      '6. Sexo: "Feminino", "Masculino" ou "".\n' +
+      '7. Exame solicitado: nome exato do exame pedido (ex.: Ultrassonografia de Abdome Total, US Pélvica Transvaginal, Ultrassom de Rins e Vias Urinárias, etc.).\n' +
+      '8. Indicação clínica / justificativa / hipótese diagnóstica: transcreva o motivo do exame conforme escrito pelo médico solicitante.\n' +
+      '9. Médico solicitante: nome e CRM se constar no carimbo ou assinatura.\n' +
+      '10. Responda ESTRITAMENTE em formato JSON puro, sem crases de código (markdown), no seguinte formato:\n' +
+      '{\n' +
+      '  "patient_name": "",\n' +
+      '  "birth_date": "",\n' +
+      '  "sex": "",\n' +
+      '  "cpf": "",\n' +
+      '  "sus_card": "",\n' +
+      '  "phone": "",\n' +
+      '  "address": "",\n' +
+      '  "referring_physician": "",\n' +
+      '  "requesting_unit": "",\n' +
+      '  "requested_exam": "",\n' +
+      '  "request_date": "",\n' +
+      '  "clinical_indication": "",\n' +
+      '  "confidence_notes": ""\n' +
+      '}'
+
+    const userImageUrl = base64Data.startsWith('data:')
+      ? base64Data
+      : `data:${mimeType};base64,${base64Data}`
+
+    const payload = {
+      model: 'fast',
+      temperature: 0.1,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Extraia os dados desta solicitação/requisição médica para o agendamento de exame. Retorne apenas o JSON.',
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: userImageUrl,
+              },
+            },
+          ],
+        },
+      ],
+    }
+
+    try {
+      // Chamada HTTP ao gateway de IA Skip
+      let targetEndpoint = gatewayUrl
+      if (!targetEndpoint.endsWith('/chat/completions')) {
+        targetEndpoint = targetEndpoint.replace(/\/+$/, '') + '/chat/completions'
+      }
+
+      const res = $http.send({
+        url: targetEndpoint,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(payload),
+        timeout: 45, // 45 segundos para processamento de visão
+      })
+
+      if (res.statusCode >= 400) {
+        console.log('[AI Vision Request Error Status]', res.statusCode, res.raw)
+        return c.json(502, {
+          error:
+            'O serviço de reconhecimento visual não pôde processar a foto no momento (' +
+            res.statusCode +
+            '). Prossiga com o preenchimento manual.',
+        })
+      }
+
+      const data = res.json || JSON.parse(res.raw)
+      const assistantMessage =
+        data.choices && data.choices[0] && data.choices[0].message
+          ? data.choices[0].message.content
+          : ''
+
+      if (!assistantMessage) {
+        return c.json(502, {
+          error: 'A IA não retornou resposta estruturada para esta imagem.',
+        })
+      }
+
+      // Parse JSON do resultado (limpando eventuais blocos ```json ... ```)
+      let cleaned = assistantMessage.trim()
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```json/i, '').replace(/^```/, '')
+        const lastIndex = cleaned.lastIndexOf('```')
+        if (lastIndex !== -1) {
+          cleaned = cleaned.substring(0, lastIndex)
+        }
+        cleaned = cleaned.trim()
+      }
+
+      let parsedData = null
+      try {
+        parsedData = JSON.parse(cleaned)
+      } catch (parseErr) {
+        console.log('[AI JSON parse error]', parseErr, 'Raw was:', assistantMessage)
+        // Fallback: tentar regex para achar o bloco { ... }
+        const start = assistantMessage.indexOf('{')
+        const end = assistantMessage.lastIndexOf('}')
+        if (start !== -1 && end > start) {
+          try {
+            parsedData = JSON.parse(assistantMessage.substring(start, end + 1))
+          } catch (_) {}
+        }
+      }
+
+      if (!parsedData || typeof parsedData !== 'object') {
+        return c.json(200, {
+          success: false,
+          error:
+            'A imagem foi analisada, mas não foi possível estruturar os campos com clareza. Preencha manualmente.',
+          raw_text: assistantMessage,
+        })
+      }
+
+      return c.json(200, {
+        success: true,
+        extracted: {
+          patient_name: String(parsedData.patient_name || '').trim(),
+          birth_date: String(parsedData.birth_date || '').trim(),
+          sex: String(parsedData.sex || '').trim(),
+          cpf: String(parsedData.cpf || '').trim(),
+          sus_card: String(parsedData.sus_card || '').trim(),
+          phone: String(parsedData.phone || '').trim(),
+          address: String(parsedData.address || '').trim(),
+          referring_physician: String(parsedData.referring_physician || '').trim(),
+          requesting_unit: String(parsedData.requesting_unit || '').trim(),
+          requested_exam: String(parsedData.requested_exam || '').trim(),
+          request_date: String(parsedData.request_date || '').trim(),
+          clinical_indication: String(parsedData.clinical_indication || '').trim(),
+          confidence_notes: String(parsedData.confidence_notes || '').trim(),
+        },
+      })
+    } catch (err) {
+      console.log('[AI Vision Exception]', err)
+      return c.json(500, {
+        error:
+          'Falha na comunicação com o serviço de visão computacional: ' +
+          (err.message || 'Erro desconhecido'),
+      })
+    }
+  },
+  $apis.requireAuth(),
+)

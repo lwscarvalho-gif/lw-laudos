@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T12:47:17.440Z",
+  "generatedAt": "2026-10-29T13:13:53.883Z",
   "collections": [
     {
       "name": "users",
@@ -1158,6 +1158,64 @@
         "CREATE UNIQUE INDEX idx_specialties_name ON medical_specialties (name)",
         "CREATE INDEX idx_specialties_sort ON medical_specialties (sort_order)"
       ]
+    },
+    {
+      "name": "exam_preparations",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "update": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')"
+      },
+      "fields": [
+        {
+          "name": "exam_type",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "specialty",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "instructions",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "general_notice",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_active",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE UNIQUE INDEX idx_exam_prep_type ON exam_preparations (exam_type)"]
     }
   ]
 }
