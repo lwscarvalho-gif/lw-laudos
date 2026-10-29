@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.28**  
+> **Versão do Projeto**: **v0.0.29**  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -154,9 +154,20 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
   - **Preservação de Dados no Banco**:
     - **NENHUMA coleção ou dado foi destruído no banco de dados**. As coleções `clinical_notes` (migração 0013) e `geriatric_assessments` (migração 0014) continuam intactas no schema PocketBase com todas as suas regras de RLS e índices, preparadas para futura exportação/migração para o novo produto de prontuário quando for lançado.
 
+- **v0.0.29 — Locais de Trabalho Estruturados e Resolução de Compatibilidade na Agenda**:
+  - **Evolução do Modelo de Clínicas/Locais de Atendimento**:
+    - O campo `clinics_config` do perfil do médico passou a suportar objetos estruturados `{ id, name, logo }` (`UserClinicItem`), permitindo atribuir um logotipo exclusivo para cada local de atuação clínica.
+  - **Correção Crítica de Runtime em `/agenda`**:
+    - Normalização retrocompatível da leitura de clínicas na Agenda (`doctorClinics` em `Agenda.tsx`): o código aceita de forma transparente tanto o formato clássico (array de strings) quanto o formato novo (array de objetos `{ id, name, logo }`), extraindo sempre o nome em string para exibição nos seletores e persistência no agendamento (`clinic_location`).
+    - Eliminação completa do erro `Uncaught Error: Objects are not valid as a React child (found: object with keys {id, name, logo})` ao acessar a rota `/agenda` com contas que já usavam o formato novo (como a conta teste do perfil médico convidado).
+  - **Gerenciamento Completo de Locais de Trabalho em Configurações**:
+    - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
+    - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
+    - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
 ---
 
-## 3. Arquitetura Atual do Sistema (v0.0.28)
+## 3. Arquitetura Atual do Sistema (v0.0.29)
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -285,4 +296,4 @@ O agente externo (ChatGPT / Codex / Claude Code / etc.) deve observar estritamen
 
 ---
 
-_Documento consolidado para orientação do agente local no notebook do Dr. Lucas Willian da Silva (CRM RO 6955) — Estado do Projeto v0.0.28._
+_Documento consolidado para orientação do agente local no notebook do Dr. Lucas Willian da Silva (CRM RO 6955) — Estado do Projeto v0.0.29._

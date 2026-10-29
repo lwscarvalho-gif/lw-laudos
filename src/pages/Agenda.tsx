@@ -188,29 +188,45 @@ export default function Agenda() {
   const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  // Doctor's configured clinics
-  const doctorClinics = useMemo(() => {
+  // Doctor's configured clinics (normalized to array of strings for names)
+  const doctorClinics = useMemo<string[]>(() => {
     const defaultClinics = ['HM Samuel Marques dos Santos', 'Gastroimagem']
     if (!user?.clinics_config) {
       return defaultClinics
     }
-    if (Array.isArray(user.clinics_config)) {
-      const list = user.clinics_config.map((c) =>
-        c === 'Clínica Principal' || c === 'Principal' ? 'HM Samuel Marques dos Santos' : c,
-      )
-      return list.length ? list : defaultClinics
-    }
-    try {
-      const parsed = JSON.parse(user.clinics_config)
-      if (Array.isArray(parsed) && parsed.length) {
-        return parsed.map((c: string) =>
-          c === 'Clínica Principal' || c === 'Principal' ? 'HM Samuel Marques dos Santos' : c,
-        )
+
+    const extractName = (item: unknown): string => {
+      if (!item) return ''
+      if (typeof item === 'string') {
+        return item === 'Clínica Principal' || item === 'Principal'
+          ? 'HM Samuel Marques dos Santos'
+          : item
       }
-    } catch {
-      /* intentionally ignored */
+      if (typeof item === 'object' && item !== null && 'name' in item) {
+        const n = String((item as { name?: unknown }).name || '').trim()
+        return n === 'Clínica Principal' || n === 'Principal' ? 'HM Samuel Marques dos Santos' : n
+      }
+      return ''
     }
-    return defaultClinics
+
+    let rawList: unknown[] = []
+    if (Array.isArray(user.clinics_config)) {
+      rawList = user.clinics_config
+    } else {
+      try {
+        const parsed = JSON.parse(user.clinics_config)
+        if (Array.isArray(parsed)) {
+          rawList = parsed
+        }
+      } catch {
+        /* intentionally ignored */
+      }
+    }
+
+    const names = rawList
+      .map(extractName)
+      .filter((name): name is string => Boolean(name && name.trim()))
+    return names.length > 0 ? names : defaultClinics
   }, [user?.clinics_config])
 
   // Set default clinic for form

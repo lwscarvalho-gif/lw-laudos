@@ -25,7 +25,10 @@ import {
   ClipboardList,
   Edit2,
   Clock,
+  Building2,
+  MapPin,
 } from 'lucide-react'
+import { UserClinicItem } from '@/types'
 import { Switch } from '@/components/ui/switch'
 import {
   digitalSignatureService,
@@ -129,29 +132,60 @@ export default function Configuracoes() {
   // DICOM Worklist / Clinics Preferences
   const [mwlToken, setMwlToken] = useState(user?.mwl_token || '')
   const [generatingToken, setGeneratingToken] = useState(false)
-  const [clinicsList, setClinicsList] = useState<string[]>(() => {
-    const defaultList = ['HM Samuel Marques dos Santos', 'Gastroimagem']
+
+  // Structured list of clinics: { id, name, logo }
+  const [clinicsList, setClinicsList] = useState<UserClinicItem[]>(() => {
+    const defaultList: UserClinicItem[] = [
+      { id: 'clinic_hm_samuel', name: 'HM Samuel Marques dos Santos' },
+      { id: 'clinic_gastroimagem', name: 'Gastroimagem' },
+    ]
     if (!user?.clinics_config) return defaultList
-    let list: string[] = []
+    let rawList: unknown[] = []
     if (Array.isArray(user.clinics_config)) {
-      list = user.clinics_config
+      rawList = user.clinics_config
     } else {
       try {
         const parsed = JSON.parse(user.clinics_config)
-        if (Array.isArray(parsed)) list = parsed
+        if (Array.isArray(parsed)) rawList = parsed
       } catch {
         /* intentionally ignored */
       }
     }
-    if (list.length > 0) {
-      return list.map((c) =>
-        c === 'Clínica Principal' || c === 'Principal' ? 'HM Samuel Marques dos Santos' : c,
-      )
+    if (rawList.length > 0) {
+      return rawList.map((c, idx) => {
+        if (typeof c === 'string') {
+          const rawName =
+            c === 'Clínica Principal' || c === 'Principal' ? 'HM Samuel Marques dos Santos' : c
+          return {
+            id: `clinic_${idx}_${Date.now()}`,
+            name: rawName,
+          }
+        }
+        if (typeof c === 'object' && c !== null) {
+          const obj = c as { id?: string; name?: string; logo?: string }
+          const rawName =
+            obj.name === 'Clínica Principal' || obj.name === 'Principal'
+              ? 'HM Samuel Marques dos Santos'
+              : obj.name || 'Unidade'
+          return {
+            id: obj.id || `clinic_${idx}_${Date.now()}`,
+            name: rawName,
+            logo: obj.logo || undefined,
+          }
+        }
+        return { id: `clinic_${idx}`, name: 'Unidade' }
+      })
     }
     return defaultList
   })
-  const [newClinicName, setNewClinicName] = useState('')
+
+  // Modal for editing/creating clinic
+  const [clinicModalOpen, setClinicModalOpen] = useState(false)
+  const [editingClinic, setEditingClinic] = useState<UserClinicItem | null>(null)
+  const [clinicModalName, setClinicModalName] = useState('')
+  const [clinicModalLogo, setClinicModalLogo] = useState<string | undefined>(undefined)
   const [savingClinics, setSavingClinics] = useState(false)
+  const [newClinicName, setNewClinicName] = useState('')
 
   // Default appointment duration state
   const [defaultDuration, setDefaultDuration] = useState<number>(
@@ -522,13 +556,102 @@ export default function Configuracoes() {
       setGeneratingToken(false)
     }
   }
-  // Add Clinic
+  // Open modal to add a new clinic
+  const openNewClinicModal = () => {
+    setEditingClinic(null)
+    setClinicModalName('')
+    setClinicModalLogo(undefined)
+    setClinicModalOpen(true)
+  }
+
+  // Open modal to edit/rename an existing clinic
+  const openEditClinicModal = (clinic: UserClinicItem) => {
+    setEditingClinic(clinic)
+    setClinicModalName(clinic.name)
+    setClinicModalLogo(clinic.logo)
+    setClinicModalOpen(true)
+  }
+
+  // Save clinic (create or edit)
+  const handleSaveClinicModal = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user) return
+    const trimmedName = clinicModalName.trim()
+    if (!trimmedName) {
+      toast({
+        title: 'Nome obrigatório',
+        description: 'Informe o nome da unidade de atendimento.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Check duplicate name excluding the item being edited
+    const isDuplicate = clinicsList.some(
+      (c) => c.name.toLowerCase() === trimmedName.toLowerCase() && c.id !== editingClinic?.id,
+    )
+    if (isDuplicate) {
+      toast({
+        title: 'Clínica já cadastrada',
+        description: 'Já existe uma unidade com este nome na sua lista.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    let updatedList: UserClinicItem[]
+    if (editingClinic) {
+      updatedList = clinicsList.map((c) =>
+        c.id === editingClinic.id
+          ? {
+              ...c,
+              name: trimmedName,
+              logo: clinicModalLogo || undefined,
+            }
+          : c,
+      )
+    } else {
+      const newId = `clinic_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+      updatedList = [
+        ...clinicsList,
+        {
+          id: newId,
+          name: trimmedName,
+          logo: clinicModalLogo || undefined,
+        },
+      ]
+    }
+
+    setSavingClinics(true)
+    try {
+      await pb.collection('users').update(user.id, {
+        clinics_config: updatedList,
+      })
+      await refreshUser()
+      setClinicsList(updatedList)
+      setClinicModalOpen(false)
+      toast({
+        title: editingClinic ? 'Unidade atualizada' : 'Unidade adicionada',
+        description: `"${trimmedName}" salva com sucesso no seu perfil médico.`,
+      })
+    } catch {
+      toast({
+        title: 'Erro ao salvar unidade',
+        description: 'Falha ao salvar lista de clínicas no servidor.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingClinics(false)
+    }
+  }
+
+  // Quick inline add clinic
   const handleAddClinic = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user || !newClinicName.trim()) return
 
     const trimmed = newClinicName.trim()
-    if (clinicsList.includes(trimmed)) {
+    if (clinicsList.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
       toast({
         title: 'Clínica já cadastrada',
         description: 'Esta unidade já consta na sua lista.',
@@ -537,7 +660,8 @@ export default function Configuracoes() {
       return
     }
 
-    const updatedList = [...clinicsList, trimmed]
+    const newId = `clinic_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+    const updatedList: UserClinicItem[] = [...clinicsList, { id: newId, name: trimmed }]
     setSavingClinics(true)
     try {
       await pb.collection('users').update(user.id, {
@@ -548,7 +672,7 @@ export default function Configuracoes() {
       setNewClinicName('')
       toast({
         title: 'Unidade adicionada',
-        description: `"${trimmed}" agora está disponível na sua agenda e ponte MWL.`,
+        description: `"${trimmed}" agora está disponível na sua agenda e laudos.`,
       })
     } catch {
       toast({
@@ -562,6 +686,45 @@ export default function Configuracoes() {
   }
 
   // Remove Clinic
+  const handleRemoveClinic = async (clinicIdOrName: string) => {
+    if (!user) return
+    if (clinicsList.length <= 1) {
+      toast({
+        title: 'Mínimo de uma clínica',
+        description: 'Mantenha pelo menos uma unidade cadastrada.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const target = clinicsList.find((c) => c.id === clinicIdOrName || c.name === clinicIdOrName)
+    const displayName = target?.name || clinicIdOrName
+    const updatedList = clinicsList.filter(
+      (c) => c.id !== clinicIdOrName && c.name !== clinicIdOrName,
+    )
+
+    setSavingClinics(true)
+    try {
+      await pb.collection('users').update(user.id, {
+        clinics_config: updatedList,
+      })
+      await refreshUser()
+      setClinicsList(updatedList)
+      toast({
+        title: 'Unidade removida',
+        description: `"${displayName}" foi removida da sua lista.`,
+      })
+    } catch {
+      toast({
+        title: 'Erro ao remover unidade',
+        description: 'Falha ao atualizar lista no servidor.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingClinics(false)
+    }
+  }
+
   const handleSaveDuration = async () => {
     if (!user) return
     setSavingDuration(true)
@@ -582,40 +745,6 @@ export default function Configuracoes() {
       })
     } finally {
       setSavingDuration(false)
-    }
-  }
-
-  const handleRemoveClinic = async (clinicNameToRemove: string) => {
-    if (!user) return
-    if (clinicsList.length <= 1) {
-      toast({
-        title: 'Mínimo de uma clínica',
-        description: 'Mantenha pelo menos uma unidade cadastrada.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    const updatedList = clinicsList.filter((c) => c !== clinicNameToRemove)
-    setSavingClinics(true)
-    try {
-      await pb.collection('users').update(user.id, {
-        clinics_config: updatedList,
-      })
-      await refreshUser()
-      setClinicsList(updatedList)
-      toast({
-        title: 'Unidade removida',
-        description: `"${clinicNameToRemove}" foi removida da sua lista.`,
-      })
-    } catch {
-      toast({
-        title: 'Erro ao remover unidade',
-        description: 'Falha ao atualizar lista no servidor.',
-        variant: 'destructive',
-      })
-    } finally {
-      setSavingClinics(false)
     }
   }
 
@@ -1201,58 +1330,106 @@ export default function Configuracoes() {
           </div>
         </div>
 
-        {/* Configuração das Clínicas / Locais */}
+        {/* Configuração das Clínicas / Locais de Trabalho */}
         <div className="space-y-4 pt-2">
-          <div>
-            <Label className="text-xs font-semibold text-[#1F2A27]">
-              Unidades / Clínicas Cadastradas (Duas ou mais)
-            </Label>
-            <p className="text-[11px] text-[#5F6E69] mt-0.5">
-              Cadastre as clínicas onde você atende (ex.: HM Samuel Marques dos Santos,
-              Gastroimagem). Cada agendamento é vinculado a uma unidade.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-2">
-              {clinicsList.map((clinic) => (
-                <div
-                  key={clinic}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F7F9F8] border border-[#E5E9E7] text-xs font-semibold text-[#1F2A27]"
-                >
-                  <span>{clinic}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveClinic(clinic)}
-                    disabled={savingClinics}
-                    className="text-[#8A9691] hover:text-red-600 ml-1"
-                    title={`Remover ${clinic}`}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <Label className="text-xs font-semibold text-[#1F2A27] flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-[#0C6B58]" />
+                Locais de Trabalho & Unidades de Atendimento ({clinicsList.length})
+              </Label>
+              <p className="text-[11px] text-[#5F6E69] mt-0.5">
+                Cadastre e personalize cada clínica onde você atua com nome e logotipo exclusivo
+                para laudos.
+              </p>
             </div>
-
-            <form onSubmit={handleAddClinic} className="flex items-center gap-2 max-w-md pt-2">
-              <Input
-                value={newClinicName}
-                onChange={(e) => setNewClinicName(e.target.value)}
-                placeholder="Nome da clínica (ex.: Gastroimagem)"
-                className="text-xs bg-white"
-              />
-              <Button
-                type="submit"
-                variant="outline"
-                size="sm"
-                disabled={savingClinics || !newClinicName.trim()}
-                className="text-xs shrink-0 border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
-              >
-                <Plus className="w-3.5 h-3.5 mr-1" />
-                Adicionar
-              </Button>
-            </form>
+            <Button
+              type="button"
+              size="sm"
+              onClick={openNewClinicModal}
+              className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs font-semibold shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Novo Local de Trabalho
+            </Button>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {clinicsList.map((clinic) => (
+              <div
+                key={clinic.id || clinic.name}
+                className="p-3.5 rounded-xl border border-[#E5E9E7] bg-[#FAFCFB] hover:border-[#0C6B58]/40 transition-colors flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-10 rounded bg-white border border-[#D6DDD9] flex items-center justify-center overflow-hidden shrink-0 p-1">
+                    {clinic.logo ? (
+                      <img
+                        src={clinic.logo}
+                        alt={clinic.name}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    ) : (
+                      <Building2 className="w-5 h-5 text-[#8A9691]" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-xs text-[#1F2A27] truncate">{clinic.name}</h4>
+                    <span className="text-[10px] text-[#8A9691] block">
+                      {clinic.logo ? 'Logotipo configurado' : 'Sem logotipo específico'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => openEditClinicModal(clinic)}
+                    className="h-7 w-7 text-[#5F6E69] hover:text-[#0C6B58]"
+                    title="Editar nome e logotipo do local"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleRemoveClinic(clinic.id || clinic.name)}
+                    disabled={savingClinics || clinicsList.length <= 1}
+                    className="h-7 w-7 text-[#8A9691] hover:text-red-600 disabled:opacity-40"
+                    title={
+                      clinicsList.length <= 1
+                        ? 'Mantenha pelo menos uma unidade'
+                        : `Remover ${clinic.name}`
+                    }
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Quick add simple form */}
+          <form onSubmit={handleAddClinic} className="flex items-center gap-2 max-w-md pt-2">
+            <Input
+              value={newClinicName}
+              onChange={(e) => setNewClinicName(e.target.value)}
+              placeholder="Adicionar nome rápido de clínica..."
+              className="text-xs bg-white"
+            />
+            <Button
+              type="submit"
+              variant="outline"
+              size="sm"
+              disabled={savingClinics || !newClinicName.trim()}
+              className="text-xs shrink-0 border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" />
+              Adicionar
+            </Button>
+          </form>
         </div>
       </div>
 
@@ -1569,6 +1746,140 @@ export default function Configuracoes() {
               </DialogFooter>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Criar / Editar Local de Trabalho (Clínica) */}
+      <Dialog open={clinicModalOpen} onOpenChange={setClinicModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-[#0C6B58]" />
+              {editingClinic ? 'Editar Local de Trabalho' : 'Novo Local de Trabalho'}
+            </DialogTitle>
+            <DialogDescription>
+              Configure o nome e logotipo desta unidade de atendimento médico.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveClinicModal} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="clinic_name_input" className="text-xs font-semibold">
+                Nome da Clínica / Unidade *
+              </Label>
+              <Input
+                id="clinic_name_input"
+                value={clinicModalName}
+                onChange={(e) => setClinicModalName(e.target.value)}
+                placeholder="Ex.: Gastroimagem, HM Samuel Marques..."
+                className="text-xs bg-white"
+                required
+              />
+            </div>
+
+            {/* Logo do Local de Trabalho */}
+            <div className="space-y-2 pt-2 border-t border-[#E5E9E7]">
+              <Label className="text-xs font-semibold text-[#1F2A27] flex items-center gap-1.5">
+                <ImageIcon className="w-4 h-4 text-[#0C6B58]" />
+                Logotipo da Unidade (Opcional)
+              </Label>
+              <p className="text-[11px] text-[#5F6E69]">
+                Será embutido no cabeçalho dos laudos emitidos nesta clínica.
+              </p>
+
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-[#E5E9E7] bg-[#F7F9F8]">
+                <div className="w-24 h-14 bg-white rounded border border-[#D6DDD9] flex items-center justify-center overflow-hidden p-1 shrink-0">
+                  {clinicModalLogo ? (
+                    <img
+                      src={clinicModalLogo}
+                      alt="Prévia Logo Clínica"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-[10px] text-[#8A9691] text-center">Sem logotipo</span>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 flex-1">
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/svg+xml"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          if (file.size > 2 * 1024 * 1024) {
+                            toast({
+                              title: 'Tamanho excedido',
+                              description: 'A imagem deve ter no máximo 2 MB.',
+                              variant: 'destructive',
+                            })
+                            return
+                          }
+                          const reader = new FileReader()
+                          reader.onload = () => {
+                            if (typeof reader.result === 'string') {
+                              setClinicModalLogo(reader.result)
+                            }
+                          }
+                          reader.readAsDataURL(file)
+                        }}
+                      />
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium bg-[#0C6B58] text-white hover:bg-[#0A5949] transition shadow-xs">
+                        <Upload className="w-3 h-3" />
+                        Escolher imagem
+                      </span>
+                    </label>
+
+                    {clinicModalLogo && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setClinicModalLogo(undefined)}
+                        className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        Remover
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-[#8A9691]">
+                    Formatos: PNG, JPEG ou SVG (máx. 2 MB)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setClinicModalOpen(false)}
+                disabled={savingClinics}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={savingClinics || !clinicModalName.trim()}
+                className="bg-[#0C6B58] hover:bg-[#0A5949] text-white font-semibold"
+              >
+                {savingClinics ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar Local'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
