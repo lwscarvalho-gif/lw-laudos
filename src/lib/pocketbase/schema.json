@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T14:25:26.858Z",
+  "generatedAt": "2026-10-29T14:38:16.907Z",
   "collections": [
     {
       "name": "users",
@@ -1228,6 +1228,89 @@
         }
       ],
       "indexes": ["CREATE UNIQUE INDEX idx_exam_prep_type ON exam_preparations (exam_type)"]
+    },
+    {
+      "name": "clinical_notes",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "view": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "create": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "update": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "delete": "@request.auth.id != '' && owner_id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "owner_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "patient_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "patients"
+        },
+        {
+          "name": "content",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "author_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "author_crm",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "author_crm_uf",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "note_date",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "note_type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Evolução", "Anamnese", "Retorno", "Intercorrência", "Geral"]
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_clinical_notes_owner ON clinical_notes (owner_id)",
+        "CREATE INDEX idx_clinical_notes_patient ON clinical_notes (patient_id)",
+        "CREATE INDEX idx_clinical_notes_created ON clinical_notes (created DESC)"
+      ]
     }
   ]
 }

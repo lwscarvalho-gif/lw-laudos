@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -102,6 +102,7 @@ function formatMinutesToTime(totalMinutes: number): string {
 export default function Agenda() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { toast } = useToast()
 
   // Selected date in Cuiaba timezone (YYYY-MM-DD)
@@ -272,6 +273,41 @@ export default function Agenda() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // If URL has ?paciente=ID, pre-open new appointment modal with that patient selected
+  useEffect(() => {
+    const ptParam = searchParams.get('paciente')
+    if (ptParam && patients.length > 0) {
+      const targetPt = patients.find((p) => p.id === ptParam)
+      if (targetPt) {
+        setEditingAppointment(null)
+        setPatientMode('existing')
+        setFormPatientId(targetPt.id)
+        setFormDate(selectedDate)
+        setFormTime('08:00')
+        const initialExam = 'Ultrassonografia Abdome Total'
+        const initialDuration = examPreparationsService.resolveDurationForExam(
+          initialExam,
+          prepCatalog,
+          user,
+        )
+        setFormDuration(initialDuration)
+        setFormExamType(initialExam)
+        setCustomExamType('')
+        setFormClinic(doctorClinics[0] || 'HM Samuel Marques dos Santos')
+        setFormStatus('Agendado')
+        const defaultPrep = prepCatalog.find((p) => p.exam_type === initialExam)
+        setFormNotes(
+          defaultPrep?.instructions ||
+            'Jejum absoluto de 8 horas. Bexiga confortavelmente cheia (beber 4 a 5 copos de água 1h antes e não urinar).',
+        )
+        setFormReferring('')
+        setFormRequestFiles([])
+        setExistingRequestImages([])
+        setModalOpen(true)
+      }
+    }
+  }, [searchParams, patients, selectedDate, prepCatalog, user, doctorClinics])
 
   // Navigate date
   const handlePrevDay = () => {
@@ -1155,21 +1191,41 @@ export default function Agenda() {
                                     </Button>
                                   </div>
 
-                                  {/* "Iniciar laudo" primary button */}
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleStartReport(appt)}
-                                    className={`h-7 text-xs font-semibold ${
-                                      appt.status === 'Realizado'
-                                        ? 'bg-[#E8F3F0] text-[#0C6B58] hover:bg-[#d5ebe5] border border-[#0C6B58]/30'
-                                        : 'bg-[#0C6B58] text-white hover:bg-[#0A5949]'
-                                    }`}
-                                  >
-                                    <Play className="w-3 h-3 mr-1 fill-current" />
-                                    {appt.status === 'Realizado'
-                                      ? 'Ver / Reabrir laudo'
-                                      : 'Iniciar laudo'}
-                                  </Button>
+                                  {/* Links rápidos: Abrir prontuário + Iniciar laudo */}
+                                  <div className="flex items-center gap-1.5">
+                                    {appt.patient_id && (
+                                      <Button
+                                        asChild
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs px-2 border-[#0C6B58]/30 text-[#0C6B58] hover:bg-[#E8F3F0]"
+                                        title="Abrir prontuário eletrônico completo"
+                                      >
+                                        <Link
+                                          to={`/pacientes/${appt.patient_id}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                        >
+                                          <User className="w-3 h-3 mr-1" />
+                                          Prontuário ↗
+                                        </Link>
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleStartReport(appt)}
+                                      className={`h-7 text-xs font-semibold ${
+                                        appt.status === 'Realizado'
+                                          ? 'bg-[#E8F3F0] text-[#0C6B58] hover:bg-[#d5ebe5] border border-[#0C6B58]/30'
+                                          : 'bg-[#0C6B58] text-white hover:bg-[#0A5949]'
+                                      }`}
+                                    >
+                                      <Play className="w-3 h-3 mr-1 fill-current" />
+                                      {appt.status === 'Realizado'
+                                        ? 'Ver / Reabrir laudo'
+                                        : 'Iniciar laudo'}
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
                             )
@@ -1923,7 +1979,19 @@ export default function Agenda() {
                 {/* Patient details */}
                 {selectedAppointmentForDetail.expand?.patient_id && (
                   <div className="p-3 bg-white rounded-xl border border-[#E5E9E7] text-xs space-y-1.5">
-                    <span className="font-bold text-[#1F2A27] block">Dados do Paciente:</span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#1F2A27] block">Dados do Paciente:</span>
+                      <Link
+                        to={`/pacientes/${selectedAppointmentForDetail.expand.patient_id.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-[#0C6B58] hover:underline font-semibold flex items-center gap-1"
+                        title="Abrir prontuário eletrônico completo"
+                      >
+                        <User className="w-3 h-3" />
+                        Abrir prontuário ↗
+                      </Link>
+                    </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[#5F6E69]">
                       <div>
                         <span>CPF: </span>

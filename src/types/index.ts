@@ -282,6 +282,26 @@ export interface Invitation {
   updated?: string
 }
 
+export type ClinicalNoteType = 'Evolução' | 'Anamnese' | 'Retorno' | 'Intercorrência' | 'Geral'
+
+export interface ClinicalNote extends RecordModel {
+  id: string
+  owner_id: string
+  patient_id: string
+  content: string
+  author_name?: string
+  author_crm?: string
+  author_crm_uf?: string
+  note_date?: string
+  note_type?: ClinicalNoteType
+  created?: string
+  updated?: string
+  expand?: {
+    patient_id?: Patient
+    owner_id?: User
+  }
+}
+
 export interface ExamPreparation extends RecordModel {
   id: string
   exam_type: string

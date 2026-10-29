@@ -60,6 +60,13 @@ function generateClientAccession(): string {
 
 export const appointmentsService = {
   /**
+   * List all appointments for a specific patient
+   */
+  async getByPatientId(patientId: string): Promise<Appointment[]> {
+    return this.getAll(`patient_id = '${patientId}'`, '-start_time')
+  },
+
+  /**
    * List all appointments belonging to current authenticated user
    */
   async getAll(filter?: string, sort = 'start_time'): Promise<Appointment[]> {

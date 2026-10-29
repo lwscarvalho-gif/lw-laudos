@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.24**  
+> **Versão do Projeto**: **v0.0.27**  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -135,9 +135,25 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Teste de conectividade e autenticação com o endpoint na nuvem (`GET /backend/v1/mwl/appointments`) usando o token local.
     - Veredito estrito: a mensagem `"★★★★★  VEREDITO: PRONTO PARA O APARELHO!  ★★★★★"` só é emitida se 100% dos itens forem validados com sucesso.
 
+- **v0.0.25–v0.0.26 — Estabilização e Validações Gerais de Fluxo**:
+- Consolidação de templates, diagnósticos e correções nas regras de formulário.
+
+- **v0.0.27 — Prontuário Eletrônico Próprio Integrado (Ficha Clínica & Linha do Tempo)**:
+- Decisão estratégica de produto: **Prontuário próprio integrado** dentro do LW Laudos, unificando todo o histórico do paciente sem dependência de sistemas externos.
+- **Ficha de Prontuário Completa (`/pacientes/:id`)**:
+  - Cabeçalho com identificação cadastral (CPF, data de nascimento, sexo, contatos, CNS/SUS, endereço completo).
+  - **Linha do tempo clínica cronológica** (mais recente primeiro) agregando em feed único: agendamentos (status, clínica, responsável pelo agendamento), laudos (rascunho/finalizado com link para abrir no editor), anexos (fotos de guias médicas ampliáveis com clique) e notas clínicas.
+- **Evolução Clínica Médica (Coleção `clinical_notes`, migração 0013)**:
+  - Médico registra notas de evolução com carimbo de data automática, tipo (Evolução, Anamnese, Retorno, Intercorrência, Geral) e identificação com CRM.
+  - **Isolamento e RLS**: Coleção protegida no nível de banco por `owner_id = @request.auth.id`. Perfis de apoio (Secretária, Gestor, Contabilidade) não visualizam conteúdo clínico privativo nem evoluções, preservando o sigilo médico e as permissões multiperfil.
+- **Integração Bidirecional com a Agenda e o Editor de Laudos**:
+  - Da ficha do paciente: botões de ação rápida para agendar consulta (`/agenda?paciente=:id`) ou iniciar laudo (`/laudos/ultrassom?paciente=:id`) com pré-vinculação imediata.
+  - Na Agenda: links diretos _"Abrir prontuário ↗"_ nos cards e no modal de detalhes do agendamento.
+  - No Editor de Laudo: link _"Abrir prontuário ↗"_ ao selecionar ou editar o laudo do paciente.
+
 ---
 
-## 3. Arquitetura Atual do Sistema (v0.0.24)
+## 3. Arquitetura Atual do Sistema (v0.0.27)
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -164,14 +180,14 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
 │  • SQLite embutido com transações ACID                                  │
 │  • Coleções: users, patients, exams, reports, templates,               │
 │    medical_specialties, appointments, user_permissions,                 │
-│    exam_preparations                                                    │
-│  • Regras RLS estritas (médico acessa seus laudos; secretária/gestor    │
-│    acessam agenda e pacientes)                                          │
+│    exam_preparations, clinical_notes                                    │
+│  • Regras RLS estritas (médico acessa seus laudos e evoluções;          │
+│    secretária/gestor acessam agenda e pacientes sem dados clínicos)     │
 │  • pb_hooks:                                                            │
 │    - GET  /backend/v1/mwl/appointments (autenticado por Token MWL)      │
 │    - POST /backend/v1/ai/analyze-request-image (Gateway IA no backend)  │
 │    - Geração automática de AccessionNumber (LW-YYYYMMDD-XXXX)           │
-│  • Migrações declarativas aplicadas: 0001 a 0012                        │
+│  • Migrações declarativas aplicadas: 0001 a 0013                        │
 └───────────────────────┬─────────────────────────────────────────────────┘
                         │
                         │ Polling HTTPS (Bearer Token do Médico)
@@ -266,4 +282,4 @@ O agente externo (ChatGPT / Codex / Claude Code / etc.) deve observar estritamen
 
 ---
 
-_Documento consolidado para orientação do agente local no notebook do Dr. Lucas Willian da Silva (CRM RO 6955) — Estado do Projeto v0.0.24._
+_Documento consolidado para orientação do agente local no notebook do Dr. Lucas Willian da Silva (CRM RO 6955) — Estado do Projeto v0.0.27._

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import {
   ArrowLeft,
   Save,
@@ -21,6 +21,7 @@ import {
   Download,
   Eye,
   FileText,
+  User,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { reportsService } from '@/services/reports'
@@ -955,9 +956,23 @@ export default function UltrasoundReportEditor() {
           <div className="bg-white p-6 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-[#1F2A27]">
-                  Identificação do Paciente *
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-[#1F2A27]">
+                    Identificação do Paciente *
+                  </Label>
+                  {patientId && (
+                    <Link
+                      to={`/pacientes/${patientId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-[#0C6B58] hover:underline font-semibold flex items-center gap-1"
+                      title="Abrir prontuário eletrônico completo do paciente em nova aba"
+                    >
+                      <User className="w-3 h-3" />
+                      Abrir prontuário ↗
+                    </Link>
+                  )}
+                </div>
                 <Select value={patientId} onValueChange={handlePatientChange}>
                   <SelectTrigger className="text-xs">
                     <SelectValue placeholder="Selecione o paciente..." />
