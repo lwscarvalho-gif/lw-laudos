@@ -12,7 +12,7 @@ export const adminService = {
   async createInvitation(data: {
     email: string
     name: string
-    role: 'Administrador' | 'Médico'
+    role: UserRole
   }): Promise<Invitation> {
     const token =
       Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
@@ -115,7 +115,7 @@ export const adminService = {
     }
   },
 
-  async updateUserRole(userId: string, role: 'Administrador' | 'Médico'): Promise<User> {
+  async updateUserRole(userId: string, role: UserRole): Promise<User> {
     return pb.collection('users').update<User>(userId, { role })
   },
 }

@@ -7,6 +7,10 @@ interface AuthContextType {
   token: string | null
   loading: boolean
   isAdmin: boolean
+  isDoctor: boolean
+  isSecretary: boolean
+  isManager: boolean
+  isAccounting: boolean
   login: (email: string, password: string) => Promise<User>
   logout: () => void
   refreshUser: () => Promise<User | null>
@@ -139,7 +143,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const isAdmin = user?.role === 'Administrador'
+  const isAdmin = user?.role === 'Administrador' || user?.role === 'Administrador Geral'
+  const isDoctor = user?.role === 'Médico' || !user?.role
+  const isSecretary = user?.role === 'Secretaria'
+  const isManager = user?.role === 'Gestor'
+  const isAccounting = user?.role === 'Contabilidade'
 
   return (
     <AuthContext.Provider
@@ -148,6 +156,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token,
         loading,
         isAdmin,
+        isDoctor,
+        isSecretary,
+        isManager,
+        isAccounting,
         login,
         logout,
         refreshUser,

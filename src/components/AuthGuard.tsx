@@ -6,10 +6,15 @@ import { useToast } from '@/hooks/use-toast'
 interface RouteGuardProps {
   children: React.ReactNode
   requireAdmin?: boolean
+  requireClinical?: boolean
 }
 
-export const AuthGuard: React.FC<RouteGuardProps> = ({ children, requireAdmin = false }) => {
-  const { user, loading, isAdmin } = useAuth()
+export const AuthGuard: React.FC<RouteGuardProps> = ({
+  children,
+  requireAdmin = false,
+  requireClinical = false,
+}) => {
+  const { user, loading, isAdmin, isDoctor } = useAuth()
   const location = useLocation()
   const { toast } = useToast()
 
@@ -35,6 +40,16 @@ export const AuthGuard: React.FC<RouteGuardProps> = ({ children, requireAdmin = 
       variant: 'destructive',
     })
     return <Navigate to="/painel" replace />
+  }
+
+  // Clinical routes (laudos, exames) require Doctor or Admin
+  if (requireClinical && !isDoctor && !isAdmin) {
+    toast({
+      title: 'Acesso restrito',
+      description: 'Acesso a laudos e exames restrito ao médico responsável.',
+      variant: 'destructive',
+    })
+    return <Navigate to="/agenda" replace />
   }
 
   return <>{children}</>

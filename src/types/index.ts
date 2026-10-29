@@ -1,4 +1,10 @@
-export type UserRole = 'Administrador' | 'Médico'
+export type UserRole =
+  | 'Administrador Geral'
+  | 'Administrador'
+  | 'Médico'
+  | 'Secretaria'
+  | 'Gestor'
+  | 'Contabilidade'
 
 export interface User {
   id: string
@@ -15,6 +21,7 @@ export interface User {
   verified?: boolean
   mwl_token?: string
   clinics_config?: string[] | string
+  default_appointment_duration?: number
   created?: string
   updated?: string
 }
@@ -31,6 +38,7 @@ export interface Patient extends RecordModel {
   phone?: string
   email?: string
   address?: string
+  sus_card?: string // Cartão do SUS
   notes?: string
   created?: string
   updated?: string
@@ -84,11 +92,21 @@ export interface Appointment extends RecordModel {
   study_description?: string
   scheduled_station_ae?: string
   exam_id?: string
+  created_by?: string
+  created_by_name?: string
+  created_by_role?: string
+  updated_by?: string
+  updated_by_name?: string
+  updated_by_role?: string
+  request_images?: string[] | string
   created?: string
   updated?: string
   // expanded relations
   expand?: {
     patient_id?: Patient
+    owner_id?: User
+    created_by?: User
+    updated_by?: User
   }
 }
 

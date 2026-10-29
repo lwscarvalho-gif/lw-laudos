@@ -39,10 +39,33 @@ const NAV_ITEMS = [
 ]
 
 export default function Layout() {
-  const { user, isAdmin, logout } = useAuth()
+  const { user, isAdmin, isDoctor, isSecretary, isManager, isAccounting, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
+
+  // Filter menu items by conservative permissions matrix
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (isSecretary) {
+      // Secretaria: agenda + pacientes + configuracoes basicas
+      return item.path === '/agenda' || item.path === '/pacientes' || item.path === '/configuracoes'
+    }
+    if (isManager) {
+      // Gestor: painel + agenda + pacientes + configuracoes (sem laudos)
+      return (
+        item.path === '/painel' ||
+        item.path === '/agenda' ||
+        item.path === '/pacientes' ||
+        item.path === '/configuracoes'
+      )
+    }
+    if (isAccounting) {
+      // Contabilidade: painel + agenda (relatórios/listagens financeiras sem laudos)
+      return item.path === '/painel' || item.path === '/agenda' || item.path === '/configuracoes'
+    }
+    // Médico / Administrador / Administrador Geral: acessam o menu completo
+    return true
+  })
 
   const handleLogout = () => {
     logout()
@@ -93,7 +116,7 @@ export default function Layout() {
           <p className="px-3 text-[11px] font-semibold text-[#8A9691] uppercase tracking-wider mb-2">
             Menu Principal
           </p>
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon
             const isActive =
               location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
@@ -162,9 +185,14 @@ export default function Layout() {
               </div>
               <div className="flex flex-col truncate">
                 <span className="text-xs font-semibold text-[#1F2A27] truncate">
-                  {user?.professional_name || user?.name || 'Médico'}
+                  {user?.professional_name || user?.name || 'Usuário'}
                 </span>
-                <span className="text-[10px] text-[#5F6E69] truncate">{user?.email}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-[#0C6B58] font-bold uppercase tracking-wide">
+                    {user?.role || 'Médico'}
+                  </span>
+                  <span className="text-[10px] text-[#8A9691] truncate">• {user?.email}</span>
+                </div>
               </div>
             </div>
             <button
@@ -202,7 +230,7 @@ export default function Layout() {
             </div>
 
             <div className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-              {NAV_ITEMS.map((item) => {
+              {visibleNavItems.map((item) => {
                 const Icon = item.icon
                 const isActive =
                   location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
@@ -349,7 +377,7 @@ export default function Layout() {
         <footer className="py-4 px-6 border-t border-[#E5E9E7] text-center text-xs text-[#8A9691] bg-white flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>Sistema Médico Multiperfil © 2025</span>
           <span className="text-[11px] bg-[#F4F6F5] text-[#5F6E69] px-2.5 py-0.5 rounded-full border border-[#E5E9E7]">
-            v0.0.14 • Versão preliminar para avaliação (não homologada para uso real)
+            v0.0.18 • Sistema Médico Multiperfil
           </span>
         </footer>
       </div>

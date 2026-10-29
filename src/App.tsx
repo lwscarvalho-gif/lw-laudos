@@ -67,17 +67,73 @@ export default function App() {
             {/* Agenda Individual do Médico */}
             <Route path="/agenda" element={<Agenda />} />
 
-            {/* Exames */}
-            <Route path="/exames" element={<Exames />} />
-            <Route path="/exames/novo" element={<ExameNovo />} />
-            <Route path="/exames/:id" element={<ExameDetalhes />} />
+            {/* Exames (Apenas Médico / Admin) */}
+            <Route
+              path="/exames"
+              element={
+                <AuthGuard requireClinical>
+                  <Exames />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/exames/novo"
+              element={
+                <AuthGuard requireClinical>
+                  <ExameNovo />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/exames/:id"
+              element={
+                <AuthGuard requireClinical>
+                  <ExameDetalhes />
+                </AuthGuard>
+              }
+            />
 
-            {/* Laudos */}
-            <Route path="/laudos" element={<Laudos />} />
-            <Route path="/laudos/novo" element={<LaudoNovo />} />
-            <Route path="/laudos/ultrassom" element={<UltrasoundReportEditor />} />
-            <Route path="/laudos/:id" element={<LaudoDetalhes />} />
-            <Route path="/laudos/:id/editar" element={<LaudoEditar />} />
+            {/* Laudos (Apenas Médico / Admin) */}
+            <Route
+              path="/laudos"
+              element={
+                <AuthGuard requireClinical>
+                  <Laudos />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/laudos/novo"
+              element={
+                <AuthGuard requireClinical>
+                  <LaudoNovo />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/laudos/ultrassom"
+              element={
+                <AuthGuard requireClinical>
+                  <UltrasoundReportEditor />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/laudos/:id"
+              element={
+                <AuthGuard requireClinical>
+                  <LaudoDetalhes />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/laudos/:id/editar"
+              element={
+                <AuthGuard requireClinical>
+                  <LaudoEditar />
+                </AuthGuard>
+              }
+            />
 
             {/* Integrações DICOM / Equipamentos */}
             <Route path="/integracoes" element={<Integracoes />} />

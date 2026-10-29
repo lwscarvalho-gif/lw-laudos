@@ -62,7 +62,7 @@ export default function Administracao() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
-  const [inviteRole, setInviteRole] = useState<'Administrador' | 'Médico'>('Médico')
+  const [inviteRole, setInviteRole] = useState<UserRole>('Médico')
   const [sendingInvite, setSendingInvite] = useState(false)
   const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({})
 
@@ -75,7 +75,7 @@ export default function Administracao() {
   const [userPerms, setUserPerms] = useState<UserPermissions | null>(null)
   const [loadingPerms, setLoadingPerms] = useState(false)
   const [savingPerms, setSavingPerms] = useState(false)
-  const [selectedRole, setSelectedRole] = useState<'Administrador' | 'Médico'>('Médico')
+  const [selectedRole, setSelectedRole] = useState<UserRole>('Médico')
 
   // Delete user modal
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
@@ -326,7 +326,7 @@ export default function Administracao() {
           className="bg-[#0C6B58] hover:bg-[#0A5949] text-white shadow-sm shrink-0"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Convidar Médico
+          Convidar Usuário
         </Button>
       </div>
 
@@ -397,9 +397,15 @@ export default function Administracao() {
                         <td className="py-3.5 px-4">
                           <span
                             className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                              u.role === 'Administrador'
+                              u.role === 'Administrador' || u.role === 'Administrador Geral'
                                 ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                : 'bg-teal-50 text-teal-700 border border-teal-200'
+                                : u.role === 'Secretaria'
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  : u.role === 'Gestor'
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    : u.role === 'Contabilidade'
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : 'bg-teal-50 text-teal-700 border border-teal-200'
                             }`}
                           >
                             {u.role || 'Médico'}
@@ -607,16 +613,25 @@ export default function Administracao() {
 
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Papel no Sistema</Label>
-              <Select
-                value={inviteRole}
-                onValueChange={(val: 'Administrador' | 'Médico') => setInviteRole(val)}
-              >
+              <Select value={inviteRole} onValueChange={(val: UserRole) => setInviteRole(val)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Médico">Médico (ambiente clínico isolado)</SelectItem>
-                  <SelectItem value="Administrador">Administrador (gestão de contas)</SelectItem>
+                  <SelectItem value="Médico">
+                    Médico (agenda individual e laudos clínicos)
+                  </SelectItem>
+                  <SelectItem value="Secretaria">
+                    Secretaria (agenda, pacientes e anexos)
+                  </SelectItem>
+                  <SelectItem value="Gestor">
+                    Gestor (visão gerencial da agenda/unidades)
+                  </SelectItem>
+                  <SelectItem value="Contabilidade">
+                    Contabilidade (relatórios e listagens)
+                  </SelectItem>
+                  <SelectItem value="Administrador Geral">Administrador Geral</SelectItem>
+                  <SelectItem value="Administrador">Administrador</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -678,13 +693,17 @@ export default function Administracao() {
                 <Label className="text-xs font-semibold">Papel do Usuário</Label>
                 <Select
                   value={selectedRole}
-                  onValueChange={(val: 'Administrador' | 'Médico') => setSelectedRole(val)}
+                  onValueChange={(val: UserRole) => setSelectedRole(val)}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Médico">Médico</SelectItem>
+                    <SelectItem value="Secretaria">Secretaria</SelectItem>
+                    <SelectItem value="Gestor">Gestor</SelectItem>
+                    <SelectItem value="Contabilidade">Contabilidade</SelectItem>
+                    <SelectItem value="Administrador Geral">Administrador Geral</SelectItem>
                     <SelectItem value="Administrador">Administrador</SelectItem>
                   </SelectContent>
                 </Select>

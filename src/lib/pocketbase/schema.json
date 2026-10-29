@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-10-29T01:29:23.065Z",
+  "generatedAt": "2026-10-29T12:47:17.440Z",
   "collections": [
     {
       "name": "users",
       "type": "auth",
       "apiRules": {
-        "list": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || id = @request.auth.id)",
-        "view": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || id = @request.auth.id)",
+        "list": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral' || @request.auth.role = 'Secretaria' || @request.auth.role = 'Gestor' || id = @request.auth.id)",
+        "view": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral' || @request.auth.role = 'Secretaria' || @request.auth.role = 'Gestor' || id = @request.auth.id)",
         "create": "",
         "update": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || (id = @request.auth.id && @request.body.role:changed = false))",
         "delete": "@request.auth.id != '' && @request.auth.role = 'Administrador'"
@@ -43,7 +43,14 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["Administrador", "Médico"]
+          "selectValues": [
+            "Administrador Geral",
+            "Administrador",
+            "Médico",
+            "Secretaria",
+            "Gestor",
+            "Contabilidade"
+          ]
         },
         {
           "name": "crm",
@@ -98,6 +105,12 @@
           "type": "json",
           "required": false,
           "system": false
+        },
+        {
+          "name": "default_appointment_duration",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -109,11 +122,11 @@
       "name": "patients",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && owner_id = @request.auth.id",
-        "view": "@request.auth.id != '' && owner_id = @request.auth.id",
-        "create": "@request.auth.id != '' && owner_id = @request.auth.id",
-        "update": "@request.auth.id != '' && owner_id = @request.auth.id",
-        "delete": "@request.auth.id != '' && owner_id = @request.auth.id"
+        "list": "@request.auth.id != '' && (owner_id = @request.auth.id || @request.auth.role = 'Secretaria' || @request.auth.role = 'Gestor' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "view": "@request.auth.id != '' && (owner_id = @request.auth.id || @request.auth.role = 'Secretaria' || @request.auth.role = 'Gestor' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "create": "@request.auth.id != '' && (owner_id = @request.auth.id || @request.auth.role = 'Secretaria' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "update": "@request.auth.id != '' && (owner_id = @request.auth.id || @request.auth.role = 'Secretaria' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "delete": "@request.auth.id != '' && (owner_id = @request.auth.id || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')"
       },
       "fields": [
         {
@@ -185,6 +198,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "sus_card",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -508,11 +527,11 @@
       "name": "invitations",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && @request.auth.role = 'Administrador'",
-        "view": "@request.auth.id != '' && @request.auth.role = 'Administrador'",
-        "create": "@request.auth.id != '' && @request.auth.role = 'Administrador'",
-        "update": "@request.auth.id != '' && @request.auth.role = 'Administrador'",
-        "delete": "@request.auth.id != '' && @request.auth.role = 'Administrador'"
+        "list": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "view": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "create": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "update": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')"
       },
       "fields": [
         {
@@ -532,7 +551,14 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["Administrador", "Médico"]
+          "selectValues": [
+            "Administrador Geral",
+            "Administrador",
+            "Médico",
+            "Secretaria",
+            "Gestor",
+            "Contabilidade"
+          ]
         },
         {
           "name": "token",
@@ -585,11 +611,11 @@
       "name": "user_permissions",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || user = @request.auth.id)",
-        "view": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || user = @request.auth.id)",
-        "create": "@request.auth.id != '' && @request.auth.role = 'Administrador'",
-        "update": "@request.auth.id != '' && @request.auth.role = 'Administrador'",
-        "delete": "@request.auth.id != '' && @request.auth.role = 'Administrador'"
+        "list": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral' || user = @request.auth.id)",
+        "view": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral' || user = @request.auth.id)",
+        "create": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "update": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')"
       },
       "fields": [
         {
@@ -887,11 +913,11 @@
       "name": "appointments",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && owner_id = @request.auth.id",
-        "view": "@request.auth.id != '' && owner_id = @request.auth.id",
-        "create": "@request.auth.id != '' && owner_id = @request.auth.id",
-        "update": "@request.auth.id != '' && owner_id = @request.auth.id",
-        "delete": "@request.auth.id != '' && owner_id = @request.auth.id"
+        "list": "@request.auth.id != '' && (owner_id = @request.auth.id || @request.auth.role = 'Secretaria' || @request.auth.role = 'Gestor' || @request.auth.role = 'Contabilidade' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "view": "@request.auth.id != '' && (owner_id = @request.auth.id || @request.auth.role = 'Secretaria' || @request.auth.role = 'Gestor' || @request.auth.role = 'Contabilidade' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "create": "@request.auth.id != '' && (owner_id = @request.auth.id || @request.auth.role = 'Secretaria' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "update": "@request.auth.id != '' && (owner_id = @request.auth.id || @request.auth.role = 'Secretaria' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "delete": "@request.auth.id != '' && (owner_id = @request.auth.id || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')"
       },
       "fields": [
         {
@@ -1018,6 +1044,50 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "created_by",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created_by_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created_by_role",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "updated_by",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "updated_by_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "updated_by_role",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "request_images",
+          "type": "file",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

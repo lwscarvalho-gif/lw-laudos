@@ -93,6 +93,7 @@ export default function PacienteDetalhes() {
         phone: p.phone || '',
         email: p.email || '',
         address: p.address || '',
+        sus_card: (p as any).sus_card || '',
         notes: p.notes || '',
       })
     } catch {
@@ -138,6 +139,7 @@ export default function PacienteDetalhes() {
         phone: formData.phone.trim(),
         email: formData.email.trim(),
         address: formData.address.trim(),
+        sus_card: (formData as any).sus_card?.trim() || '',
         notes: formData.notes.trim(),
       })
       setPatient(updated)
@@ -355,7 +357,19 @@ export default function PacienteDetalhes() {
                 {fieldErrors.email && <p className="text-xs text-[#DC2626]">{fieldErrors.email}</p>}
               </div>
 
-              <div className="col-span-1 sm:col-span-2 space-y-1.5">
+              <div className="space-y-1.5">
+                <Label htmlFor="det_sus" className="text-xs font-semibold">
+                  Cartão Nacional de Saúde (SUS)
+                </Label>
+                <Input
+                  id="det_sus"
+                  value={(formData as any).sus_card || ''}
+                  onChange={(e) => setFormData({ ...formData, sus_card: e.target.value } as any)}
+                  placeholder="000 0000 0000 0000"
+                />
+              </div>
+
+              <div className="space-y-1.5">
                 <Label htmlFor="det_address" className="text-xs font-semibold">
                   Endereço residencial
                 </Label>

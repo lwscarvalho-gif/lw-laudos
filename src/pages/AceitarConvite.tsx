@@ -82,14 +82,22 @@ export default function AceitarConvite() {
     setSubmitting(true)
     try {
       // 1. Create user account
+      const role = invitation.role
+      const isDoctorRole =
+        role === 'Médico' || role === 'Administrador' || role === 'Administrador Geral'
+      const profName = isDoctorRole
+        ? name.startsWith('Dr.') || name.startsWith('Dra.')
+          ? name.trim()
+          : `Dr. ${name.trim()}`
+        : name.trim()
+
       const newUser = await pb.collection('users').create({
         email: invitation.email,
         emailVisibility: false,
         password,
         passwordConfirm,
         name: name.trim(),
-        professional_name:
-          name.startsWith('Dr.') || name.startsWith('Dra.') ? name.trim() : `Dr. ${name.trim()}`,
+        professional_name: profName,
         role: invitation.role,
         crm: crm.trim(),
         crm_uf: crmUf,

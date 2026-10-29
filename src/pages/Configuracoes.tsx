@@ -125,22 +125,34 @@ export default function Configuracoes() {
   const [mwlToken, setMwlToken] = useState(user?.mwl_token || '')
   const [generatingToken, setGeneratingToken] = useState(false)
   const [clinicsList, setClinicsList] = useState<string[]>(() => {
-    if (!user?.clinics_config) return ['Gastroimagem', 'Clínica Principal']
+    const defaultList = ['HM Samuel Marques dos Santos', 'Gastroimagem']
+    if (!user?.clinics_config) return defaultList
+    let list: string[] = []
     if (Array.isArray(user.clinics_config)) {
-      return user.clinics_config.length
-        ? user.clinics_config
-        : ['Gastroimagem', 'Clínica Principal']
+      list = user.clinics_config
+    } else {
+      try {
+        const parsed = JSON.parse(user.clinics_config)
+        if (Array.isArray(parsed)) list = parsed
+      } catch {
+        /* intentionally ignored */
+      }
     }
-    try {
-      const parsed = JSON.parse(user.clinics_config)
-      if (Array.isArray(parsed) && parsed.length) return parsed
-    } catch {
-      /* intentionally ignored */
+    if (list.length > 0) {
+      return list.map((c) =>
+        c === 'Clínica Principal' || c === 'Principal' ? 'HM Samuel Marques dos Santos' : c,
+      )
     }
-    return ['Gastroimagem', 'Clínica Principal']
+    return defaultList
   })
   const [newClinicName, setNewClinicName] = useState('')
   const [savingClinics, setSavingClinics] = useState(false)
+
+  // Default appointment duration state
+  const [defaultDuration, setDefaultDuration] = useState<number>(
+    user?.default_appointment_duration || 30,
+  )
+  const [savingDuration, setSavingDuration] = useState(false)
 
   // Digital Signature Preferences
   const { isOnline } = useNetworkStatus()
@@ -412,6 +424,29 @@ export default function Configuracoes() {
   }
 
   // Remove Clinic
+  const handleSaveDuration = async () => {
+    if (!user) return
+    setSavingDuration(true)
+    try {
+      await pb.collection('users').update(user.id, {
+        default_appointment_duration: Number(defaultDuration),
+      })
+      await refreshUser()
+      toast({
+        title: 'Duração padrão salva',
+        description: `Seus agendamentos agora terão ${defaultDuration} minutos como padrão na grade.`,
+      })
+    } catch {
+      toast({
+        title: 'Erro ao salvar duração',
+        description: 'Falha ao atualizar duração padrão.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingDuration(false)
+    }
+  }
+
   const handleRemoveClinic = async (clinicNameToRemove: string) => {
     if (!user) return
     if (clinicsList.length <= 1) {
@@ -978,6 +1013,56 @@ export default function Configuracoes() {
           )}
         </div>
 
+        {/* Duração Padrão do Atendimento da Agenda */}
+        <div className="space-y-3 pt-2 border-b border-[#E5E9E7] pb-5">
+          <div>
+            <Label className="text-xs font-semibold text-[#1F2A27]">
+              Duração Padrão do Atendimento por Paciente
+            </Label>
+            <p className="text-[11px] text-[#5F6E69] mt-0.5">
+              Defina o tempo padrão que você deseja dedicar a cada paciente na sua agenda (a grade
+              de horários refletirá esse intervalo).
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 max-w-sm">
+            <Select
+              value={String(defaultDuration)}
+              onValueChange={(val) => setDefaultDuration(Number(val))}
+            >
+              <SelectTrigger className="w-48 text-xs bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 minutos</SelectItem>
+                <SelectItem value="15">15 minutos</SelectItem>
+                <SelectItem value="20">20 minutos</SelectItem>
+                <SelectItem value="30">30 minutos (padrão)</SelectItem>
+                <SelectItem value="40">40 minutos</SelectItem>
+                <SelectItem value="45">45 minutos</SelectItem>
+                <SelectItem value="60">60 minutos (1 hora)</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              type="button"
+              size="sm"
+              disabled={savingDuration}
+              onClick={handleSaveDuration}
+              className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs shrink-0"
+            >
+              {savingDuration ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar Duração'
+              )}
+            </Button>
+          </div>
+        </div>
+
         {/* Configuração das Clínicas / Locais */}
         <div className="space-y-4 pt-2">
           <div>
@@ -985,8 +1070,8 @@ export default function Configuracoes() {
               Unidades / Clínicas Cadastradas (Duas ou mais)
             </Label>
             <p className="text-[11px] text-[#5F6E69] mt-0.5">
-              Cadastre as clínicas onde você atende (ex.: Gastroimagem, Clínica Principal). Cada
-              agendamento é vinculado a uma unidade.
+              Cadastre as clínicas onde você atende (ex.: HM Samuel Marques dos Santos,
+              Gastroimagem). Cada agendamento é vinculado a uma unidade.
             </p>
           </div>
 

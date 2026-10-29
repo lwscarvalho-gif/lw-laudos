@@ -67,6 +67,7 @@ export default function Pacientes() {
     phone: '',
     email: '',
     address: '',
+    sus_card: '',
     notes: '',
   })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -134,6 +135,7 @@ export default function Pacientes() {
         phone: formData.phone.trim(),
         email: formData.email.trim(),
         address: formData.address.trim(),
+        sus_card: formData.sus_card.trim(),
         notes: formData.notes.trim(),
       })
       toast({
@@ -149,6 +151,7 @@ export default function Pacientes() {
         phone: '',
         email: '',
         address: '',
+        sus_card: '',
         notes: '',
       })
       loadPatients()
@@ -494,16 +497,30 @@ export default function Pacientes() {
               {fieldErrors.email && <p className="text-xs text-[#DC2626]">{fieldErrors.email}</p>}
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="p_addr" className="text-xs font-semibold">
-                Endereço
-              </Label>
-              <Input
-                id="p_addr"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                placeholder="Rua, número, bairro, cidade..."
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="p_sus" className="text-xs font-semibold">
+                  Cartão Nacional de Saúde (SUS)
+                </Label>
+                <Input
+                  id="p_sus"
+                  value={formData.sus_card}
+                  onChange={(e) => setFormData({ ...formData, sus_card: e.target.value })}
+                  placeholder="000 0000 0000 0000"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="p_addr" className="text-xs font-semibold">
+                  Endereço
+                </Label>
+                <Input
+                  id="p_addr"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="Rua, número, bairro, cidade..."
+                />
+              </div>
             </div>
 
             <div className="space-y-1.5">

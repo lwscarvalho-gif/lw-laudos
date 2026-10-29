@@ -4,6 +4,7 @@ import { formatDicomPatientName } from '@/lib/formatters'
 
 export interface CreateAppointmentInput {
   patient_id: string
+  owner_id?: string // doctor assigned
   start_time: string // ISO string
   duration_minutes: number
   exam_type: string
@@ -13,10 +14,15 @@ export interface CreateAppointmentInput {
   referring_physician?: string
   modality?: string
   scheduled_station_ae?: string
+  created_by?: string
+  created_by_name?: string
+  created_by_role?: string
+  request_images?: File[]
 }
 
 export interface UpdateAppointmentInput {
   patient_id?: string
+  owner_id?: string
   start_time?: string
   duration_minutes?: number
   exam_type?: string
@@ -32,6 +38,10 @@ export interface UpdateAppointmentInput {
   patient_sex?: string
   study_description?: string
   scheduled_station_ae?: string
+  updated_by?: string
+  updated_by_name?: string
+  updated_by_role?: string
+  request_images?: File[]
 }
 
 // Generate unique accession number prefix LW-YYYYMMDD-XXXX
@@ -53,13 +63,24 @@ export const appointmentsService = {
    * List all appointments belonging to current authenticated user
    */
   async getAll(filter?: string, sort = 'start_time'): Promise<Appointment[]> {
-    const defaultFilter = "owner_id = '" + pb.authStore.model?.id + "'"
-    const fullFilter = filter ? `${defaultFilter} && (${filter})` : defaultFilter
+    const user = pb.authStore.model
+    const isMultiClinicUser =
+      user?.role === 'Secretaria' ||
+      user?.role === 'Gestor' ||
+      user?.role === 'Contabilidade' ||
+      user?.role === 'Administrador' ||
+      user?.role === 'Administrador Geral'
+
+    let fullFilter = filter || ''
+    if (!isMultiClinicUser && user?.id) {
+      const ownerFilter = `owner_id = '${user.id}'`
+      fullFilter = filter ? `${ownerFilter} && (${filter})` : ownerFilter
+    }
 
     const records = await pb.collection('appointments').getFullList<Appointment>({
-      filter: fullFilter,
+      filter: fullFilter || undefined,
       sort,
-      expand: 'patient_id',
+      expand: 'patient_id,created_by,owner_id',
     })
     return records
   },
@@ -80,16 +101,26 @@ export const appointmentsService = {
    */
   async getById(id: string): Promise<Appointment> {
     return pb.collection('appointments').getOne<Appointment>(id, {
-      expand: 'patient_id',
+      expand: 'patient_id,created_by,owner_id,updated_by',
     })
+  },
+
+  /**
+   * Helper to get full URL of an uploaded request image file
+   */
+  getRequestImageUrl(appointment: Appointment, filename: string): string {
+    return pb.files.getURL(appointment, filename)
   },
 
   /**
    * Create an appointment with automatic AccessionNumber and DICOM tags
    */
   async create(data: CreateAppointmentInput, patientObj?: Patient): Promise<Appointment> {
-    const ownerId = pb.authStore.model?.id
-    if (!ownerId) throw new Error('Usuário não autenticado.')
+    const currentUser = pb.authStore.model
+    if (!currentUser?.id) throw new Error('Usuário não autenticado.')
+
+    // If an owner_id (assigned doctor) was provided use it; otherwise default to currentUser
+    const ownerId = data.owner_id || currentUser.id
 
     // Prepare DICOM fields from patient data
     let patientNameDicom = ''
@@ -109,30 +140,51 @@ export const appointmentsService = {
 
     const accessionNumber = generateClientAccession()
 
-    const record = await pb.collection('appointments').create<Appointment>(
-      {
-        owner_id: ownerId,
-        patient_id: data.patient_id,
-        start_time: data.start_time,
-        duration_minutes: data.duration_minutes || 30,
-        exam_type: data.exam_type || 'Ultrassonografia Abdome Total',
-        clinic_location: data.clinic_location,
-        status: data.status || 'Agendado',
-        notes: data.notes || '',
-        referring_physician: data.referring_physician || '',
-        accession_number: accessionNumber,
-        modality: data.modality || 'US',
-        study_description: data.exam_type || 'Ultrassonografia Abdome Total',
-        scheduled_station_ae: data.scheduled_station_ae || 'ORTHANC',
-        patient_name_dicom: patientNameDicom,
-        patient_id_dicom: patientIdDicom,
-        patient_birth_date: patientBirthDate,
-        patient_sex: patientSex,
-      },
-      {
-        expand: 'patient_id',
-      },
-    )
+    const creatorName =
+      (currentUser as any).professional_name || currentUser.name || currentUser.email || 'Usuário'
+    const creatorRole = currentUser.role || 'Médico'
+
+    const payload: any = {
+      owner_id: ownerId,
+      patient_id: data.patient_id,
+      start_time: data.start_time,
+      duration_minutes: data.duration_minutes || 30,
+      exam_type: data.exam_type || 'Ultrassonografia Abdome Total',
+      clinic_location: data.clinic_location,
+      status: data.status || 'Agendado',
+      notes: data.notes || '',
+      referring_physician: data.referring_physician || '',
+      accession_number: accessionNumber,
+      modality: data.modality || 'US',
+      study_description: data.exam_type || 'Ultrassonografia Abdome Total',
+      scheduled_station_ae: data.scheduled_station_ae || 'ORTHANC',
+      patient_name_dicom: patientNameDicom,
+      patient_id_dicom: patientIdDicom,
+      patient_birth_date: patientBirthDate,
+      patient_sex: patientSex,
+      created_by: currentUser.id,
+      created_by_name: creatorName,
+      created_by_role: creatorRole,
+    }
+
+    if (data.request_images && data.request_images.length > 0) {
+      const formData = new FormData()
+      for (const [k, v] of Object.entries(payload)) {
+        if (v !== undefined && v !== null) {
+          formData.append(k, String(v))
+        }
+      }
+      data.request_images.forEach((file) => {
+        formData.append('request_images', file)
+      })
+      return pb.collection('appointments').create<Appointment>(formData, {
+        expand: 'patient_id,created_by,owner_id',
+      })
+    }
+
+    const record = await pb.collection('appointments').create<Appointment>(payload, {
+      expand: 'patient_id,created_by,owner_id',
+    })
 
     return record
   },
@@ -141,8 +193,37 @@ export const appointmentsService = {
    * Update an existing appointment
    */
   async update(id: string, data: UpdateAppointmentInput): Promise<Appointment> {
-    const updated = await pb.collection('appointments').update<Appointment>(id, data, {
-      expand: 'patient_id',
+    const currentUser = pb.authStore.model
+    const updaterName = currentUser
+      ? (currentUser as any).professional_name || currentUser.name || currentUser.email || 'Usuário'
+      : ''
+    const updaterRole = currentUser?.role || ''
+
+    const payload: any = {
+      ...data,
+      updated_by: currentUser?.id,
+      updated_by_name: updaterName,
+      updated_by_role: updaterRole,
+    }
+
+    if (data.request_images && data.request_images.length > 0) {
+      const formData = new FormData()
+      for (const [k, v] of Object.entries(payload)) {
+        if (k !== 'request_images' && v !== undefined && v !== null) {
+          formData.append(k, String(v))
+        }
+      }
+      data.request_images.forEach((file) => {
+        formData.append('request_images', file)
+      })
+      return pb.collection('appointments').update<Appointment>(id, formData, {
+        expand: 'patient_id,created_by,owner_id,updated_by',
+      })
+    }
+
+    delete payload.request_images
+    const updated = await pb.collection('appointments').update<Appointment>(id, payload, {
+      expand: 'patient_id,created_by,owner_id,updated_by',
     })
     return updated
   },
