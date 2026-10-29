@@ -73,11 +73,59 @@ export interface UltrasoundSectionData {
   isCustom?: boolean
 }
 
+export type BodyMarkSchemeId =
+  | 'none'
+  | 'mama_direita'
+  | 'mama_esquerda'
+  | 'utero_transvaginal'
+  | 'ombro_articular'
+  | 'tireoide'
+  | 'abdome_fatia'
+
+export interface BodyMarkPoint {
+  id: string
+  number: number
+  x: number // 0..1 normalized
+  y: number // 0..1 normalized
+  side?: 'Direito' | 'Esquerdo' | 'Bilateral' | 'Não se aplica'
+  quadrant?:
+    | 'Superomedial'
+    | 'Superolateral'
+    | 'Inferomedial'
+    | 'Inferolateral'
+    | 'Retroareolar'
+    | 'Não se aplica'
+  clockHour?: number // 1..12
+  distanceFromNippleCm?: string // ex: "2.5 cm"
+  deviceStatus?: 'Normoposicionado' | 'Mal posicionado' | 'Não se aplica'
+  tendon?:
+    | 'Supraespinhal'
+    | 'Infraespinhal'
+    | 'Subescapular'
+    | 'Tendão longo do bíceps'
+    | 'Outro'
+    | 'Não se aplica'
+  lesionGrade?:
+    | 'Grau 1 (leve)'
+    | 'Grau 2 (moderada)'
+    | 'Grau 3 (grave)'
+    | 'Ruptura parcial'
+    | 'Ruptura completa'
+    | 'Não se aplica'
+  description: string
+}
+
+export interface BodyMarksState {
+  schemeId: BodyMarkSchemeId
+  points: BodyMarkPoint[]
+}
+
 export interface ReportStructuredData {
   sections: UltrasoundSectionData[]
   conclusion: string
   observations?: string
   mode: 'structured' | 'freetext'
+  body_marks?: BodyMarksState
 }
 
 export interface ReportImagesConfig {

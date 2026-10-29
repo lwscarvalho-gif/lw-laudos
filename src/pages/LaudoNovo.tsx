@@ -18,6 +18,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import type { Patient, Exam, Template } from '@/types'
 import RichTextEditor from '@/components/RichTextEditor'
 import { printReportPDF, downloadReportRealPdf } from '@/lib/pdfGenerator'
+import BodyMarkEditor from '@/components/ultrasound/BodyMarkEditor'
+import type { BodyMarksState } from '@/types'
 import { formatDateBR } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -67,6 +69,10 @@ export default function LaudoNovo() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [pendingTemplate, setPendingTemplate] = useState<Template | null>(null)
   const [showApplyConfirm, setShowApplyConfirm] = useState(false)
+  const [bodyMarks, setBodyMarks] = useState<BodyMarksState>({
+    schemeId: 'none',
+    points: [],
+  })
 
   const [saving, setSaving] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -187,6 +193,12 @@ export default function LaudoNovo() {
         author_name: user?.professional_name || user?.name || 'Dr. Médico',
         author_crm: user?.crm,
         author_crm_uf: user?.crm_uf,
+        structured_data: {
+          sections: [],
+          conclusion: '',
+          mode: 'freetext',
+          body_marks: bodyMarks,
+        },
       })
 
       // If exam linked, update exam status to 'Concluído'
@@ -212,6 +224,7 @@ export default function LaudoNovo() {
           authorTitle: user?.professional_title,
           headerText: user?.header,
           signatureDate: created.signature_date,
+          bodyMarks: bodyMarks.schemeId !== 'none' ? bodyMarks : undefined,
         })
       }
 
@@ -250,6 +263,7 @@ export default function LaudoNovo() {
         headerText: user?.header,
         signatureDate: new Date().toISOString(),
         isDraft: true,
+        bodyMarks: bodyMarks.schemeId !== 'none' ? bodyMarks : undefined,
       })
       toast({
         title: 'Download iniciado',
@@ -268,6 +282,7 @@ export default function LaudoNovo() {
         authorTitle: defaultAuthorTitle,
         headerText: user?.header,
         signatureDate: new Date().toISOString(),
+        bodyMarks: bodyMarks.schemeId !== 'none' ? bodyMarks : undefined,
       })
     } finally {
       setDownloadingRealPdf(false)
@@ -431,6 +446,11 @@ export default function LaudoNovo() {
                 minHeight="420px"
               />
               {fieldErrors.body && <p className="text-xs text-[#DC2626]">{fieldErrors.body}</p>}
+            </div>
+
+            {/* Body Mark Diagram (Esquema Anatômico) */}
+            <div className="pt-2">
+              <BodyMarkEditor value={bodyMarks} onChange={setBodyMarks} />
             </div>
 
             {/* Author identification notice */}

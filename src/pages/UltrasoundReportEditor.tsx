@@ -78,6 +78,8 @@ import { useToast } from '@/hooks/use-toast'
 import FindingsLibraryModal from '@/components/ultrasound/FindingsLibraryModal'
 import ExamImagesManager from '@/components/ultrasound/ExamImagesManager'
 import AiAssistantPanel from '@/components/ultrasound/AiAssistantPanel'
+import BodyMarkEditor from '@/components/ultrasound/BodyMarkEditor'
+import type { BodyMarksState } from '@/types'
 
 // Default structured sections for Abdome Total
 const DEFAULT_ABDOME_SECTIONS: Array<{ id: string; label: string }> = [
@@ -124,6 +126,10 @@ export default function UltrasoundReportEditor() {
   const [conclusion, setConclusion] = useState('')
   const [mode, setMode] = useState<'structured' | 'freetext'>('structured')
   const [freeTextBody, setFreeTextBody] = useState('')
+  const [bodyMarks, setBodyMarks] = useState<BodyMarksState>({
+    schemeId: 'none',
+    points: [],
+  })
 
   // Images state & config
   const [images, setImages] = useState<ExamImage[]>([])
@@ -193,8 +199,14 @@ export default function UltrasoundReportEditor() {
             setSections(rep.structured_data.sections)
             setConclusion(rep.structured_data.conclusion || rep.conclusion || '')
             setMode(rep.structured_data.mode || 'structured')
+            if (rep.structured_data.body_marks) {
+              setBodyMarks(rep.structured_data.body_marks)
+            }
           } else {
             // legacy free text
+            if (rep.structured_data?.body_marks) {
+              setBodyMarks(rep.structured_data.body_marks)
+            }
             setMode('freetext')
             setFreeTextBody(rep.body)
           }
@@ -335,6 +347,7 @@ export default function UltrasoundReportEditor() {
           sections,
           conclusion,
           mode,
+          body_marks: bodyMarks,
         }
         const imagesConfig = {
           imagesPerPage,
@@ -420,6 +433,7 @@ export default function UltrasoundReportEditor() {
       sections,
       conclusion,
       mode,
+      bodyMarks,
       imagesPerPage,
       currentReportId,
       images,
@@ -621,6 +635,7 @@ export default function UltrasoundReportEditor() {
       isDraft: autosaveStatus !== 'saved' || !currentReportId,
       images: selectedImgs,
       imagesPerPage,
+      bodyMarks: bodyMarks.schemeId !== 'none' ? bodyMarks : undefined,
     }
   }, [
     patients,
@@ -635,6 +650,7 @@ export default function UltrasoundReportEditor() {
     autosaveStatus,
     currentReportId,
     imagesPerPage,
+    bodyMarks,
   ])
 
   // Open in-app PDF preview modal
@@ -690,6 +706,7 @@ export default function UltrasoundReportEditor() {
         sections,
         conclusion,
         mode,
+        body_marks: bodyMarks,
       }
       const imagesConfig = {
         imagesPerPage,
@@ -1218,7 +1235,27 @@ export default function UltrasoundReportEditor() {
                   className="text-xs leading-relaxed font-semibold font-sans bg-[#FAFBFB]"
                 />
               </div>
+
+              {/* Clinical Body Mark (Esquema Anatômico) */}
+              <BodyMarkEditor
+                value={bodyMarks}
+                onChange={(newMarks) => {
+                  setBodyMarks(newMarks)
+                  setHasUnsavedChanges(true)
+                }}
+              />
             </div>
+          )}
+
+          {/* Clinical Body Mark for FreeText mode as well */}
+          {mode === 'freetext' && (
+            <BodyMarkEditor
+              value={bodyMarks}
+              onChange={(newMarks) => {
+                setBodyMarks(newMarks)
+                setHasUnsavedChanges(true)
+              }}
+            />
           )}
 
           {/* MULTIPLE IMAGES SECTION */}

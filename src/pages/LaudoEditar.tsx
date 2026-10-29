@@ -6,6 +6,8 @@ import { patientsService } from '@/services/patients'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Patient, Report } from '@/types'
 import RichTextEditor from '@/components/RichTextEditor'
+import BodyMarkEditor from '@/components/ultrasound/BodyMarkEditor'
+import type { BodyMarksState } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -31,6 +33,10 @@ export default function LaudoEditar() {
   const [title, setTitle] = useState('')
   const [patientId, setPatientId] = useState('')
   const [body, setBody] = useState('')
+  const [bodyMarks, setBodyMarks] = useState<BodyMarksState>({
+    schemeId: 'none',
+    points: [],
+  })
 
   const [saving, setSaving] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -44,6 +50,9 @@ export default function LaudoEditar() {
         setTitle(rep.title)
         setPatientId(rep.patient_id)
         setBody(rep.body)
+        if (rep.structured_data?.body_marks) {
+          setBodyMarks(rep.structured_data.body_marks)
+        }
       })
       .catch(() => {
         toast({
@@ -72,10 +81,19 @@ export default function LaudoEditar() {
 
     setSaving(true)
     try {
+      const existingStructured = report?.structured_data || {
+        sections: [],
+        conclusion: '',
+        mode: 'freetext',
+      }
       await reportsService.update(id, {
         title: title.trim(),
         patient_id: patientId,
         body,
+        structured_data: {
+          ...existingStructured,
+          body_marks: bodyMarks,
+        },
       })
       toast({
         title: 'Laudo salvo com sucesso.',
@@ -190,6 +208,11 @@ export default function LaudoEditar() {
           </Label>
           <RichTextEditor value={body} onChange={setBody} minHeight="400px" />
           {fieldErrors.body && <p className="text-xs text-[#DC2626]">{fieldErrors.body}</p>}
+        </div>
+
+        {/* Body Mark Diagram (Esquema Anatômico) */}
+        <div className="pt-2">
+          <BodyMarkEditor value={bodyMarks} onChange={setBodyMarks} />
         </div>
       </div>
     </div>

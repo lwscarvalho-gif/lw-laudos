@@ -1,8 +1,8 @@
 # LW Laudos — Guia Técnico de Auto-Hospedagem e Execução Local Autônoma
 
-Versão Preliminar v0.0.6 • Sistema Médico Multiperfil
+Versão Preliminar v0.0.8 • Sistema Médico Multiperfil
 
-Este documento atende diretamente ao requisito de **execução local autônoma** do sistema em servidor ou computador físico da clínica (Windows, Linux ou macOS), sem dependência mandatória de nuvem, CDNs externos ou login remoto.
+Este documento atende diretamente ao requisito de **execução local autônoma (total offline)** e **uso online** do sistema em servidor ou computador físico da clínica (Windows, Linux ou macOS), sem dependência mandatória de nuvem, CDNs externos ou login remoto.
 
 ---
 
@@ -17,6 +17,7 @@ O backend do LW Laudos é construído sobre o **PocketBase** (binário único, e
 - **Regras de Isolamento (RLS por `owner_id`):** Todas as regras de segurança são avaliadas pelo servidor (`@request.auth.id != '' && owner_id = @request.auth.id`). Elas rodam localmente com a mesma garantia de isolamento entre médicos.
 - **Storage de Arquivos:** Imagens de ultrassom e logotipos de médicos são salvos na pasta local `pb_data/storage/` sem necessidade de S3 ou CDN externo.
 - **Autenticação:** O subsistema de auth (senhas bcrypt, sessões JWT) é totalmente local no SQLite.
+- **Módulo Body Mark (Esquemas Anatômicos Vetoriais):** Mama D/E com 4 quadrantes e horas 1–12, útero transvaginal com DIU, articulação do ombro com tendões e tireoide/abdome são renderizados inteiramente com SVGs puros e canvas no navegador, sem baixar nenhuma imagem de servidores externos.
 - **Geração de PDF e Impressão:** O compilador de PDF binário real (`%PDF-1.4`) roda em memória nativamente no navegador do médico, sem enviar dados para APIs de renderização em nuvem.
 
 ### 1.2 Dependências Impeditivas Reais (Sem Esconder Atrás de Selo)
@@ -117,20 +118,22 @@ Como o PocketBase utiliza SQLite:
 
 ## 5. Matriz de Conectividade e Comportamento em Modo Offline
 
-| Componente                                      | Funciona Sem Internet?   | Funciona na Rede Local (LAN)? | Observações                              |
-| ----------------------------------------------- | ------------------------ | ----------------------------- | ---------------------------------------- |
-| **Editor Estruturado de Ultrassom**             | Sim                      | Sim                           | Edição e validação em tempo real         |
-| **Biblioteca de Frases por Órgão**              | Sim                      | Sim                           | Salva no SQLite local                    |
-| **Upload de Imagens de Exame**                  | Sim                      | Sim                           | Salvo no disco local (`pb_data/storage`) |
-| **Rascunhos e Finalização**                     | Sim                      | Sim                           | Isolamento por `owner_id` ativo          |
-| **Download de PDF Real (%PDF-1.4)**             | Sim                      | Sim                           | Compilado em memória no cliente          |
-| **Impressão em Papel A4**                       | Sim                      | Sim                           | Via spooler da impressora da clínica     |
-| **Assinatura Digital em Nuvem (VIDaaS/BirdID)** | **Não** (exige internet) | N/A                           | Exibe status _"Requer internet"_         |
-| **Certificado Local A1/A3 (Futuro)**            | Sim                      | Sim                           | Planejado via ponte WebPKI/agente local  |
-| **Assistente de IA Cloud**                      | **Não** (exige internet) | N/A                           | Exibe status _"Não conectado"_           |
+| Componente                                      | Funciona Sem Internet?   | Funciona na Rede Local (LAN)? | Observações                                   |
+| ----------------------------------------------- | ------------------------ | ----------------------------- | --------------------------------------------- |
+| **Editor Estruturado de Ultrassom**             | Sim                      | Sim                           | Edição e validação em tempo real              |
+| **Esquemas Anatômicos (Body Mark)**             | Sim                      | Sim                           | SVGs locais e canvas em memória (offline)     |
+| **Biblioteca de Frases por Órgão**              | Sim                      | Sim                           | Salva no SQLite local                         |
+| **Upload de Imagens de Exame**                  | Sim                      | Sim                           | Salvo no disco local (`pb_data/storage`)      |
+| **Rascunhos e Finalização**                     | Sim                      | Sim                           | Isolamento por `owner_id` ativo               |
+| **Download de PDF Real (%PDF-1.4)**             | Sim                      | Sim                           | Compilado em memória no cliente               |
+| **Impressão em Papel A4**                       | Sim                      | Sim                           | Via spooler da impressora da clínica          |
+| **Assinatura Manual em Papel (Modo Offline)**   | Sim                      | Sim                           | Linha de carimbo/assinatura impressa          |
+| **Assinatura Digital em Nuvem (VIDaaS/BirdID)** | **Não** (exige internet) | N/A                           | Exibe status _"Requer internet / Não config"_ |
+| **Certificado Local A1/A3 (Futuro)**            | Sim                      | Sim                           | Planejado via ponte WebPKI/agente local       |
+| **Assistente de IA Cloud**                      | **Não** (exige internet) | N/A                           | Exibe status _"Não conectado"_                |
 
 ---
 
 ## 6. Termo de Versão Preliminar
 
-Este software encontra-se na versão v0.0.6. Mantém-se o aviso regulatório obrigatório em todos os documentos emitidos: _"Versão preliminar não homologada para uso real em diagnóstico médico definitivo sem conferência prévia do profissional responsável"_.
+Este software encontra-se na versão v0.0.8. Mantém-se o aviso regulatório obrigatório em todos os documentos emitidos: _"Versão preliminar para avaliação (não homologada para uso real)"_.

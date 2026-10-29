@@ -32,6 +32,7 @@ import {
 import pb from '@/lib/pocketbase/client'
 import { examImagesService } from '@/services/examImages'
 import type { ExamImage } from '@/types'
+import { buildBodyMarkSvgString } from '@/lib/bodyMarks/svgRenderer'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
@@ -178,6 +179,11 @@ export default function LaudoDetalhes() {
       isDraft: report.status === 'Rascunho' || report.is_draft,
       images: printableImages,
       imagesPerPage: (report.images_config?.imagesPerPage || 4) as 2 | 4 | 6,
+      bodyMarks:
+        report.structured_data?.body_marks?.schemeId &&
+        report.structured_data.body_marks.schemeId !== 'none'
+          ? report.structured_data.body_marks
+          : undefined,
     }
   }
 
@@ -424,6 +430,82 @@ export default function LaudoDetalhes() {
             </p>
           </div>
         )}
+
+        {/* Attached Body Mark Preview if Present */}
+        {report.structured_data?.body_marks &&
+          report.structured_data.body_marks.schemeId !== 'none' && (
+            <div className="pt-6 border-t border-[#E5E9E7] space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-sm text-[#0C6B58] uppercase">
+                  Esquema Anatômico Mapeado (Body Mark)
+                </h3>
+                <span className="text-xs text-[#5F6E69]">
+                  {(report.structured_data.body_marks.points || []).length} marcas registradas
+                </span>
+              </div>
+
+              <div className="bg-[#F8FAF9] p-4 rounded-xl border border-[#D6DDD9] flex justify-center">
+                <div
+                  className="max-w-full overflow-x-auto"
+                  dangerouslySetInnerHTML={{
+                    __html: buildBodyMarkSvgString(
+                      report.structured_data.body_marks.schemeId,
+                      report.structured_data.body_marks.points || [],
+                      {
+                        width: 580,
+                        height: 435,
+                        showBackground: true,
+                      },
+                    ),
+                  }}
+                />
+              </div>
+
+              {/* Legend List */}
+              {(report.structured_data.body_marks.points || []).length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {report.structured_data.body_marks.points.map((pt) => (
+                    <div
+                      key={pt.id}
+                      className="p-2.5 rounded-lg border border-[#E5E9E7] bg-white flex items-start gap-2"
+                    >
+                      <span className="w-5 h-5 rounded-full bg-[#DC2626] text-white font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">
+                        {pt.number}
+                      </span>
+                      <div className="space-y-0.5">
+                        <div className="font-semibold text-[#1F2A27]">
+                          {[
+                            pt.side && pt.side !== 'Não se aplica' ? pt.side : null,
+                            pt.quadrant && pt.quadrant !== 'Não se aplica' ? pt.quadrant : null,
+                            pt.clockHour ? `${pt.clockHour}h` : null,
+                            pt.tendon && pt.tendon !== 'Não se aplica'
+                              ? `Tendão: ${pt.tendon}`
+                              : null,
+                            pt.lesionGrade && pt.lesionGrade !== 'Não se aplica'
+                              ? pt.lesionGrade
+                              : null,
+                            pt.deviceStatus && pt.deviceStatus !== 'Não se aplica'
+                              ? `DIU ${pt.deviceStatus}`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' • ') || 'Lesão anotada'}
+                        </div>
+                        {pt.distanceFromNippleCm && (
+                          <div className="text-[11px] text-[#5F6E69]">
+                            Distância: {pt.distanceFromNippleCm}
+                          </div>
+                        )}
+                        {pt.description && (
+                          <p className="text-[#374151] pt-0.5">{pt.description}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
         {/* Attached Images preview */}
         {images.length > 0 && (

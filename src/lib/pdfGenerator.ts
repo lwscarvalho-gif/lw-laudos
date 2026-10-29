@@ -7,6 +7,10 @@ export interface PrintReportImageItem {
   sortOrder?: number
 }
 
+import type { BodyMarksState } from '@/types'
+import { buildBodyMarkSvgString, renderSvgToJpegBytes } from './bodyMarks/svgRenderer'
+import { ANATOMICAL_SCHEMES } from './bodyMarks/schemes'
+
 export interface PrintReportProps {
   title: string
   patientName: string
@@ -25,6 +29,7 @@ export interface PrintReportProps {
   isDraft?: boolean
   images?: PrintReportImageItem[]
   imagesPerPage?: 2 | 4 | 6
+  bodyMarks?: BodyMarksState
 }
 
 // Fixed legal indicator
@@ -621,6 +626,165 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
     },
   )
 
+  // 3.5. Body Mark Anatomical Scheme Page (Placed BETWEEN text and photographic images)
+  if (props.bodyMarks && props.bodyMarks.schemeId && props.bodyMarks.schemeId !== 'none') {
+    try {
+      const schemeId = props.bodyMarks.schemeId
+      const points = props.bodyMarks.points || []
+      const schemeDef = ANATOMICAL_SCHEMES[schemeId]
+
+      // Generate standalone SVG string
+      const svgStr = buildBodyMarkSvgString(schemeId, points, {
+        width: 1200,
+        height: 900,
+        showBackground: true,
+      })
+
+      // Convert SVG into JPEG bytes for binary PDF embed
+      const rendered = await renderSvgToJpegBytes(svgStr, 1200, 900)
+      if (rendered) {
+        const bodyMarkResId = 'BodyMark_Scheme'
+        doc.registerImage({
+          id: bodyMarkResId,
+          width: rendered.width,
+          height: rendered.height,
+          jpegBytes: rendered.jpegBytes,
+        })
+
+        const bmPage = doc.addPage()
+        drawRunningHeader(bmPage, props, logoResId, logoAspect)
+
+        // Section header
+        bmPage.drawText('ESQUEMA ANATÔMICO • BODY MARK', marginX, 755, {
+          fontSize: 11,
+          bold: true,
+          color: COLOR_PRIMARY,
+        })
+        bmPage.drawText(
+          schemeDef ? schemeDef.title.toUpperCase() : 'MAPEAMENTO TOPOGRÁFICO',
+          rightX,
+          755,
+          {
+            fontSize: 8.5,
+            align: 'right',
+            bold: true,
+            color: COLOR_TEXT_MAIN,
+          },
+        )
+        bmPage.drawLine(marginX, 746, rightX, 746, COLOR_BORDER, 0.5)
+
+        // Draw Diagram card
+        const cardW = contentWidth // 515
+        const cardH = 340
+        const cardX = marginX
+        const cardY = 390
+
+        bmPage.drawRect(cardX, cardY, cardW, cardH, {
+          fillColor: COLOR_WHITE,
+          strokeColor: COLOR_BORDER,
+          lineWidth: 0.75,
+        })
+
+        // Draw Diagram Image inside card (preserving 4:3 aspect ratio)
+        const pad = 8
+        const maxImgW = cardW - pad * 2
+        const maxImgH = cardH - pad * 2
+        const aspect = rendered.width / rendered.height // 1.333
+        let drawW = maxImgW
+        let drawH = drawW / aspect
+        if (drawH > maxImgH) {
+          drawH = maxImgH
+          drawW = drawH * aspect
+        }
+        const imgX = cardX + (cardW - drawW) / 2
+        const imgY = cardY + (cardH - drawH) / 2
+
+        bmPage.drawImage(bodyMarkResId, imgX, imgY, drawW, drawH)
+
+        // Draw Legend Table below diagram (Y: 375 down to 80)
+        let legendY = cardY - 18
+        bmPage.drawText(
+          `LEGENDA DAS MARCAS ANATÔMICAS (${points.length} ${points.length === 1 ? 'REGISTRO' : 'REGISTROS'})`,
+          marginX,
+          legendY,
+          {
+            fontSize: 9.5,
+            bold: true,
+            color: COLOR_PRIMARY,
+          },
+        )
+        legendY -= 6
+        bmPage.drawLine(marginX, legendY, rightX, legendY, COLOR_PRIMARY, 1)
+        legendY -= 14
+
+        if (points.length === 0) {
+          bmPage.drawText('Nenhuma lesão ou ponto foi marcado no esquema.', marginX, legendY, {
+            fontSize: 8.5,
+            italic: true,
+            color: COLOR_MUTED,
+          })
+        } else {
+          for (const pt of points) {
+            if (legendY < 70) break // avoid footer collision
+
+            // Marker badge circle / number
+            bmPage.drawRect(marginX, legendY - 3, 14, 14, {
+              fillColor: [0.863, 0.149, 0.149], // #DC2626
+              strokeColor: [0.863, 0.149, 0.149],
+            })
+            bmPage.drawText(String(pt.number), marginX + 7, legendY + 1, {
+              fontSize: 8.5,
+              bold: true,
+              align: 'center',
+              color: COLOR_WHITE,
+            })
+
+            // Compile details
+            const detailTokens: string[] = []
+            if (pt.side && pt.side !== 'Não se aplica') detailTokens.push(`Lado: ${pt.side}`)
+            if (pt.quadrant && pt.quadrant !== 'Não se aplica')
+              detailTokens.push(`Quadrante: ${pt.quadrant}`)
+            if (pt.clockHour) detailTokens.push(`Posição: ${pt.clockHour}h`)
+            if (pt.distanceFromNippleCm) detailTokens.push(`Distância: ${pt.distanceFromNippleCm}`)
+            if (pt.tendon && pt.tendon !== 'Não se aplica')
+              detailTokens.push(`Tendão: ${pt.tendon}`)
+            if (pt.lesionGrade && pt.lesionGrade !== 'Não se aplica')
+              detailTokens.push(`Grau: ${pt.lesionGrade}`)
+            if (pt.deviceStatus && pt.deviceStatus !== 'Não se aplica')
+              detailTokens.push(`DIU: ${pt.deviceStatus}`)
+
+            const tokenStr = detailTokens.join('  •  ')
+            if (tokenStr) {
+              bmPage.drawText(tokenStr, marginX + 22, legendY, {
+                fontSize: 8.5,
+                bold: true,
+                color: COLOR_TEXT_MAIN,
+              })
+              legendY -= 12
+            }
+
+            if (pt.description) {
+              const descLines = wrapText(pt.description, 92)
+              for (const dLine of descLines) {
+                bmPage.drawText(dLine, marginX + 22, legendY, {
+                  fontSize: 8,
+                  color: COLOR_MUTED,
+                })
+                legendY -= 10
+              }
+            } else {
+              legendY -= 4
+            }
+
+            legendY -= 6 // space between items
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao embutir body mark no PDF binário:', err)
+    }
+  }
+
   // 4. Image Section (Separated into subsequent pages)
   const imagesPerPage = props.imagesPerPage || 4
   const imagePages: PdfPage[] = []
@@ -1038,6 +1202,59 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
       text-align: center;
     }
 
+    /* Body Mark Page Layout */
+    .bodymark-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 10px 0;
+    }
+    .bodymark-svg-card {
+      border: 1px solid #D6DDD9;
+      border-radius: 6px;
+      padding: 10px;
+      background: #FFFFFF;
+      max-width: 100%;
+    }
+    .bodymark-legend-box {
+      width: 100%;
+      margin-top: 14px;
+      border: 1px solid #E5E9E7;
+      border-radius: 6px;
+      padding: 10px 14px;
+      background: #FAFCFB;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .bodymark-legend-title {
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: #0C6B58;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #D0E6E1;
+      padding-bottom: 4px;
+    }
+    .bodymark-legend-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 8.5pt;
+    }
+    .bodymark-badge {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #DC2626;
+      color: #FFFFFF;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8pt;
+      flex-shrink: 0;
+    }
+
     /* Images page layout */
     .images-page-title {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -1159,6 +1376,77 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
       <div class="signature-date">Identificação profissional registrada eletronicamente em ${sigDateFormatted}</div>
     </div>
   </div>
+
+  <!-- BODY MARK SECTION (Between Text and Images) -->
+  ${
+    props.bodyMarks && props.bodyMarks.schemeId && props.bodyMarks.schemeId !== 'none'
+      ? `
+    <div class="page-sheet page-break-before">
+      <div class="header">
+        <div class="header-clinic">
+          ${clinicBrand}
+        </div>
+        <div class="header-meta">
+          <div>ESQUEMA ANATÔMICO (BODY MARK)</div>
+          <div>Mapeamento Topográfico de Lesões</div>
+        </div>
+      </div>
+
+      <div class="patient-box">
+        <div>Paciente: <strong>${props.patientName}</strong></div>
+        <div style="text-align: right;">${props.examDate ? `Data: <strong>${props.examDate}</strong>` : ''}</div>
+      </div>
+
+      <div class="bodymark-container">
+        <div class="bodymark-svg-card">
+          ${buildBodyMarkSvgString(props.bodyMarks.schemeId, props.bodyMarks.points, {
+            width: 580,
+            height: 435,
+            showBackground: true,
+          })}
+        </div>
+
+        <div class="bodymark-legend-box">
+          <div class="bodymark-legend-title">
+            Legenda de Marcas Anatômicas (${(props.bodyMarks.points || []).length} Registros)
+          </div>
+          ${
+            (props.bodyMarks.points || []).length === 0
+              ? '<div style="color: #718079; font-style: italic; font-size: 8.5pt;">Nenhum ponto registrado no esquema.</div>'
+              : (props.bodyMarks.points || [])
+                  .map((pt) => {
+                    const tokens = []
+                    if (pt.side && pt.side !== 'Não se aplica') tokens.push(`Lado: ${pt.side}`)
+                    if (pt.quadrant && pt.quadrant !== 'Não se aplica')
+                      tokens.push(`Quadrante: ${pt.quadrant}`)
+                    if (pt.clockHour) tokens.push(`Posição: ${pt.clockHour}h`)
+                    if (pt.distanceFromNippleCm)
+                      tokens.push(`Distância: ${pt.distanceFromNippleCm}`)
+                    if (pt.tendon && pt.tendon !== 'Não se aplica')
+                      tokens.push(`Tendão: ${pt.tendon}`)
+                    if (pt.lesionGrade && pt.lesionGrade !== 'Não se aplica')
+                      tokens.push(`Grau: ${pt.lesionGrade}`)
+                    if (pt.deviceStatus && pt.deviceStatus !== 'Não se aplica')
+                      tokens.push(`DIU: ${pt.deviceStatus}`)
+
+                    return `
+                    <div class="bodymark-legend-item">
+                      <div class="bodymark-badge">${pt.number}</div>
+                      <div>
+                        <strong>${tokens.join(' • ') || 'Marcação anatômica'}</strong>
+                        ${pt.description ? `<div style="color: #4B5563; margin-top: 2px;">${pt.description}</div>` : ''}
+                      </div>
+                    </div>
+                  `
+                  })
+                  .join('')
+          }
+        </div>
+      </div>
+    </div>
+  `
+      : ''
+  }
 
   <!-- IMAGES SECTION -->
   ${imagePages
