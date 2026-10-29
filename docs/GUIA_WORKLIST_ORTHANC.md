@@ -20,16 +20,16 @@ Instalar um servidor DICOM leve e gratuito de código aberto (**Orthanc**) em um
 [ LW Laudos Nuvem ]
        │
        ▼ (HTTPS REST / Token individual por médico)
-[ Agente bridge.py ] (Computador local na clínica)
+[ Agente bridge.py ] (Computador local na clínica / notebook do médico)
        │
-       ▼ (Gera arquivos .wl via DCMTK dump2dcm)
-[ Pasta de Worklists ] (/var/lib/orthanc/worklists ou C:\Orthanc\worklists)
-       │
-       ▼ (Plugin Worklists Oficial)
-[ Servidor Orthanc Local ] (Porta DICOM 104 / AE Title: ORTHANC_MWL)
+       ├────────────────────────────────────────┐
+       ▼ (Modo 1: REST API /worklists)           ▼ (Modo 2: Arquivos .wl atômicos)
+[ Servidor Orthanc Local ] <───────────── [ Pasta de Worklists ]
+(Plugin Worklists Oficial)                 (/var/lib/orthanc/worklists ou C:\lw-laudos\...\worklists)
+(Porta DICOM 104 / AE Title: LW-ORTHO)
        ▲
        │ (DICOM C-FIND SCP na rede local)
-[ Aparelhos de Ultrassom ] (GE, Philips, Mindray, Samsung, SonoSite)
+[ Aparelhos de Ultrassom ] (Saevo FT412, GE, Philips, Mindray, Samsung, SonoSite)
 ```
 
 ---
@@ -88,15 +88,25 @@ No arquivo de configuração do Orthanc (`orthanc.json`), certifique-se de habil
 
 ## 3. Configuração do Agente de Ponte (`bridge.py`)
 
-O agente de ponte lê os agendamentos da nuvem do médico e gera os arquivos binários `.wl` na pasta do Orthanc.
+O agente de ponte gerencia o ciclo de vida completo dos exames (criação, atualização e remoção ao cancelar/concluir):
+
+- **Criação**: Gera entrada na worklist com AccessionNumber determinístico (`LW-YYYYMMDD-XXXX`).
+- **Atualização**: Quando um agendamento é editado na agenda (horário, paciente, observações, status), a entrada no Orthanc é imediatamente atualizada.
+- **Remoção**: Quando cancelado ou concluído, a entrada é removida da worklist, mantendo o console do ultrassom limpo.
+- **Resiliência**: Tratamento claro de token revogado ou falha de rede com backoff exponencial automático.
+
+### Modos de Operação Suportados:
+
+1. **REST API Direta do Orthanc**: se o Orthanc tiver o plugin Worklists com REST ativado, a ponte comunica via HTTP (`POST /worklists/create`, `PUT /worklists/{id}` e `DELETE /worklists/{id}`).
+2. **Sistema de Arquivos + DCMTK**: compila arquivos `.wl` com substituição atômica na pasta vigiada pelo Orthanc.
 
 ### Requisitos no computador da clínica:
 
-1. Python 3.8+:
+1. Python 3.10+ (ou >= 3.8):
    ```bash
-   pip install requests
+   pip install -r tools/mwl_bridge/requirements.txt
    ```
-2. Ferramentas DCMTK (necessário para o utilitário `dump2dcm`):
+2. Ferramentas DCMTK (necessário para o utilitário `dump2dcm` no modo arquivo):
    - **Ubuntu/Debian**: `sudo apt install dcmtk`
    - **Windows**: Baixar binários DCMTK do site oficial dcmtk.org e adicionar a pasta `bin` às Variáveis de Ambiente (`PATH`).
 
@@ -106,11 +116,18 @@ Gere o Token MWL em **Configurações → Worklist DICOM** no sistema LW Laudos 
 
 ```bash
 python3 tools/mwl_bridge/bridge.py \
-  --url "https://seu-dominio-lwlaudos.com" \
+  --url "https://app.lwlaudos.com.br" \
   --token "SEU_TOKEN_GERADO_NO_SISTEMA" \
   --clinic "Gastroimagem" \
-  --worklist-dir "/var/lib/orthanc/worklists" \
-  --interval 60
+  --worklist-dir "./worklists" \
+  --orthanc-url "http://localhost:8042" \
+  --interval 30
+```
+
+Para validar a prontidão e testar o ciclo de vida do Orthanc de ponta a ponta:
+
+```bash
+python3 tools/mwl_bridge/VERIFICAR.py
 ```
 
 ---

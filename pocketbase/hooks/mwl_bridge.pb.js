@@ -262,7 +262,7 @@ routerAdd('GET', '/backend/v1/mwl/appointments', (c) => {
 
         // (0040,0100) Scheduled Procedure Step Sequence attributes
         ScheduledProcedureStep: {
-          ScheduledStationAETitle: appt.getString('scheduled_station_ae') || 'ORTHANC',
+          ScheduledStationAETitle: appt.getString('scheduled_station_ae') || 'LW-ORTHO',
           ScheduledProcedureStepStartDate: scheduledDate,
           ScheduledProcedureStepStartTime: scheduledTime,
           Modality: appt.getString('modality') || 'US',

@@ -215,9 +215,10 @@ _(ou `.venv\Scripts\python.exe VERIFICAR.py`)_
 [✔] 3. Orthanc REST API respondendo em http://localhost:8042
 [✔] 4. Porta DICOM TCP 104 ABERTA
 [✔] 5. Plugin Worklists do Orthanc ATIVO
-[✔] 6. Token MWL configurado localmente
-[✔] 7. Conectividade com a nuvem bem-sucedida (Dr. Lucas Willian)
-[✔] 8. Agendamentos recebidos da nuvem: N agendamento(s) ativo(s)
+[✔] 6. Ciclo de vida da Worklist validado no Orthanc (criou, listou e removeu entrada sintética)
+[✔] 7. Token MWL configurado localmente
+[✔] 8. Conectividade com a nuvem bem-sucedida (Dr. Lucas Willian)
+[✔] 9. Agendamentos recebidos da nuvem: N agendamento(s) ativo(s)
 
 ★★★★★  VEREDITO: PRONTO PARA O APARELHO!  ★★★★★
 ```

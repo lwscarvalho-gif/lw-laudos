@@ -59,5 +59,5 @@ echo Iniciando agente de sincronizacao...
 echo Para encerrar, feche esta janela ou pressione Ctrl+C.
 echo.
 
-%VENV_PY% %BRIDGE_PY% --url "%URL%" --token "%TOKEN%" --clinic "%CLINIC%" --worklist-dir "%WDIR%" --interval %INTERVAL%
+%VENV_PY% %BRIDGE_PY% --url "%URL%" --token "%TOKEN%" --clinic "%CLINIC%" --worklist-dir "%WDIR%" --orthanc-url "http://localhost:8042" --interval %INTERVAL%
 pause
