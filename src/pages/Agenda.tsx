@@ -26,6 +26,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { appointmentsService } from '@/services/appointments'
 import { patientsService } from '@/services/patients'
 import { examsService } from '@/services/exams'
+import { reportsService } from '@/services/reports'
 import type { Appointment, Patient, AppointmentStatus } from '@/types'
 import {
   getCuiabaTodayYMD,
@@ -433,6 +434,7 @@ export default function Agenda() {
           status: 'Em análise',
           indication: appt.notes || `Consulta agendada em ${appt.clinic_location}`,
           technical_notes: `Accession Number DICOM: ${appt.accession_number}`,
+          appointment_id: appt.id,
         })
         examId = newExam.id
         // Link exam to appointment and update appointment status to 'Em atendimento'
@@ -447,10 +449,24 @@ export default function Agenda() {
         }
       }
 
-      // Navigate to UltrasoundReportEditor with prefilled exam and appointment
-      navigate(
-        `/laudos/ultrassom?paciente=${appt.patient_id}&exame=${examId}&agendamento=${appt.id}`,
-      )
+      // If a report already exists for this exam, open that report directly
+      let targetReportId = ''
+      try {
+        const existingReport = await reportsService.getByExamId(examId)
+        if (existingReport) {
+          targetReportId = existingReport.id
+        }
+      } catch (_) {
+        /* proceed with query params */
+      }
+
+      if (targetReportId) {
+        navigate(`/laudos/ultrassom?id=${targetReportId}&agendamento=${appt.id}`)
+      } else {
+        navigate(
+          `/laudos/ultrassom?paciente=${appt.patient_id}&exame=${examId}&agendamento=${appt.id}`,
+        )
+      }
     } catch (err) {
       console.error(err)
       toast({

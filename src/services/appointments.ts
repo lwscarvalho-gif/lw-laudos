@@ -167,4 +167,19 @@ export const appointmentsService = {
   async linkExam(appointmentId: string, examId: string): Promise<Appointment> {
     return this.update(appointmentId, { exam_id: examId })
   },
+
+  /**
+   * Find appointment by linked exam_id
+   */
+  async getByExamId(examId: string): Promise<Appointment | null> {
+    try {
+      const list = await pb.collection('appointments').getList<Appointment>(1, 1, {
+        filter: `exam_id = '${examId}'`,
+        expand: 'patient_id',
+      })
+      return list.items[0] || null
+    } catch {
+      return null
+    }
+  },
 }

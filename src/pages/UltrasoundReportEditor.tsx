@@ -231,6 +231,11 @@ export default function UltrasoundReportEditor() {
               const examRecord = await examsService.getById(rep.exam_id)
               if (examRecord?.appointment_id && !prefilledAppointmentId) {
                 setLinkedAppointmentId(examRecord.appointment_id)
+              } else if (!prefilledAppointmentId) {
+                const apptRecord = await appointmentsService.getByExamId(rep.exam_id)
+                if (apptRecord) {
+                  setLinkedAppointmentId(apptRecord.id)
+                }
               }
             } catch {
               /* intentionally ignored */
@@ -245,6 +250,11 @@ export default function UltrasoundReportEditor() {
 
           if (ex.appointment_id && !prefilledAppointmentId) {
             setLinkedAppointmentId(ex.appointment_id)
+          } else if (!prefilledAppointmentId) {
+            const apptRecord = await appointmentsService.getByExamId(ex.id)
+            if (apptRecord) {
+              setLinkedAppointmentId(apptRecord.id)
+            }
           }
 
           // Also fetch exam images if any exist

@@ -55,6 +55,7 @@ export const examsService = {
     status?: ExamStatus
     indication?: string
     technical_notes?: string
+    appointment_id?: string
   }): Promise<Exam> {
     const owner_id = pb.authStore.record?.id
     return pb.collection('exams').create<Exam>(

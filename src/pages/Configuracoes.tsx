@@ -353,7 +353,7 @@ export default function Configuracoes() {
     setGeneratingToken(true)
     try {
       await pb.collection('users').update(user.id, {
-        mwl_token: null,
+        mwl_token: '',
       })
       await refreshUser()
       setMwlToken('')
@@ -361,9 +361,10 @@ export default function Configuracoes() {
         title: 'Token revogado',
         description: 'A ponte local não terá mais acesso até que um novo token seja gerado.',
       })
-    } catch {
+    } catch (err) {
+      console.error(err)
       toast({
-        title: 'Erro ao revogar',
+        title: 'Erro ao revogar token',
         description: 'Falha ao revogar token no servidor.',
         variant: 'destructive',
       })
@@ -371,7 +372,6 @@ export default function Configuracoes() {
       setGeneratingToken(false)
     }
   }
-
   // Add Clinic
   const handleAddClinic = async (e: React.FormEvent) => {
     e.preventDefault()
