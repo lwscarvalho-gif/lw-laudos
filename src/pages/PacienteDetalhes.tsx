@@ -124,7 +124,12 @@ export default function PacienteDetalhes() {
 
     const errs: Record<string, string> = {}
     if (!formData.name.trim()) errs.name = 'Nome completo é obrigatório.'
-    if (!formData.document.trim()) errs.document = 'CPF é obrigatório.'
+    if (formData.document.trim()) {
+      const clean = formData.document.replace(/\D/g, '')
+      if (clean.length !== 11) {
+        errs.document = 'CPF deve conter 11 dígitos.'
+      }
+    }
     if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) errs.email = 'E-mail inválido.'
 
     setFieldErrors(errs)
@@ -287,7 +292,10 @@ export default function PacienteDetalhes() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="det_doc" className="text-xs font-semibold">
-                  CPF *
+                  CPF{' '}
+                  <span className="text-[10px] font-normal text-[#5F6E69]">
+                    (obrigatório apenas no HM Samuel Marques)
+                  </span>
                 </Label>
                 <Input
                   id="det_doc"

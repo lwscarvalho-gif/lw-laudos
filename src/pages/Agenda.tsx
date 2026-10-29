@@ -429,10 +429,10 @@ export default function Agenda() {
 
       // Create new patient inline if requested
       if (patientMode === 'new' && !editingAppointment) {
-        if (!formNewPatientName.trim() || !formNewPatientCpf.trim()) {
+        if (!formNewPatientName.trim()) {
           toast({
             title: 'Dados do paciente incompletos',
-            description: 'Nome e CPF são obrigatórios para novo paciente.',
+            description: 'Nome do paciente é obrigatório.',
             variant: 'destructive',
           })
           setSavingAppointment(false)
@@ -440,31 +440,22 @@ export default function Agenda() {
         }
 
         if (isHospitalSamuel) {
-          if (!formNewPatientCpf.trim() || formNewPatientCpf.trim().length < 14) {
-            toast({
-              title: 'CPF obrigatório no HM Samuel Marques dos Santos',
-              description:
-                'Para agendamento na rede do HM Samuel Marques dos Santos, o CPF completo é obrigatório.',
-              variant: 'destructive',
-            })
-            setSavingAppointment(false)
-            return
+          const missingNewPatientFields: string[] = []
+          const cleanCpf = formNewPatientCpf.replace(/\D/g, '')
+          if (!formNewPatientCpf.trim() || cleanCpf.length !== 11) {
+            missingNewPatientFields.push('CPF completo (11 dígitos)')
           }
           if (!formNewPatientSusCard.trim()) {
-            toast({
-              title: 'Cartão do SUS obrigatório',
-              description:
-                'Para atendimento no HM Samuel Marques dos Santos é obrigatório informar o número do Cartão Nacional de Saúde (SUS).',
-              variant: 'destructive',
-            })
-            setSavingAppointment(false)
-            return
+            missingNewPatientFields.push('Cartão do SUS')
           }
           if (!formNewPatientAddress.trim()) {
+            missingNewPatientFields.push('Endereço completo')
+          }
+
+          if (missingNewPatientFields.length > 0) {
             toast({
-              title: 'Endereço obrigatório',
-              description:
-                'Informe o endereço residencial do paciente para atendimento no HM Samuel Marques dos Santos.',
+              title: 'Cadastro do paciente incompleto para HM Samuel Marques dos Santos',
+              description: `A unidade HM Samuel Marques dos Santos exige: ${missingNewPatientFields.join(', ')}. Complete os campos obrigatórios para confirmar o agendamento.`,
               variant: 'destructive',
             })
             setSavingAppointment(false)
@@ -474,8 +465,8 @@ export default function Agenda() {
 
         const newPt = await patientsService.create({
           name: formNewPatientName.trim(),
-          document: formNewPatientCpf.trim(),
-          phone: formNewPatientPhone.trim(),
+          document: formNewPatientCpf.trim() || undefined,
+          phone: formNewPatientPhone.trim() || undefined,
           sex: formNewPatientSex,
           birth_date: formNewPatientBirthDate || undefined,
           sus_card: formNewPatientSusCard.trim() || undefined,
@@ -499,14 +490,15 @@ export default function Agenda() {
       // Check existing patient when hospital Samuel requires SUS / CPF / Address
       if (isHospitalSamuel && finalPatientObj) {
         const missingFields: string[] = []
-        if (!finalPatientObj.document || finalPatientObj.document.trim().length < 11) {
-          missingFields.push('CPF válido')
+        const cleanDoc = (finalPatientObj.document || '').replace(/\D/g, '')
+        if (!finalPatientObj.document || cleanDoc.length !== 11) {
+          missingFields.push('CPF')
         }
         if (!finalPatientObj.sus_card?.trim()) {
           missingFields.push('Cartão do SUS')
         }
         if (!finalPatientObj.address?.trim()) {
-          missingFields.push('Endereço completo')
+          missingFields.push('Endereço')
         }
         if (missingFields.length > 0) {
           toast({
@@ -1395,14 +1387,24 @@ export default function Agenda() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">CPF *</Label>
+                      <Label className="text-xs">
+                        CPF
+                        {formClinic.toLowerCase().includes('samuel') && (
+                          <span className="text-red-500 font-bold ml-1">*</span>
+                        )}
+                      </Label>
                       <Input
                         value={formNewPatientCpf}
                         onChange={(e) => setFormNewPatientCpf(maskCPF(e.target.value))}
                         placeholder="000.000.000-00"
                         className="text-xs bg-white"
-                        required
+                        required={formClinic.toLowerCase().includes('samuel')}
                       />
+                      {formClinic.toLowerCase().includes('samuel') && (
+                        <p className="text-[10px] text-amber-700">
+                          Obrigatório para HM Samuel Marques dos Santos
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Telefone / WhatsApp</Label>

@@ -33,7 +33,7 @@ export interface Patient extends RecordModel {
   id: string
   owner_id: string
   name: string
-  document: string // CPF
+  document?: string // CPF (obrigatório exclusivamente no HM Samuel Marques dos Santos)
   birth_date?: string
   sex?: 'Feminino' | 'Masculino' | 'Outro'
   phone?: string

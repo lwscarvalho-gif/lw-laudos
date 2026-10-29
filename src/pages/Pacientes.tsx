@@ -106,9 +106,7 @@ export default function Pacientes() {
     if (!formData.name.trim()) {
       errs.name = 'Nome completo é obrigatório.'
     }
-    if (!formData.document.trim()) {
-      errs.document = 'CPF é obrigatório.'
-    } else {
+    if (formData.document.trim()) {
       const digits = formData.document.replace(/\D/g, '')
       if (digits.length !== 11) {
         errs.document = 'CPF deve conter 11 dígitos.'
@@ -420,7 +418,10 @@ export default function Pacientes() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="p_doc" className="text-xs font-semibold">
-                  CPF *
+                  CPF{' '}
+                  <span className="text-[10px] font-normal text-[#5F6E69]">
+                    (obrigatório apenas no HM Samuel Marques)
+                  </span>
                 </Label>
                 <Input
                   id="p_doc"
