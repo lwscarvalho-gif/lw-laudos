@@ -1,5 +1,12 @@
 # Guia Prático de Teste de Campo: SAEVO FT412 em Mirante da Serra
 
+> **ATENÇÃO / INSTALAÇÃO RÁPIDA POR AGENTE DE IA**:  
+> Se o notebook do médico for configurado por um agente de IA (ChatGPT, Codex, Claude Code, Cursor) ou precisar de instalação automatizada sem comandos manuais, utilize diretamente:
+>
+> - **Roteiro para Agente de IA**: [`docs/INSTALACAO_AGENTE_IA.md`](INSTALACAO_AGENTE_IA.md)
+> - **Instalador Automatizado Windows**: [`tools/mwl_bridge/INSTALAR_WINDOWS.ps1`](../tools/mwl_bridge/INSTALAR_WINDOWS.ps1)
+> - **Atalhos Prontos**: `1-iniciar-orthanc.bat`, `2-iniciar-ponte.bat`, `3-testar.bat` e script de verificação `tools/mwl_bridge/VERIFICAR.py`.
+
 ## Cenário: Clínica sem Infraestrutura Local (Sem Rede, Sem Servidor, Sem PACS)
 
 **Data do teste**: Planejado para amanhã  
