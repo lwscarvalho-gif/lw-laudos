@@ -13,6 +13,8 @@ export interface User {
   header?: string
   active?: boolean
   verified?: boolean
+  mwl_token?: string
+  clinics_config?: string[] | string
   created?: string
   updated?: string
 }
@@ -45,6 +47,43 @@ export interface Exam extends RecordModel {
   status: ExamStatus
   indication?: string
   technical_notes?: string
+  appointment_id?: string
+  created?: string
+  updated?: string
+  // expanded relations
+  expand?: {
+    patient_id?: Patient
+    appointment_id?: Appointment
+  }
+}
+
+export type AppointmentStatus =
+  | 'Agendado'
+  | 'Confirmado'
+  | 'Em atendimento'
+  | 'Realizado'
+  | 'Cancelado'
+
+export interface Appointment extends RecordModel {
+  id: string
+  owner_id: string
+  patient_id: string
+  start_time: string // ISO string
+  duration_minutes: number
+  exam_type: string
+  clinic_location: string
+  status: AppointmentStatus
+  notes?: string
+  referring_physician?: string
+  accession_number: string
+  patient_name_dicom?: string
+  patient_id_dicom?: string
+  patient_birth_date?: string
+  patient_sex?: string
+  modality?: string
+  study_description?: string
+  scheduled_station_ae?: string
+  exam_id?: string
   created?: string
   updated?: string
   // expanded relations

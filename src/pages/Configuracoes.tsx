@@ -17,6 +17,11 @@ import {
   Server,
   Wifi,
   WifiOff,
+  Radio,
+  Key,
+  Copy,
+  RefreshCw,
+  Plus,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -115,6 +120,27 @@ export default function Configuracoes() {
   const [newEmail, setNewEmail] = useState('')
   const [sendingEmailChange, setSendingEmailChange] = useState(false)
   const [emailSuccessMessage, setEmailSuccessMessage] = useState<string | null>(null)
+
+  // DICOM Worklist / Clinics Preferences
+  const [mwlToken, setMwlToken] = useState(user?.mwl_token || '')
+  const [generatingToken, setGeneratingToken] = useState(false)
+  const [clinicsList, setClinicsList] = useState<string[]>(() => {
+    if (!user?.clinics_config) return ['Gastroimagem', 'Clínica Principal']
+    if (Array.isArray(user.clinics_config)) {
+      return user.clinics_config.length
+        ? user.clinics_config
+        : ['Gastroimagem', 'Clínica Principal']
+    }
+    try {
+      const parsed = JSON.parse(user.clinics_config)
+      if (Array.isArray(parsed) && parsed.length) return parsed
+    } catch {
+      /* intentionally ignored */
+    }
+    return ['Gastroimagem', 'Clínica Principal']
+  })
+  const [newClinicName, setNewClinicName] = useState('')
+  const [savingClinics, setSavingClinics] = useState(false)
 
   // Digital Signature Preferences
   const { isOnline } = useNetworkStatus()
@@ -288,6 +314,135 @@ export default function Configuracoes() {
       setPasswordError('Senha atual incorreta ou inválida.')
     } finally {
       setSavingPassword(false)
+    }
+  }
+
+  // Generate / Renew MWL Token
+  const handleGenerateMwlToken = async () => {
+    if (!user) return
+    setGeneratingToken(true)
+    try {
+      // 32-char cryptographically safe random token
+      const array = new Uint8Array(24)
+      window.crypto.getRandomValues(array)
+      const tokenStr = Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
+
+      await pb.collection('users').update(user.id, {
+        mwl_token: tokenStr,
+      })
+      await refreshUser()
+      setMwlToken(tokenStr)
+      toast({
+        title: 'Token de Worklist gerado',
+        description: 'Utilize este token no script da ponte local (Orthanc) na clínica.',
+      })
+    } catch {
+      toast({
+        title: 'Erro ao gerar token',
+        description: 'Falha ao atualizar token MWL no servidor.',
+        variant: 'destructive',
+      })
+    } finally {
+      setGeneratingToken(false)
+    }
+  }
+
+  // Revoke MWL Token
+  const handleRevokeMwlToken = async () => {
+    if (!user) return
+    setGeneratingToken(true)
+    try {
+      await pb.collection('users').update(user.id, {
+        mwl_token: null,
+      })
+      await refreshUser()
+      setMwlToken('')
+      toast({
+        title: 'Token revogado',
+        description: 'A ponte local não terá mais acesso até que um novo token seja gerado.',
+      })
+    } catch {
+      toast({
+        title: 'Erro ao revogar',
+        description: 'Falha ao revogar token no servidor.',
+        variant: 'destructive',
+      })
+    } finally {
+      setGeneratingToken(false)
+    }
+  }
+
+  // Add Clinic
+  const handleAddClinic = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user || !newClinicName.trim()) return
+
+    const trimmed = newClinicName.trim()
+    if (clinicsList.includes(trimmed)) {
+      toast({
+        title: 'Clínica já cadastrada',
+        description: 'Esta unidade já consta na sua lista.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const updatedList = [...clinicsList, trimmed]
+    setSavingClinics(true)
+    try {
+      await pb.collection('users').update(user.id, {
+        clinics_config: updatedList,
+      })
+      await refreshUser()
+      setClinicsList(updatedList)
+      setNewClinicName('')
+      toast({
+        title: 'Unidade adicionada',
+        description: `"${trimmed}" agora está disponível na sua agenda e ponte MWL.`,
+      })
+    } catch {
+      toast({
+        title: 'Erro ao salvar unidade',
+        description: 'Falha ao salvar lista de clínicas.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingClinics(false)
+    }
+  }
+
+  // Remove Clinic
+  const handleRemoveClinic = async (clinicNameToRemove: string) => {
+    if (!user) return
+    if (clinicsList.length <= 1) {
+      toast({
+        title: 'Mínimo de uma clínica',
+        description: 'Mantenha pelo menos uma unidade cadastrada.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const updatedList = clinicsList.filter((c) => c !== clinicNameToRemove)
+    setSavingClinics(true)
+    try {
+      await pb.collection('users').update(user.id, {
+        clinics_config: updatedList,
+      })
+      await refreshUser()
+      setClinicsList(updatedList)
+      toast({
+        title: 'Unidade removida',
+        description: `"${clinicNameToRemove}" foi removida da sua lista.`,
+      })
+    } catch {
+      toast({
+        title: 'Erro ao remover unidade',
+        description: 'Falha ao atualizar lista no servidor.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingClinics(false)
     }
   }
 
@@ -709,6 +864,175 @@ export default function Configuracoes() {
         </div>
       </div>
 
+      {/* 3.1 DICOM Modality Worklist (MWL) & Clínicas do Médico */}
+      <div className="bg-white p-6 sm:p-8 rounded-xl border border-[#E5E9E7] shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E9E7] pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-[#E8F3F0] text-[#0C6B58] flex items-center justify-center font-bold">
+              <Radio className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-base text-[#1F2A27]">
+                  Worklist DICOM & Unidades de Atendimento
+                </h2>
+                <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 px-2 py-0.5 rounded font-semibold">
+                  {mwlToken ? 'Token Ativo' : 'Não configurado — ponte local pendente'}
+                </span>
+              </div>
+              <p className="text-xs text-[#5F6E69]">
+                Integração da agenda com o servidor Orthanc local instalado nas suas clínicas
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Token Management */}
+        <div className="space-y-4 p-4 rounded-xl bg-[#F7F9F8] border border-[#E5E9E7]">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-[#1F2A27] flex items-center gap-1.5">
+                <Key className="w-3.5 h-3.5 text-[#0C6B58]" />
+                Token de Acesso da Ponte Local (Por Médico)
+              </Label>
+              <p className="text-[11px] text-[#5F6E69] leading-relaxed max-w-xl">
+                O agente da clínica (script Python na rede local do Orthanc) utiliza este token para
+                consultar exclusivamente os seus agendamentos nesta nuvem via endpoint seguro.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {mwlToken ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateMwlToken}
+                    disabled={generatingToken}
+                    className="text-xs h-8 border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                    Renovar Token
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRevokeMwlToken}
+                    disabled={generatingToken}
+                    className="text-xs h-8 text-red-600 border-red-200 hover:bg-red-50"
+                  >
+                    Revogar
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleGenerateMwlToken}
+                  disabled={generatingToken}
+                  className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs h-8 font-semibold"
+                >
+                  <Key className="w-3.5 h-3.5 mr-1.5" />
+                  Gerar Token MWL
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {mwlToken ? (
+            <div className="space-y-1.5 pt-2">
+              <div className="flex items-center gap-2">
+                <Input
+                  value={mwlToken}
+                  readOnly
+                  className="font-mono text-xs bg-white text-[#1F2A27] tracking-wider"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    navigator.clipboard.writeText(mwlToken)
+                    toast({ title: 'Token copiado para a área de transferência' })
+                  }}
+                  className="shrink-0 h-9 w-9 border-[#E5E9E7]"
+                  title="Copiar token"
+                >
+                  <Copy className="w-4 h-4 text-[#5F6E69]" />
+                </Button>
+              </div>
+              <p className="text-[10px] text-[#8A9691]">
+                Endpoint da nuvem:{' '}
+                <code className="bg-white px-1.5 py-0.5 rounded border border-[#E5E9E7]">
+                  GET /backend/v1/mwl/appointments
+                </code>
+              </p>
+            </div>
+          ) : (
+            <div className="p-3 bg-amber-50/60 rounded-lg border border-amber-200 text-xs text-amber-900">
+              Nenhum token gerado. Clique em &quot;Gerar Token MWL&quot; para permitir que o Orthanc
+              local busque sua agenda de exames.
+            </div>
+          )}
+        </div>
+
+        {/* Configuração das Clínicas / Locais */}
+        <div className="space-y-4 pt-2">
+          <div>
+            <Label className="text-xs font-semibold text-[#1F2A27]">
+              Unidades / Clínicas Cadastradas (Duas ou mais)
+            </Label>
+            <p className="text-[11px] text-[#5F6E69] mt-0.5">
+              Cadastre as clínicas onde você atende (ex.: Gastroimagem, Clínica Principal). Cada
+              agendamento é vinculado a uma unidade.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {clinicsList.map((clinic) => (
+                <div
+                  key={clinic}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F7F9F8] border border-[#E5E9E7] text-xs font-semibold text-[#1F2A27]"
+                >
+                  <span>{clinic}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveClinic(clinic)}
+                    disabled={savingClinics}
+                    className="text-[#8A9691] hover:text-red-600 ml-1"
+                    title={`Remover ${clinic}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <form onSubmit={handleAddClinic} className="flex items-center gap-2 max-w-md pt-2">
+              <Input
+                value={newClinicName}
+                onChange={(e) => setNewClinicName(e.target.value)}
+                placeholder="Nome da clínica (ex.: Gastroimagem)"
+                className="text-xs bg-white"
+              />
+              <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                disabled={savingClinics || !newClinicName.trim()}
+                className="text-xs shrink-0 border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Adicionar
+              </Button>
+            </form>
+          </div>
+        </div>
+      </div>
+
       {/* 4. Preferências e Sistema */}
       <div className="bg-white p-6 sm:p-8 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">
         <div className="flex items-center gap-3 border-b border-[#E5E9E7] pb-4">
@@ -729,7 +1053,7 @@ export default function Configuracoes() {
 
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold">Fuso Horário</Label>
-            <Input value="America/Porto_Velho (UTC-4)" disabled className="bg-[#F7F9F8]" />
+            <Input value="America/Cuiaba (UTC-4)" disabled className="bg-[#F7F9F8]" />
           </div>
         </div>
       </div>

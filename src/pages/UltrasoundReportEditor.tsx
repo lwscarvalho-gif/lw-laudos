@@ -27,6 +27,7 @@ import { reportsService } from '@/services/reports'
 import { examsService } from '@/services/exams'
 import { digitalSignatureService } from '@/services/digitalSignature'
 import { patientsService } from '@/services/patients'
+import { appointmentsService } from '@/services/appointments'
 import { ultrasoundFindingsService } from '@/services/ultrasoundFindings'
 import { examImagesService } from '@/services/examImages'
 import { useAuth } from '@/contexts/AuthContext'
@@ -102,6 +103,7 @@ export default function UltrasoundReportEditor() {
   const reportIdParam = searchParams.get('id') || ''
   const prefilledExamId = searchParams.get('exame') || ''
   const prefilledPatientId = searchParams.get('paciente') || ''
+  const prefilledAppointmentId = searchParams.get('agendamento') || ''
 
   const { user } = useAuth()
   const { toast } = useToast()
@@ -172,6 +174,10 @@ export default function UltrasoundReportEditor() {
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
+  // Linked appointment state
+  const [linkedAppointmentId, setLinkedAppointmentId] = useState<string>(prefilledAppointmentId)
+  const [updateAppointmentStatusToRealizado, setUpdateAppointmentStatusToRealizado] = useState(true)
+
   // Finalize Dialog
   const [finalizeDialogOpen, setFinalizeDialogOpen] = useState(false)
   const [explicitReviewed, setExplicitReviewed] = useState(false)
@@ -218,12 +224,28 @@ export default function UltrasoundReportEditor() {
           // Load images associated
           const imgs = await examImagesService.getByReportId(rep.id)
           setImages(imgs)
+
+          // If report has exam, check if exam has appointment_id
+          if (rep.exam_id) {
+            try {
+              const examRecord = await examsService.getById(rep.exam_id)
+              if (examRecord?.appointment_id && !prefilledAppointmentId) {
+                setLinkedAppointmentId(examRecord.appointment_id)
+              }
+            } catch {
+              /* intentionally ignored */
+            }
+          }
         } else if (prefilledExamId) {
           // New report from existing exam
           const ex = await examsService.getById(prefilledExamId)
           setExamId(ex.id)
           setPatientId(ex.patient_id)
           setTitle(`Laudo de Ultrassonografia - ${ex.type}`)
+
+          if (ex.appointment_id && !prefilledAppointmentId) {
+            setLinkedAppointmentId(ex.appointment_id)
+          }
 
           // Also fetch exam images if any exist
           const imgs = await examImagesService.getByExamId(ex.id)
@@ -759,10 +781,17 @@ export default function UltrasoundReportEditor() {
         await examsService.update(examId, { status: 'Concluído' }).catch(() => {})
       }
 
+      // Update linked appointment to 'Realizado' if confirmed by user
+      if (linkedAppointmentId && updateAppointmentStatusToRealizado) {
+        await appointmentsService.updateStatus(linkedAppointmentId, 'Realizado').catch(() => {})
+      }
+
       toast({
         title: 'Laudo finalizado com sucesso!',
         description:
-          'Identificação profissional e responsável técnico registrados. Exame concluído.',
+          linkedAppointmentId && updateAppointmentStatusToRealizado
+            ? 'Identificação profissional registrada. Exame concluído e agendamento marcado como Realizado.'
+            : 'Identificação profissional e responsável técnico registrados. Exame concluído.',
       })
 
       setFinalizeDialogOpen(false)
@@ -1474,6 +1503,22 @@ export default function UltrasoundReportEditor() {
                 e a conclusão diagnóstica como médico responsável técnico.
               </span>
             </label>
+
+            {/* If linked to an appointment, confirm turning status into 'Realizado' */}
+            {linkedAppointmentId && (
+              <label className="flex items-start gap-2.5 p-3 rounded-lg border border-blue-200 bg-blue-50/50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={updateAppointmentStatusToRealizado}
+                  onChange={(e) => setUpdateAppointmentStatusToRealizado(e.target.checked)}
+                  className="mt-0.5 rounded text-[#0C6B58] focus:ring-[#0C6B58]"
+                />
+                <span className="text-xs text-[#1F2A27] leading-relaxed">
+                  Atualizar status do agendamento vinculado na agenda para{' '}
+                  <strong>Realizado</strong>.
+                </span>
+              </label>
+            )}
           </div>
 
           <DialogFooter className="pt-2">

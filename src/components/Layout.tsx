@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Users,
   ClipboardList,
+  Calendar,
   FileText,
   Layers,
   Settings,
@@ -29,6 +30,7 @@ import { Button } from '@/components/ui/button'
 const NAV_ITEMS = [
   { path: '/painel', label: 'Painel', icon: LayoutDashboard },
   { path: '/pacientes', label: 'Pacientes', icon: Users },
+  { path: '/agenda', label: 'Agenda', icon: Calendar },
   { path: '/exames', label: 'Exames', icon: ClipboardList },
   { path: '/laudos', label: 'Laudos', icon: FileText },
   { path: '/modelos', label: 'Modelos', icon: Layers },
@@ -51,6 +53,7 @@ export default function Layout() {
     const path = location.pathname
     if (path.startsWith('/painel')) return 'Painel'
     if (path.startsWith('/pacientes')) return 'Pacientes'
+    if (path.startsWith('/agenda')) return 'Agenda Médica'
     if (path.startsWith('/exames')) return 'Exames'
     if (path.startsWith('/laudos/ultrassom')) return 'Laudo de Ultrassonografia'
     if (path.startsWith('/laudos')) return 'Laudos'
@@ -346,7 +349,7 @@ export default function Layout() {
         <footer className="py-4 px-6 border-t border-[#E5E9E7] text-center text-xs text-[#8A9691] bg-white flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>Sistema Médico Multiperfil © 2025</span>
           <span className="text-[11px] bg-[#F4F6F5] text-[#5F6E69] px-2.5 py-0.5 rounded-full border border-[#E5E9E7]">
-            v0.0.2 • Versão preliminar para avaliação (não homologada para uso real)
+            v0.0.14 • Versão preliminar para avaliação (não homologada para uso real)
           </span>
         </footer>
       </div>

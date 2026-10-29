@@ -16,6 +16,7 @@ import ConfirmEmailChange from '@/pages/ConfirmEmailChange'
 import Painel from '@/pages/Painel'
 import Pacientes from '@/pages/Pacientes'
 import PacienteDetalhes from '@/pages/PacienteDetalhes'
+import Agenda from '@/pages/Agenda'
 import Exames from '@/pages/Exames'
 import ExameNovo from '@/pages/ExameNovo'
 import ExameDetalhes from '@/pages/ExameDetalhes'
@@ -62,6 +63,9 @@ export default function App() {
             {/* Pacientes */}
             <Route path="/pacientes" element={<Pacientes />} />
             <Route path="/pacientes/:id" element={<PacienteDetalhes />} />
+
+            {/* Agenda Individual do Médico */}
+            <Route path="/agenda" element={<Agenda />} />
 
             {/* Exames */}
             <Route path="/exames" element={<Exames />} />

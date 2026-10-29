@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T23:59:25.617Z",
+  "generatedAt": "2026-10-29T00:27:35.172Z",
   "collections": [
     {
       "name": "users",
@@ -84,6 +84,18 @@
         {
           "name": "active",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "mwl_token",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "clinics_config",
+          "type": "json",
           "required": false,
           "system": false
         }
@@ -249,6 +261,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "appointment_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "appointments"
         }
       ],
       "indexes": [
@@ -854,6 +873,151 @@
         "CREATE INDEX idx_exam_images_owner ON exam_images (owner_id)",
         "CREATE INDEX idx_exam_images_report ON exam_images (report_id)",
         "CREATE INDEX idx_exam_images_exam ON exam_images (exam_id)"
+      ]
+    },
+    {
+      "name": "appointments",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "view": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "create": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "update": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "delete": "@request.auth.id != '' && owner_id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "owner_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "patient_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "patients"
+        },
+        {
+          "name": "start_time",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "duration_minutes",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "exam_type",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "clinic_location",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Agendado", "Confirmado", "Em atendimento", "Realizado", "Cancelado"]
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "referring_physician",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "accession_number",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "patient_name_dicom",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "patient_id_dicom",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "patient_birth_date",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "patient_sex",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "modality",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "study_description",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "scheduled_station_ae",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "exam_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_appointments_owner ON appointments (owner_id)",
+        "CREATE INDEX idx_appointments_patient ON appointments (patient_id)",
+        "CREATE INDEX idx_appointments_start ON appointments (start_time)",
+        "CREATE INDEX idx_appointments_status ON appointments (status)",
+        "CREATE UNIQUE INDEX idx_appointments_accession ON appointments (accession_number)"
       ]
     }
   ]

@@ -72,6 +72,91 @@ export function parseLocalYMDToISO(ymd: string): string {
   return new Date(ymd).toISOString()
 }
 
+// Timezone default for user (America/Cuiaba - UTC-4)
+export const CLINIC_TIMEZONE = 'America/Cuiaba'
+
+// Get today's YMD in America/Cuiaba timezone
+export function getCuiabaTodayYMD(): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: CLINIC_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  return formatter.format(new Date()) // Returns YYYY-MM-DD
+}
+
+// Format an ISO string to Cuiaba date (DD/MM/YYYY)
+export function formatCuiabaDate(isoDateStr?: string | null): string {
+  if (!isoDateStr) return '—'
+  try {
+    const d = new Date(isoDateStr)
+    if (isNaN(d.getTime())) return isoDateStr
+    return d.toLocaleDateString('pt-BR', { timeZone: CLINIC_TIMEZONE })
+  } catch {
+    return isoDateStr
+  }
+}
+
+// Format an ISO string to Cuiaba time (HH:mm)
+export function formatCuiabaTime(isoDateStr?: string | null): string {
+  if (!isoDateStr) return '—'
+  try {
+    const d = new Date(isoDateStr)
+    if (isNaN(d.getTime())) return isoDateStr
+    return d.toLocaleTimeString('pt-BR', {
+      timeZone: CLINIC_TIMEZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  } catch {
+    return isoDateStr
+  }
+}
+
+// Format an ISO string to Cuiaba DateTime (DD/MM/YYYY às HH:mm)
+export function formatCuiabaDateTime(isoDateStr?: string | null): string {
+  if (!isoDateStr) return '—'
+  try {
+    const d = new Date(isoDateStr)
+    if (isNaN(d.getTime())) return isoDateStr
+    return d.toLocaleString('pt-BR', {
+      timeZone: CLINIC_TIMEZONE,
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  } catch {
+    return isoDateStr
+  }
+}
+
+// Converts local civil date (YYYY-MM-DD) + time (HH:mm) in America/Cuiaba (UTC-4) to an ISO string
+export function combineCuiabaDateTimeToISO(ymd: string, timeStr: string = '08:00'): string {
+  if (!ymd) return ''
+  const [year, month, day] = ymd.split('-').map(Number)
+  const [hour, minute] = timeStr.split(':').map(Number)
+  // America/Cuiaba is standard UTC-4 without daylight saving time in Brazil
+  // So offset is -04:00. In UTC hours: hour + 4
+  const utcDate = new Date(Date.UTC(year, month - 1, day, hour + 4, minute, 0))
+  return utcDate.toISOString()
+}
+
+// Formats patient full name into standard DICOM PN format: LASTNAME^FIRSTNAME [MIDDLENAMES]
+export function formatDicomPatientName(rawName?: string | null): string {
+  if (!rawName) return ''
+  const trimmed = rawName.trim().toUpperCase()
+  const parts = trimmed.split(/\s+/).filter(Boolean)
+  if (parts.length === 1) return parts[0]
+  const lastName = parts[parts.length - 1]
+  const firstAndMiddle = parts.slice(0, parts.length - 1).join(' ')
+  return `${lastName}^${firstAndMiddle}`
+}
+
 // Relative time in Portuguese (ex.: "há 2 dias", "hoje", "ontem")
 export function formatRelativeDate(dateStr?: string | null): string {
   if (!dateStr) return '—'
