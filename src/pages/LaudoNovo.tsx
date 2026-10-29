@@ -9,13 +9,16 @@ import {
   Layers,
   Sparkles,
   AlertCircle,
+  Tag,
+  Search,
 } from 'lucide-react'
 import { reportsService } from '@/services/reports'
 import { examsService } from '@/services/exams'
 import { patientsService } from '@/services/patients'
 import { templatesService } from '@/services/templates'
+import { specialtiesService } from '@/services/specialties'
 import { useAuth } from '@/contexts/AuthContext'
-import type { Patient, Exam, Template } from '@/types'
+import type { Patient, Exam, Template, MedicalSpecialty } from '@/types'
 import RichTextEditor from '@/components/RichTextEditor'
 import { printReportPDF, downloadReportRealPdf } from '@/lib/pdfGenerator'
 import BodyMarkEditor from '@/components/ultrasound/BodyMarkEditor'
@@ -59,7 +62,12 @@ export default function LaudoNovo() {
   const [exams, setExams] = useState<Exam[]>([])
   const [myTemplates, setMyTemplates] = useState<Template[]>([])
   const [generalTemplates, setGeneralTemplates] = useState<Template[]>([])
+  const [specialties, setSpecialties] = useState<MedicalSpecialty[]>([])
   const [loadingInitial, setLoadingInitial] = useState(true)
+
+  // Specialty filter inside template picker
+  const [templateSpecialtyFilter, setTemplateSpecialtyFilter] = useState<string>('todas')
+  const [templateSearchTerm, setTemplateSearchTerm] = useState('')
 
   // Form
   const [title, setTitle] = useState('')
@@ -80,14 +88,16 @@ export default function LaudoNovo() {
   useEffect(() => {
     async function init() {
       try {
-        const [pts, myTpls, genTpls] = await Promise.all([
+        const [pts, myTpls, genTpls, specs] = await Promise.all([
           patientsService.getAll(),
           templatesService.getMyTemplates(),
           templatesService.getGeneralTemplates(),
+          specialtiesService.getActive(),
         ])
         setPatients(pts)
         setMyTemplates(myTpls)
         setGeneralTemplates(genTpls)
+        setSpecialties(specs)
 
         // If exam was prefilled, fetch exam and prefill patient
         if (prefilledExamId) {
@@ -475,55 +485,131 @@ export default function LaudoNovo() {
         {/* Right Column (Template Selector & Shortcuts ~30%) */}
         <div className="lg:col-span-4 space-y-4">
           <div className="bg-white p-6 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">
-            <div className="flex items-center gap-2 pb-3 border-b border-[#E5E9E7]">
-              <Layers className="w-4 h-4 text-[#0C6B58]" />
-              <h3 className="font-bold text-sm text-[#1F2A27]">Aplicar Modelo Pré-formatado</h3>
+            <div className="flex items-center justify-between pb-3 border-b border-[#E5E9E7]">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-[#0C6B58]" />
+                <h3 className="font-bold text-sm text-[#1F2A27]">Modelos por Especialidade</h3>
+              </div>
+              <span className="text-[10px] font-semibold text-[#0C6B58] bg-[#E8F3F0] px-2 py-0.5 rounded-full">
+                Ágil
+              </span>
             </div>
 
             <p className="text-xs text-[#5F6E69] leading-relaxed">
-              Escolha um modelo geral ou particular. O conteúdo é carregado como uma cópia pessoal e
-              não altera o modelo original.
+              Filtre por especialidade médica para carregar rapidamente o modelo ideal para este
+              exame.
             </p>
 
+            {/* Filter by Specialty */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-[#1F2A27]">Modelo de Laudo</Label>
-              <Select value={selectedTemplateId || 'blank'} onValueChange={handleTemplateSelection}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um modelo..." />
+              <Label className="text-xs font-semibold text-[#1F2A27] flex items-center gap-1">
+                <Tag className="w-3.5 h-3.5 text-[#0C6B58]" />
+                Filtrar Especialidade
+              </Label>
+              <Select
+                value={templateSpecialtyFilter}
+                onValueChange={(val) => setTemplateSpecialtyFilter(val)}
+              >
+                <SelectTrigger className="text-xs h-9">
+                  <SelectValue placeholder="Todas as especialidades" />
                 </SelectTrigger>
-                <SelectContent className="max-h-80">
-                  <SelectItem value="blank">Em branco (sem modelo)</SelectItem>
-                  {generalTemplates.length > 0 && (
-                    <SelectGroup>
-                      <SelectLabel className="text-xs font-bold text-[#0C6B58]">
-                        Modelos Gerais
-                      </SelectLabel>
-                      {generalTemplates.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.title}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  )}
-                  {myTemplates.length > 0 && (
-                    <SelectGroup>
-                      <SelectLabel className="text-xs font-bold text-[#5F6E69]">
-                        Meus Modelos
-                      </SelectLabel>
-                      {myTemplates.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.title}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  )}
+                <SelectContent className="max-h-60">
+                  <SelectItem value="todas">Todas as Especialidades</SelectItem>
+                  {specialties.map((spec) => (
+                    <SelectItem key={spec.id} value={spec.id}>
+                      {spec.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="unclassified">Geral / Sem especialidade</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
+            {/* Search within filtered */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8A9691]" />
+              <Input
+                value={templateSearchTerm}
+                onChange={(e) => setTemplateSearchTerm(e.target.value)}
+                placeholder="Buscar modelo..."
+                className="pl-8 text-xs h-8 bg-[#F7F9F8]"
+              />
+            </div>
+
+            {/* Template Selection Dropdown */}
+            {(() => {
+              const filterTpls = (list: Template[]) => {
+                return list.filter((t) => {
+                  if (templateSpecialtyFilter !== 'todas') {
+                    if (templateSpecialtyFilter === 'unclassified') {
+                      if (t.specialty_id) return false
+                    } else if (t.specialty_id !== templateSpecialtyFilter) {
+                      return false
+                    }
+                  }
+                  if (templateSearchTerm.trim()) {
+                    const q = templateSearchTerm.toLowerCase()
+                    const matchTitle = t.title.toLowerCase().includes(q)
+                    const matchDesc = t.description?.toLowerCase().includes(q)
+                    if (!matchTitle && !matchDesc) return false
+                  }
+                  return true
+                })
+              }
+
+              const visibleGeneral = filterTpls(generalTemplates)
+              const visibleMy = filterTpls(myTemplates)
+
+              return (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#1F2A27]">Selecione o Modelo</Label>
+                  <Select
+                    value={selectedTemplateId || 'blank'}
+                    onValueChange={handleTemplateSelection}
+                  >
+                    <SelectTrigger className="text-xs">
+                      <SelectValue placeholder="Selecione um modelo..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-80">
+                      <SelectItem value="blank">Em branco (sem modelo)</SelectItem>
+                      {visibleGeneral.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel className="text-xs font-bold text-[#0C6B58]">
+                            Modelos Gerais ({visibleGeneral.length})
+                          </SelectLabel>
+                          {visibleGeneral.map((t) => (
+                            <SelectItem key={t.id} value={t.id} className="text-xs">
+                              {t.title}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                      {visibleMy.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel className="text-xs font-bold text-[#5F6E69]">
+                            Meus Modelos ({visibleMy.length})
+                          </SelectLabel>
+                          {visibleMy.map((t) => (
+                            <SelectItem key={t.id} value={t.id} className="text-xs">
+                              {t.title}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                      {visibleGeneral.length === 0 && visibleMy.length === 0 && (
+                        <div className="py-3 px-2 text-center text-xs text-[#5F6E69]">
+                          Nenhum modelo para esta especialidade.
+                        </div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )
+            })()}
+
             <div className="pt-4 border-t border-[#E5E9E7] space-y-3">
               <div className="flex items-center justify-between text-xs text-[#5F6E69]">
-                <span>Seus modelos cadastrados</span>
+                <span>Seus modelos particulares</span>
                 <span className="font-bold">{myTemplates.length}</span>
               </div>
               <div className="flex items-center justify-between text-xs text-[#5F6E69]">

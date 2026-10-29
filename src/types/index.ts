@@ -92,15 +92,30 @@ export interface Appointment extends RecordModel {
   }
 }
 
+export interface MedicalSpecialty extends RecordModel {
+  id: string
+  name: string
+  description?: string
+  icon?: string
+  sort_order?: number
+  is_active?: boolean
+  created?: string
+  updated?: string
+}
+
 export interface Template extends RecordModel {
   id: string
   owner_id: string
+  specialty_id?: string
   title: string
   description?: string
   body: string
   is_general?: boolean
   created?: string
   updated?: string
+  expand?: {
+    specialty_id?: MedicalSpecialty
+  }
 }
 
 export type ReportStatus = 'Rascunho' | 'Finalizado'

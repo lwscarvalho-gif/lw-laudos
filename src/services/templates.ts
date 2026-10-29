@@ -5,6 +5,7 @@ export const templatesService = {
   async getList(): Promise<Template[]> {
     return pb.collection('templates').getFullList<Template>({
       sort: '-created',
+      expand: 'specialty_id',
     })
   },
 
@@ -14,6 +15,7 @@ export const templatesService = {
     return pb.collection('templates').getFullList<Template>({
       filter: `owner_id = '${userId}' && is_general = false`,
       sort: '-created',
+      expand: 'specialty_id',
     })
   },
 
@@ -21,11 +23,14 @@ export const templatesService = {
     return pb.collection('templates').getFullList<Template>({
       filter: `is_general = true`,
       sort: '-created',
+      expand: 'specialty_id',
     })
   },
 
   async getById(id: string): Promise<Template> {
-    return pb.collection('templates').getOne<Template>(id)
+    return pb.collection('templates').getOne<Template>(id, {
+      expand: 'specialty_id',
+    })
   },
 
   async create(data: {
@@ -33,10 +38,12 @@ export const templatesService = {
     description?: string
     body: string
     is_general?: boolean
+    specialty_id?: string | null
   }): Promise<Template> {
     const owner_id = pb.authStore.record?.id
     return pb.collection('templates').create<Template>({
       ...data,
+      specialty_id: data.specialty_id || undefined,
       is_general: !!data.is_general,
       owner_id,
     })
@@ -57,6 +64,7 @@ export const templatesService = {
       description: template.description || '',
       body: template.body,
       is_general: false,
+      specialty_id: template.specialty_id || undefined,
       owner_id,
     })
   },

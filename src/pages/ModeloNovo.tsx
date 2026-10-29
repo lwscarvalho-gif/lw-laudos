@@ -1,9 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Save, Loader2, Sparkles } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, Sparkles, Tag } from 'lucide-react'
 import { templatesService } from '@/services/templates'
+import { specialtiesService } from '@/services/specialties'
 import { useAuth } from '@/contexts/AuthContext'
 import RichTextEditor from '@/components/RichTextEditor'
+import type { MedicalSpecialty } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,12 +23,15 @@ export default function ModeloNovo() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const initialType = searchParams.get('tipo') === 'geral' ? 'geral' : 'particular'
+  const initialSpecialty = searchParams.get('especialidade') || ''
 
   const { isAdmin } = useAuth()
   const { toast } = useToast()
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [specialtyId, setSpecialtyId] = useState<string>(initialSpecialty || 'none')
+  const [specialties, setSpecialties] = useState<MedicalSpecialty[]>([])
   const [type, setType] = useState<'particular' | 'geral'>(
     isAdmin && initialType === 'geral' ? 'geral' : 'particular',
   )
@@ -36,6 +41,13 @@ export default function ModeloNovo() {
 
   const [saving, setSaving] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    specialtiesService
+      .getActive()
+      .then(setSpecialties)
+      .catch((err) => console.error(err))
+  }, [])
 
   const validate = () => {
     const errs: Record<string, string> = {}
@@ -57,10 +69,11 @@ export default function ModeloNovo() {
         description: description.trim(),
         body,
         is_general: isAdmin && type === 'geral',
+        specialty_id: specialtyId !== 'none' ? specialtyId : undefined,
       })
       toast({
         title: 'Modelo salvo',
-        description: 'Modelo cadastrado com sucesso.',
+        description: 'Modelo cadastrado com sucesso e vinculado à especialidade.',
       })
       navigate('/modelos')
     } catch {
@@ -141,20 +154,28 @@ export default function ModeloNovo() {
           {fieldErrors.title && <p className="text-xs text-[#DC2626]">{fieldErrors.title}</p>}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="tpl_desc" className="text-xs font-semibold text-[#1F2A27]">
-              Descrição curta (opcional)
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="space-y-1.5 sm:col-span-1">
+            <Label className="text-xs font-semibold text-[#1F2A27] flex items-center gap-1">
+              <Tag className="w-3.5 h-3.5 text-[#0C6B58]" />
+              Especialidade Médica
             </Label>
-            <Input
-              id="tpl_desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ex.: Avaliação morfológica e hemodinâmica cardíaca"
-            />
+            <Select value={specialtyId} onValueChange={setSpecialtyId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a especialidade..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Geral / Sem especialidade</SelectItem>
+                {specialties.map((spec) => (
+                  <SelectItem key={spec.id} value={spec.id}>
+                    {spec.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 sm:col-span-1">
             <Label className="text-xs font-semibold text-[#1F2A27]">Tipo de Modelo</Label>
             {isAdmin ? (
               <Select value={type} onValueChange={(val: 'particular' | 'geral') => setType(val)}>
@@ -173,6 +194,18 @@ export default function ModeloNovo() {
                 className="bg-[#F7F9F8] text-[#5F6E69]"
               />
             )}
+          </div>
+
+          <div className="space-y-1.5 sm:col-span-1">
+            <Label htmlFor="tpl_desc" className="text-xs font-semibold text-[#1F2A27]">
+              Descrição curta (opcional)
+            </Label>
+            <Input
+              id="tpl_desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Ex.: Avaliação morfológica e diagnóstica"
+            />
           </div>
         </div>
 

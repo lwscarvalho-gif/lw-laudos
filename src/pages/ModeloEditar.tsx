@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Loader2 } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, Tag } from 'lucide-react'
 import { templatesService } from '@/services/templates'
+import { specialtiesService } from '@/services/specialties'
 import { useAuth } from '@/contexts/AuthContext'
 import RichTextEditor from '@/components/RichTextEditor'
-import type { Template } from '@/types'
+import type { Template, MedicalSpecialty } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,9 +26,11 @@ export default function ModeloEditar() {
 
   const [loading, setLoading] = useState(true)
   const [template, setTemplate] = useState<Template | null>(null)
+  const [specialties, setSpecialties] = useState<MedicalSpecialty[]>([])
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [specialtyId, setSpecialtyId] = useState<string>('none')
   const [type, setType] = useState<'particular' | 'geral'>('particular')
   const [body, setBody] = useState('')
 
@@ -36,12 +39,13 @@ export default function ModeloEditar() {
 
   useEffect(() => {
     if (!id) return
-    templatesService
-      .getById(id)
-      .then((tpl) => {
+    Promise.all([templatesService.getById(id), specialtiesService.getActive()])
+      .then(([tpl, specs]) => {
         setTemplate(tpl)
+        setSpecialties(specs)
         setTitle(tpl.title)
         setDescription(tpl.description || '')
+        setSpecialtyId(tpl.specialty_id || 'none')
         setType(tpl.is_general ? 'geral' : 'particular')
         setBody(tpl.body)
       })
@@ -76,11 +80,12 @@ export default function ModeloEditar() {
         description: description.trim(),
         body,
         is_general: isAdmin ? type === 'geral' : false,
+        specialty_id: specialtyId !== 'none' ? specialtyId : undefined,
       })
       toast({
         title: 'Modelo atualizado',
         description:
-          'As alterações foram salvas. Cópias já feitas por outros médicos não foram afetadas.',
+          'As alterações e a especialidade foram salvas. Cópias já feitas por outros médicos não foram afetadas.',
       })
       navigate('/modelos')
     } catch {
@@ -169,19 +174,28 @@ export default function ModeloEditar() {
           {fieldErrors.title && <p className="text-xs text-[#DC2626]">{fieldErrors.title}</p>}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="ed_tpl_desc" className="text-xs font-semibold text-[#1F2A27]">
-              Descrição curta
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="space-y-1.5 sm:col-span-1">
+            <Label className="text-xs font-semibold text-[#1F2A27] flex items-center gap-1">
+              <Tag className="w-3.5 h-3.5 text-[#0C6B58]" />
+              Especialidade Médica
             </Label>
-            <Input
-              id="ed_tpl_desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
+            <Select value={specialtyId} onValueChange={setSpecialtyId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a especialidade..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Geral / Sem especialidade</SelectItem>
+                {specialties.map((spec) => (
+                  <SelectItem key={spec.id} value={spec.id}>
+                    {spec.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 sm:col-span-1">
             <Label className="text-xs font-semibold text-[#1F2A27]">Tipo de Modelo</Label>
             {isAdmin ? (
               <Select value={type} onValueChange={(val: 'particular' | 'geral') => setType(val)}>
@@ -196,6 +210,17 @@ export default function ModeloEditar() {
             ) : (
               <Input value="Particular" disabled className="bg-[#F7F9F8] text-[#5F6E69]" />
             )}
+          </div>
+
+          <div className="space-y-1.5 sm:col-span-1">
+            <Label htmlFor="ed_tpl_desc" className="text-xs font-semibold text-[#1F2A27]">
+              Descrição curta
+            </Label>
+            <Input
+              id="ed_tpl_desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
           </div>
         </div>
 
