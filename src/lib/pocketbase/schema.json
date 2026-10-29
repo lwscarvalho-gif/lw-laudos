@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T20:40:44.823Z",
+  "generatedAt": "2026-10-29T21:07:34.198Z",
   "collections": [
     {
       "name": "users",
@@ -517,6 +517,18 @@
         },
         {
           "name": "signature_status",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "referring_physician",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "clinic_location",
           "type": "text",
           "required": false,
           "system": false

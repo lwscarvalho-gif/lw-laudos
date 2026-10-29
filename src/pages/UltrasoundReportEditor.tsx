@@ -121,6 +121,8 @@ export default function UltrasoundReportEditor() {
   const [title, setTitle] = useState('Laudo de Ultrassonografia de Abdome Total')
   const [patientId, setPatientId] = useState(prefilledPatientId)
   const [examId, setExamId] = useState(prefilledExamId)
+  const [referringPhysician, setReferringPhysician] = useState<string>('')
+  const [clinicLocation, setClinicLocation] = useState<string>('')
   const [sections, setSections] = useState<UltrasoundSectionData[]>(() =>
     DEFAULT_ABDOME_SECTIONS.map((sec) => ({
       id: sec.id,
@@ -206,6 +208,8 @@ export default function UltrasoundReportEditor() {
           setTitle(rep.title || 'Laudo de Ultrassonografia')
           setPatientId(rep.patient_id)
           setExamId(rep.exam_id || '')
+          setReferringPhysician(rep.referring_physician || '')
+          setClinicLocation(rep.clinic_location || '')
 
           if (rep.structured_data?.sections && rep.structured_data.sections.length > 0) {
             setSections(rep.structured_data.sections)
@@ -239,12 +243,26 @@ export default function UltrasoundReportEditor() {
               if (resolvedApptId) {
                 setLinkedAppointmentId(resolvedApptId)
                 const appt = await appointmentsService.getById(resolvedApptId).catch(() => null)
-                if (appt) setLinkedAppointment(appt)
+                if (appt) {
+                  setLinkedAppointment(appt)
+                  if (!rep.referring_physician && appt.referring_physician) {
+                    setReferringPhysician(appt.referring_physician)
+                  }
+                  if (!rep.clinic_location && appt.clinic_location) {
+                    setClinicLocation(appt.clinic_location)
+                  }
+                }
               } else {
                 const apptRecord = await appointmentsService.getByExamId(rep.exam_id)
                 if (apptRecord) {
                   setLinkedAppointmentId(apptRecord.id)
                   setLinkedAppointment(apptRecord)
+                  if (!rep.referring_physician && apptRecord.referring_physician) {
+                    setReferringPhysician(apptRecord.referring_physician)
+                  }
+                  if (!rep.clinic_location && apptRecord.clinic_location) {
+                    setClinicLocation(apptRecord.clinic_location)
+                  }
                 }
               }
             } catch {
@@ -258,12 +276,24 @@ export default function UltrasoundReportEditor() {
           setPatientId(ex.patient_id)
           setTitle(`Laudo de Ultrassonografia - ${ex.type}`)
 
+          let linkedApptObj: Appointment | null = null
           if (ex.appointment_id && !prefilledAppointmentId) {
             setLinkedAppointmentId(ex.appointment_id)
+            linkedApptObj = await appointmentsService.getById(ex.appointment_id).catch(() => null)
           } else if (!prefilledAppointmentId) {
             const apptRecord = await appointmentsService.getByExamId(ex.id)
             if (apptRecord) {
               setLinkedAppointmentId(apptRecord.id)
+              linkedApptObj = apptRecord
+            }
+          }
+          if (linkedApptObj) {
+            setLinkedAppointment(linkedApptObj)
+            if (linkedApptObj.referring_physician) {
+              setReferringPhysician(linkedApptObj.referring_physician)
+            }
+            if (linkedApptObj.clinic_location) {
+              setClinicLocation(linkedApptObj.clinic_location)
             }
           }
 
@@ -276,7 +306,15 @@ export default function UltrasoundReportEditor() {
         if (prefilledAppointmentId) {
           try {
             const appt = await appointmentsService.getById(prefilledAppointmentId)
-            setLinkedAppointment(appt)
+            if (appt) {
+              setLinkedAppointment(appt)
+              if (appt.referring_physician) {
+                setReferringPhysician((prev) => prev || appt.referring_physician || '')
+              }
+              if (appt.clinic_location) {
+                setClinicLocation((prev) => prev || appt.clinic_location || '')
+              }
+            }
           } catch {
             /* ignore */
           }
@@ -417,6 +455,8 @@ export default function UltrasoundReportEditor() {
             title: title.trim(),
             patient_id: patientId,
             exam_id: examId || undefined,
+            referring_physician: referringPhysician.trim() || undefined,
+            clinic_location: clinicLocation.trim() || undefined,
             body: bodyHtml,
             conclusion,
             structured_data: structuredData,
@@ -429,6 +469,8 @@ export default function UltrasoundReportEditor() {
             title: title.trim(),
             patient_id: patientId,
             exam_id: examId || undefined,
+            referring_physician: referringPhysician.trim() || undefined,
+            clinic_location: clinicLocation.trim() || undefined,
             body: bodyHtml,
             conclusion,
             structured_data: structuredData,
@@ -481,6 +523,8 @@ export default function UltrasoundReportEditor() {
       examId,
       exams,
       title,
+      referringPhysician,
+      clinicLocation,
       generateFullHtmlBody,
       sections,
       conclusion,
@@ -669,12 +713,36 @@ export default function UltrasoundReportEditor() {
       ? pb.files.getURL(user as unknown as Record<string, unknown>, user.logo)
       : undefined
 
+    // Resolve clinic logo if clinicLocation matches one in user.clinics_config
+    let clinicLogoUrl: string | undefined
+    if (clinicLocation && user?.clinics_config) {
+      let clist: any[] = []
+      if (Array.isArray(user.clinics_config)) {
+        clist = user.clinics_config
+      } else {
+        try {
+          clist = JSON.parse(user.clinics_config)
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+      const matchClinic = clist.find(
+        (c: any) => (typeof c === 'string' ? c : c?.name) === clinicLocation,
+      )
+      if (matchClinic && typeof matchClinic === 'object' && matchClinic.logo) {
+        clinicLogoUrl = matchClinic.logo
+      }
+    }
+
     return {
       title: title || 'Laudo de Ultrassonografia',
       patientName: patientObj?.name || 'Paciente',
       patientDocument: patientObj?.document,
       examDate: selectedExam?.exam_date ? formatDateBR(selectedExam.exam_date) : undefined,
       indication: selectedExam?.indication,
+      referringPhysician: referringPhysician.trim() || undefined,
+      clinicLocation: clinicLocation.trim() || undefined,
+      clinicLogoUrl,
       bodyHtml: generateFullHtmlBody(),
       conclusionHtml: conclusion.trim() ? conclusion.replace(/\n/g, '<br/>') : undefined,
       authorName: user?.professional_name || user?.name || 'Médico Responsável Técnico',
@@ -696,6 +764,8 @@ export default function UltrasoundReportEditor() {
     examId,
     images,
     title,
+    referringPhysician,
+    clinicLocation,
     generateFullHtmlBody,
     conclusion,
     user,
@@ -776,6 +846,8 @@ export default function UltrasoundReportEditor() {
           title: title.trim(),
           patient_id: patientId,
           exam_id: examId || undefined,
+          referring_physician: referringPhysician.trim() || undefined,
+          clinic_location: clinicLocation.trim() || undefined,
           body: bodyHtml,
           conclusion,
           structured_data: structuredData,
@@ -792,6 +864,8 @@ export default function UltrasoundReportEditor() {
           title: title.trim(),
           patient_id: patientId,
           exam_id: examId || undefined,
+          referring_physician: referringPhysician.trim() || undefined,
+          clinic_location: clinicLocation.trim() || undefined,
           body: bodyHtml,
           conclusion,
           structured_data: structuredData,

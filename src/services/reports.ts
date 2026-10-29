@@ -71,6 +71,9 @@ export const reportsService = {
     author_name?: string
     author_crm?: string
     author_crm_uf?: string
+    author_logo?: string
+    referring_physician?: string
+    clinic_location?: string
     signature_date?: string
     signature_hash_sha256?: string
     signature_provider?: string

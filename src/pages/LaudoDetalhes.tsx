@@ -158,15 +158,51 @@ export default function LaudoDetalhes() {
     const crmStr = crmNum ? `CRM ${crmUf ? `${crmUf} ` : ''}${crmNum}` : 'CRM não informado'
     const defaultAuthorTitle = user?.professional_title || `Médico / ${crmStr}`
 
-    const logoUrl = user?.logo
-      ? pb.files.getURL(user as unknown as Record<string, unknown>, user.logo)
-      : undefined
+    const logoUrl =
+      report.author_logo ||
+      (user?.logo
+        ? pb.files.getURL(user as unknown as Record<string, unknown>, user.logo)
+        : undefined)
+
+    // Find clinic and clinic logo if report has a clinic_location
+    let clinicLogoUrl: string | undefined
+    const clinicLoc =
+      report.clinic_location ||
+      (report.expand?.exam_id?.appointment_id as any)?.clinic_location ||
+      ''
+    if (clinicLoc && user?.clinics_config) {
+      let clist: any[] = []
+      if (Array.isArray(user.clinics_config)) {
+        clist = user.clinics_config
+      } else {
+        try {
+          clist = JSON.parse(user.clinics_config)
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+      const matchClinic = clist.find(
+        (c: any) => (typeof c === 'string' ? c : c?.name) === clinicLoc,
+      )
+      if (matchClinic && typeof matchClinic === 'object' && matchClinic.logo) {
+        clinicLogoUrl = matchClinic.logo
+      }
+    }
+
+    const referringPhysician =
+      report.referring_physician ||
+      (report.expand?.exam_id?.appointment_id as any)?.referring_physician ||
+      undefined
 
     return {
       title: report.title,
       patientName: report.expand?.patient_id?.name || 'Paciente',
       patientDocument: report.expand?.patient_id?.document,
       examDate: formatDateBR(report.expand?.exam_id?.exam_date || report.created),
+      indication: report.expand?.exam_id?.indication || undefined,
+      referringPhysician,
+      clinicLocation: clinicLoc || undefined,
+      clinicLogoUrl,
       bodyHtml: report.body,
       conclusionHtml: report.conclusion || report.structured_data?.conclusion || undefined,
       authorName: report.author_name || user?.professional_name || 'Médico Responsável',
@@ -302,11 +338,34 @@ export default function LaudoDetalhes() {
       <div className="bg-white p-8 sm:p-14 rounded-2xl border border-[#E5E9E7] shadow-md animate-fade-in space-y-8">
         {/* Professional Header */}
         <div className="border-b-2 border-[#0C6B58] pb-5 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div>
-            <h2 className="font-bold text-base text-[#0C6B58] tracking-tight">
-              {user?.header || 'Clínica Médica de Diagnóstico e Imagem'}
-            </h2>
-            <p className="text-xs text-[#5F6E69] mt-0.5">Sistema de Laudos de Imagem</p>
+          <div className="flex items-center gap-4">
+            {report.clinic_location && (
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-[#0C6B58] bg-[#E8F3F0] px-2 py-0.5 rounded">
+                  Local do Atendimento
+                </span>
+                <h2 className="font-bold text-lg text-[#0C6B58] tracking-tight mt-1">
+                  {report.clinic_location}
+                </h2>
+                <p className="text-xs text-[#5F6E69]">
+                  {report.author_name ||
+                    user?.professional_name ||
+                    user?.name ||
+                    'Médico Responsável'}
+                  {report.author_crm || user?.crm
+                    ? ` • CRM ${report.author_crm_uf || user?.crm_uf || ''} ${report.author_crm || user?.crm}`
+                    : ''}
+                </p>
+              </div>
+            )}
+            {!report.clinic_location && (
+              <div>
+                <h2 className="font-bold text-base text-[#0C6B58] tracking-tight">
+                  {user?.header || 'Clínica Médica de Diagnóstico e Imagem'}
+                </h2>
+                <p className="text-xs text-[#5F6E69] mt-0.5">Sistema de Laudos de Imagem</p>
+              </div>
+            )}
           </div>
           <div className="text-left sm:text-right text-xs text-[#8A9691]">
             <span>Emitido em: {formatDateBR(report.signature_date || report.created)}</span>
@@ -373,28 +432,43 @@ export default function LaudoDetalhes() {
 
         {/* Patient metadata box */}
         <div className="p-4 rounded-xl bg-[#F7F9F8] border border-[#E5E9E7] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div>
-            <span className="text-[#8A9691]">Paciente:</span>{' '}
-            <Link
-              to={`/pacientes/${report.patient_id}`}
-              className="font-bold text-sm text-[#1F2A27] hover:text-[#0C6B58]"
-            >
-              {report.expand?.patient_id?.name || 'Paciente'}
-            </Link>
-            {report.expand?.patient_id?.document && (
-              <span className="text-[#5F6E69] font-mono ml-2">
-                (CPF: {report.expand?.patient_id?.document})
-              </span>
+          <div className="space-y-1">
+            <div>
+              <span className="text-[#8A9691]">Paciente:</span>{' '}
+              <Link
+                to={`/pacientes/${report.patient_id}`}
+                className="font-bold text-sm text-[#1F2A27] hover:text-[#0C6B58]"
+              >
+                {report.expand?.patient_id?.name || 'Paciente'}
+              </Link>
+              {report.expand?.patient_id?.document && (
+                <span className="text-[#5F6E69] font-mono ml-2">
+                  (CPF: {report.expand?.patient_id?.document})
+                </span>
+              )}
+            </div>
+            {report.referring_physician && (
+              <div className="text-[#40524C]">
+                <span className="text-[#8A9691]">Médico Solicitante:</span>{' '}
+                <strong className="text-[#1F2A27]">{report.referring_physician}</strong>
+              </div>
             )}
           </div>
-          {report.expand?.exam_id?.exam_date && (
-            <div className="text-[#5F6E69]">
-              Exame realizado em:{' '}
-              <span className="font-semibold text-[#1F2A27]">
-                {formatDateBR(report.expand.exam_id.exam_date)}
-              </span>
-            </div>
-          )}
+          <div className="text-left sm:text-right space-y-1">
+            {report.expand?.exam_id?.exam_date && (
+              <div className="text-[#5F6E69]">
+                Exame realizado em:{' '}
+                <span className="font-semibold text-[#1F2A27]">
+                  {formatDateBR(report.expand.exam_id.exam_date)}
+                </span>
+              </div>
+            )}
+            {report.clinic_location && (
+              <div className="text-[#0C6B58] font-medium">
+                Local: <strong>{report.clinic_location}</strong>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Title */}

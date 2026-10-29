@@ -6,6 +6,12 @@ export type UserRole =
   | 'Gestor'
   | 'Contabilidade'
 
+export interface UserClinicItem {
+  id?: string
+  name: string
+  logo?: string
+}
+
 export interface User {
   id: string
   email: string
@@ -20,7 +26,7 @@ export interface User {
   active?: boolean
   verified?: boolean
   mwl_token?: string
-  clinics_config?: string[] | string
+  clinics_config?: (string | UserClinicItem)[] | string
   default_appointment_duration?: number
   exam_durations_config?: Record<string, number> | string
   created?: string
@@ -224,6 +230,8 @@ export interface Report extends RecordModel {
   author_crm_uf?: string
   author_title?: string
   author_logo?: string
+  referring_physician?: string
+  clinic_location?: string
   signature_hash_sha256?: string
   signature_provider?: string
   signature_status?: string

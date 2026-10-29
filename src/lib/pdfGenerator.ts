@@ -17,13 +17,16 @@ export interface PrintReportProps {
   patientDocument?: string
   examDate?: string
   indication?: string
+  referringPhysician?: string
+  clinicLocation?: string
+  clinicLogoUrl?: string
   bodyHtml: string
   conclusionHtml?: string
   authorName: string
   authorCrm?: string
   authorCrmUf?: string
   authorTitle?: string
-  logoUrl?: string
+  logoUrl?: string // Physician author logo
   headerText?: string
   signatureDate?: string
   isDraft?: boolean
@@ -222,30 +225,70 @@ export async function loadImageAsJpegBytes(url: string): Promise<{
 function drawRunningHeader(
   page: PdfPage,
   props: PrintReportProps,
-  logoResId?: string,
-  logoAspect?: number, // width / height
+  authorLogoResId?: string,
+  authorLogoAspect?: number, // width / height
+  clinicLogoResId?: string,
+  clinicLogoAspect?: number,
 ) {
   const marginX = 40
   const topY = 800
+  let currentLeftX = marginX
 
-  // 1. Logo or Typographic Brand
-  if (logoResId && logoAspect) {
-    const maxH = 34
-    const maxW = 120
-    let drawW = maxH * logoAspect
+  // 1. Clinic Identification (if report is linked to a clinic)
+  if (clinicLogoResId && clinicLogoAspect) {
+    const maxH = 30
+    const maxW = 90
+    let drawW = maxH * clinicLogoAspect
     let drawH = maxH
     if (drawW > maxW) {
       drawW = maxW
-      drawH = drawW / logoAspect
+      drawH = drawW / clinicLogoAspect
     }
-    page.drawImage(logoResId, marginX, topY - drawH + 8, drawW, drawH)
+    page.drawImage(clinicLogoResId, currentLeftX, topY - drawH + 8, drawW, drawH)
+    currentLeftX += drawW + 10
+  }
+
+  // If clinic has a name, display it or display alongside author logo
+  if (props.clinicLocation) {
+    page.drawText(props.clinicLocation.slice(0, 35), currentLeftX, topY + 4, {
+      fontSize: 9.5,
+      bold: true,
+      color: COLOR_PRIMARY,
+    })
+    if (props.authorName) {
+      page.drawText(
+        `Dr(a). ${props.authorName.replace(/^Dr(\(a\))?\.?\s*/i, '')}${props.authorCrm ? ` • CRM ${props.authorCrmUf ? `${props.authorCrmUf} ` : ''}${props.authorCrm}` : ''}`.slice(
+          0,
+          45,
+        ),
+        currentLeftX,
+        topY - 7,
+        {
+          fontSize: 7.5,
+          color: COLOR_MUTED,
+        },
+      )
+    }
+    currentLeftX += 170
+  } else if (authorLogoResId && authorLogoAspect) {
+    // 2. Personal Physician Author Logo (when no clinic takes primary slot)
+    const maxH = 34
+    const maxW = 120
+    let drawW = maxH * authorLogoAspect
+    let drawH = maxH
+    if (drawW > maxW) {
+      drawW = maxW
+      drawH = drawW / authorLogoAspect
+    }
+    page.drawImage(authorLogoResId, currentLeftX, topY - drawH + 8, drawW, drawH)
+    currentLeftX += drawW + 12
   } else if (props.headerText) {
     // Physician custom header text lines
     const lines = props.headerText.split('\n').slice(0, 2)
     let y = topY + 4
     for (const l of lines) {
-      page.drawText(l.slice(0, 60), marginX, y, {
-        fontSize: 9,
+      page.drawText(l.slice(0, 50), currentLeftX, y, {
+        fontSize: 8.5,
         bold: true,
         color: COLOR_PRIMARY,
       })
@@ -253,16 +296,29 @@ function drawRunningHeader(
     }
   } else {
     // Provisória typographic mark: LW LAUDOS
-    page.drawText('LW LAUDOS', marginX, topY + 4, {
+    page.drawText('LW LAUDOS', currentLeftX, topY + 4, {
       fontSize: 14,
       bold: true,
       color: COLOR_PRIMARY,
     })
-    page.drawText('SISTEMA MÉDICO MULTIPERFIL • ULTRASSONOGRAFIA', marginX, topY - 8, {
+    page.drawText('SISTEMA MÉDICO MULTIPERFIL • ULTRASSONOGRAFIA', currentLeftX, topY - 8, {
       fontSize: 7.5,
       bold: true,
       color: COLOR_MUTED,
     })
+  }
+
+  // If there's also an author personal logo and clinic was displayed, render author logo on right of header
+  if (props.clinicLocation && authorLogoResId && authorLogoAspect) {
+    const maxH = 26
+    const maxW = 75
+    let drawW = maxH * authorLogoAspect
+    let drawH = maxH
+    if (drawW > maxW) {
+      drawW = maxW
+      drawH = drawW / authorLogoAspect
+    }
+    page.drawImage(authorLogoResId, 360 - drawW, topY - drawH + 6, drawW, drawH)
   }
 
   // Right side meta
@@ -328,7 +384,8 @@ function drawRunningFooter(page: PdfPage, pageNum: number, totalPages: number) {
 function drawPatientBox(page: PdfPage, props: PrintReportProps, topY: number): number {
   const marginX = 40
   const width = 515
-  const height = 44
+  const hasExtraLine = Boolean(props.referringPhysician || props.clinicLocation)
+  const height = hasExtraLine ? 56 : 44
 
   page.drawRect(marginX, topY - height, width, height, {
     fillColor: COLOR_BG_BOX,
@@ -337,37 +394,55 @@ function drawPatientBox(page: PdfPage, props: PrintReportProps, topY: number): n
   })
 
   // Left column: Paciente / CPF
-  page.drawText('Paciente:', marginX + 10, topY - 16, {
+  page.drawText('Paciente:', marginX + 10, topY - 15, {
     fontSize: 9,
     bold: true,
     color: COLOR_TEXT_MAIN,
   })
-  page.drawText(props.patientName || 'Não informado', marginX + 60, topY - 16, {
+  page.drawText(props.patientName || 'Não informado', marginX + 60, topY - 15, {
     fontSize: 9.5,
     bold: true,
     color: COLOR_TEXT_MAIN,
   })
 
   if (props.patientDocument) {
-    page.drawText(`CPF: ${props.patientDocument}`, marginX + 10, topY - 32, {
+    page.drawText(`CPF: ${props.patientDocument}`, marginX + 10, topY - 29, {
       fontSize: 8.5,
       color: COLOR_MUTED,
     })
   }
 
-  // Right column: Data / Indicação
-  const col2X = marginX + 310
+  // Optional: Médico Solicitante on Left Column (line 3)
+  if (props.referringPhysician) {
+    const refTxt = wrapText(`Médico Solicitante: ${props.referringPhysician}`, 45)[0] || ''
+    page.drawText(refTxt, marginX + 10, topY - 44, {
+      fontSize: 8,
+      italic: true,
+      color: COLOR_TEXT_MAIN,
+    })
+  }
+
+  // Right column: Data / Indicação / Clínica
+  const col2X = marginX + 300
   if (props.examDate) {
-    page.drawText(`Data do Exame: ${props.examDate}`, col2X, topY - 16, {
+    page.drawText(`Data do Exame: ${props.examDate}`, col2X, topY - 15, {
       fontSize: 8.5,
       color: COLOR_TEXT_MAIN,
     })
   }
   if (props.indication) {
-    const ind = wrapText(`Indicação: ${props.indication}`, 38)[0] || ''
-    page.drawText(ind, col2X, topY - 32, {
+    const ind = wrapText(`Indicação: ${props.indication}`, 36)[0] || ''
+    page.drawText(ind, col2X, topY - 29, {
       fontSize: 8,
       color: COLOR_MUTED,
+    })
+  }
+  if (props.clinicLocation) {
+    const cln = wrapText(`Local: ${props.clinicLocation}`, 36)[0] || ''
+    page.drawText(cln, col2X, topY - 44, {
+      fontSize: 8,
+      bold: true,
+      color: COLOR_PRIMARY,
     })
   }
 
@@ -381,19 +456,35 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
   doc.author = props.authorName || 'Médico'
   doc.subject = `Laudo Médico - ${props.patientName}`
 
-  // 1. Preload logo if present
+  // 1. Preload logos if present (Author logo and Clinic logo)
   let logoResId: string | undefined
   let logoAspect = 1
   if (props.logoUrl) {
     const loadedLogo = await loadImageAsJpegBytes(props.logoUrl)
     if (loadedLogo) {
-      logoResId = 'LogoImg'
+      logoResId = 'AuthorLogoImg'
       logoAspect = loadedLogo.width / loadedLogo.height
       doc.registerImage({
         id: logoResId,
         width: loadedLogo.width,
         height: loadedLogo.height,
         jpegBytes: loadedLogo.jpegBytes,
+      })
+    }
+  }
+
+  let clinicLogoResId: string | undefined
+  let clinicLogoAspect = 1
+  if (props.clinicLogoUrl) {
+    const loadedClinicLogo = await loadImageAsJpegBytes(props.clinicLogoUrl)
+    if (loadedClinicLogo) {
+      clinicLogoResId = 'ClinicLogoImg'
+      clinicLogoAspect = loadedClinicLogo.width / loadedClinicLogo.height
+      doc.registerImage({
+        id: clinicLogoResId,
+        width: loadedClinicLogo.width,
+        height: loadedClinicLogo.height,
+        jpegBytes: loadedClinicLogo.jpegBytes,
       })
     }
   }
@@ -437,7 +528,7 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
   const pageBottomLimit = 60 // Leave room for footer
 
   // Draw header and patient box on first page
-  drawRunningHeader(currentPage, props, logoResId, logoAspect)
+  drawRunningHeader(currentPage, props, logoResId, logoAspect, clinicLogoResId, clinicLogoAspect)
   let cursorY = 760
   cursorY = drawPatientBox(currentPage, props, cursorY)
 
@@ -463,7 +554,14 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
       if (cursorY - 30 < pageBottomLimit) {
         currentPage = doc.addPage()
         textPages.push(currentPage)
-        drawRunningHeader(currentPage, props, logoResId, logoAspect)
+        drawRunningHeader(
+          currentPage,
+          props,
+          logoResId,
+          logoAspect,
+          clinicLogoResId,
+          clinicLogoAspect,
+        )
         cursorY = 750
       }
       cursorY -= 14
@@ -652,7 +750,7 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
         })
 
         const bmPage = doc.addPage()
-        drawRunningHeader(bmPage, props, logoResId, logoAspect)
+        drawRunningHeader(bmPage, props, logoResId, logoAspect, clinicLogoResId, clinicLogoAspect)
 
         // Section header
         bmPage.drawText('ESQUEMA ANATÔMICO • BODY MARK', marginX, 755, {
@@ -800,7 +898,7 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
       const imgPage = doc.addPage()
       imagePages.push(imgPage)
 
-      drawRunningHeader(imgPage, props, logoResId, logoAspect)
+      drawRunningHeader(imgPage, props, logoResId, logoAspect, clinicLogoResId, clinicLogoAspect)
 
       // Section title
       imgPage.drawText('DOCUMENTAÇÃO FOTOGRÁFICA DO EXAME', marginX, 755, {
@@ -966,7 +1064,16 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
 
   // Logo or Clinic Brand
   let clinicBrand = ''
-  if (props.logoUrl) {
+  if (props.clinicLogoUrl || props.clinicLocation) {
+    clinicBrand = `<div class="header-logo-container">
+      ${props.clinicLogoUrl ? `<img src="${props.clinicLogoUrl}" alt="${props.clinicLocation || 'Clínica'}" class="header-logo-img" />` : ''}
+      <div>
+        ${props.clinicLocation ? `<div style="font-size: 11pt; font-weight: bold; color: #0C6B58;">${props.clinicLocation}</div>` : ''}
+        ${props.authorName ? `<div style="font-size: 8pt; color: #5F6E69;">Dr(a). ${props.authorName.replace(/^Dr(\(a\))?\.?\s*/i, '')}${crmFormatted ? ` • ${crmFormatted}` : ''}</div>` : ''}
+      </div>
+      ${props.logoUrl ? `<img src="${props.logoUrl}" alt="Logo Médico" class="header-logo-img" style="margin-left: 10px; max-height: 42px;" />` : ''}
+    </div>`
+  } else if (props.logoUrl) {
     clinicBrand = `<div class="header-logo-container">
       <img src="${props.logoUrl}" alt="Logotipo do Médico" class="header-logo-img" />
       ${props.headerText ? `<div class="header-clinic-text">${props.headerText.replace(/\n/g, '<br/>')}</div>` : ''}
@@ -1346,10 +1453,12 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
       <div>
         <span>Paciente: <strong>${props.patientName}</strong></span>
         ${props.patientDocument ? `<br/><span style="color:#5F6E69;">CPF: <strong>${props.patientDocument}</strong></span>` : ''}
+        ${props.referringPhysician ? `<br/><span style="color:#33413B; font-style: italic;">Médico Solicitante: <strong>${props.referringPhysician}</strong></span>` : ''}
       </div>
       <div style="text-align: right;">
         ${props.examDate ? `<span>Data do Exame: <strong>${props.examDate}</strong></span>` : ''}
         ${props.indication ? `<br/><span style="color:#5F6E69;">Indicação: ${props.indication}</span>` : ''}
+        ${props.clinicLocation ? `<br/><span style="color:#0C6B58; font-weight: bold;">Local: ${props.clinicLocation}</span>` : ''}
       </div>
     </div>
 
