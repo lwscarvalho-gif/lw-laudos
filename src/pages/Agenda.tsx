@@ -26,6 +26,7 @@ import {
   Camera,
   RefreshCw,
   HelpCircle,
+  MoreVertical,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { appointmentsService } from '@/services/appointments'
@@ -63,6 +64,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1055,9 +1063,9 @@ export default function Agenda() {
                     </div>
 
                     {/* Appointment Cards / Empty Slot */}
-                    <div className="flex-1 p-2 sm:p-3">
+                    <div className="flex-1 p-2 sm:p-3 min-w-0">
                       {slotAppointments.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-0">
                           {slotAppointments.map((appt) => {
                             const patient = appt.expand?.patient_id
                             const timeFormatted = formatCuiabaTime(appt.start_time)
@@ -1070,7 +1078,7 @@ export default function Agenda() {
                             return (
                               <div
                                 key={appt.id}
-                                className={`p-3.5 rounded-lg border transition space-y-2.5 shadow-xs ${
+                                className={`p-3 sm:p-3.5 rounded-lg border transition space-y-2.5 shadow-sm min-w-0 overflow-hidden flex flex-col justify-between ${
                                   appt.status === 'Em atendimento'
                                     ? 'bg-amber-50/70 border-amber-300 ring-1 ring-amber-300'
                                     : appt.status === 'Realizado'
@@ -1078,96 +1086,120 @@ export default function Agenda() {
                                       : 'bg-white border-[#E5E9E7] hover:border-[#0C6B58]/40'
                                 }`}
                               >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="space-y-0.5">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-bold text-sm text-[#1F2A27]">
-                                        {patient?.name || 'Paciente sem cadastro'}
-                                      </span>
-                                      {getStatusBadge(appt.status)}
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2 text-xs text-[#5F6E69]">
-                                      <span className="font-semibold text-[#0C6B58]">
-                                        {timeFormatted} ({appt.duration_minutes || 30} min)
-                                      </span>
-                                      <span>•</span>
-                                      <span className="flex items-center gap-1">
-                                        <MapPin className="w-3 h-3 text-[#8A9691]" />
-                                        {appt.clinic_location}
-                                      </span>
-                                      <span>•</span>
-                                      <span
-                                        className="font-mono text-[11px] text-[#8A9691]"
-                                        title="Accession Number DICOM MWL"
-                                      >
-                                        AN: {appt.accession_number}
-                                      </span>
+                                <div className="space-y-2 min-w-0">
+                                  {/* Header: Nome + Status */}
+                                  <div className="flex items-start justify-between gap-2 min-w-0">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                                        <span
+                                          className="font-bold text-sm text-[#1F2A27] truncate max-w-full"
+                                          title={patient?.name || 'Paciente sem cadastro'}
+                                        >
+                                          {patient?.name || 'Paciente sem cadastro'}
+                                        </span>
+                                        {getStatusBadge(appt.status)}
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[#5F6E69] mt-0.5">
+                                        <span className="font-semibold text-[#0C6B58] shrink-0">
+                                          {timeFormatted} ({appt.duration_minutes || 30} min)
+                                        </span>
+                                        <span className="text-[#8A9691] shrink-0">•</span>
+                                        <span
+                                          className="flex items-center gap-1 min-w-0 max-w-[200px] truncate"
+                                          title={appt.clinic_location}
+                                        >
+                                          <MapPin className="w-3 h-3 text-[#8A9691] shrink-0" />
+                                          <span className="truncate">{appt.clinic_location}</span>
+                                        </span>
+                                        <span className="text-[#8A9691] shrink-0">•</span>
+                                        <span
+                                          className="font-mono text-[11px] text-[#8A9691] shrink-0"
+                                          title="Accession Number DICOM MWL"
+                                        >
+                                          AN: {appt.accession_number}
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
 
-                                <div className="text-xs text-[#1F2A27] bg-[#F7F9F8] p-2 rounded border border-[#E5E9E7]/80 flex items-center justify-between">
-                                  <span className="font-medium truncate flex items-center gap-1.5">
-                                    <Stethoscope className="w-3.5 h-3.5 text-[#0C6B58] shrink-0" />
-                                    {appt.exam_type}
-                                  </span>
-                                  {appt.referring_physician && (
-                                    <span className="text-[11px] text-[#8A9691] truncate ml-2">
-                                      Sol.: {appt.referring_physician}
+                                  {/* Exame + Médico Solicitante */}
+                                  <div className="text-xs text-[#1F2A27] bg-[#F7F9F8] p-2 rounded border border-[#E5E9E7]/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 min-w-0">
+                                    <span
+                                      className="font-medium truncate flex items-center gap-1.5 min-w-0"
+                                      title={appt.exam_type}
+                                    >
+                                      <Stethoscope className="w-3.5 h-3.5 text-[#0C6B58] shrink-0" />
+                                      <span className="truncate">{appt.exam_type}</span>
                                     </span>
+                                    {appt.referring_physician && (
+                                      <span
+                                        className="text-[11px] text-[#8A9691] truncate sm:ml-2 sm:text-right shrink-0 max-w-full sm:max-w-[45%]"
+                                        title={`Médico Solicitante: ${appt.referring_physician}`}
+                                      >
+                                        Sol.: {appt.referring_physician}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Observações com tooltip e truncate */}
+                                  {appt.notes && (
+                                    <p
+                                      className="text-[11px] text-[#5F6E69] italic truncate max-w-full"
+                                      title={appt.notes}
+                                    >
+                                      Obs: {appt.notes}
+                                    </p>
+                                  )}
+
+                                  {/* Badges & Thumbnails of Request Images */}
+                                  {reqImgs.length > 0 && (
+                                    <div className="pt-0.5 flex items-center gap-2 min-w-0">
+                                      <span className="text-[11px] font-semibold text-[#0C6B58] flex items-center gap-1 shrink-0">
+                                        <FileText className="w-3.5 h-3.5" />
+                                        {reqImgs.length} anexo(s):
+                                      </span>
+                                      <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 min-w-0">
+                                        {reqImgs.map((fn, idx) => {
+                                          const url = appointmentsService.getRequestImageUrl(
+                                            appt,
+                                            fn,
+                                          )
+                                          return (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                setPreviewImageModalUrl(url)
+                                              }}
+                                              className="relative group/thumb w-7 h-7 rounded border border-[#E5E9E7] overflow-hidden bg-white hover:ring-2 hover:ring-[#0C6B58] transition shrink-0"
+                                              title="Clique para ampliar solicitação"
+                                            >
+                                              <img
+                                                src={url}
+                                                alt={`Solicitação ${idx + 1}`}
+                                                className="w-full h-full object-cover"
+                                              />
+                                            </button>
+                                          )
+                                        })}
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
 
-                                {appt.notes && (
-                                  <p className="text-[11px] text-[#5F6E69] italic truncate">
-                                    Obs: {appt.notes}
-                                  </p>
-                                )}
-
-                                {/* Badges & Thumbnails of Request Images */}
-                                {reqImgs.length > 0 && (
-                                  <div className="pt-1 flex items-center gap-2">
-                                    <span className="text-[11px] font-semibold text-[#0C6B58] flex items-center gap-1">
-                                      <FileText className="w-3.5 h-3.5" />
-                                      {reqImgs.length} foto(s) da solicitação:
-                                    </span>
-                                    <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-                                      {reqImgs.map((fn, idx) => {
-                                        const url = appointmentsService.getRequestImageUrl(appt, fn)
-                                        return (
-                                          <button
-                                            key={idx}
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              setPreviewImageModalUrl(url)
-                                            }}
-                                            className="relative group/thumb w-8 h-8 rounded border border-[#E5E9E7] overflow-hidden bg-white hover:ring-2 hover:ring-[#0C6B58] transition"
-                                            title="Clique para ampliar solicitação"
-                                          >
-                                            <img
-                                              src={url}
-                                              alt={`Solicitação ${idx + 1}`}
-                                              className="w-full h-full object-cover"
-                                            />
-                                          </button>
-                                        )
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Action Buttons */}
-                                <div className="flex items-center justify-between pt-1 border-t border-[#E5E9E7]/60">
-                                  <div className="flex items-center gap-1">
+                                {/* Action Buttons: organizados de forma responsiva sem sobreposição */}
+                                <div className="pt-2 border-t border-[#E5E9E7]/70 flex flex-wrap items-center justify-between gap-1.5 min-w-0">
+                                  {/* Botões primários visíveis */}
+                                  <div className="flex items-center gap-1 flex-wrap min-w-0">
                                     <Button
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => openEditModal(appt)}
-                                      className="h-7 text-xs px-2 text-[#5F6E69] hover:text-[#1F2A27]"
+                                      className="h-7 text-xs px-2 text-[#5F6E69] hover:text-[#1F2A27] hover:bg-[#F0F3F2]"
                                       title="Editar agendamento"
                                     >
-                                      <Edit className="w-3.5 h-3.5 mr-1" />
+                                      <Edit className="w-3.5 h-3.5 mr-1 shrink-0" />
                                       Editar
                                     </Button>
                                     <Button
@@ -1177,7 +1209,7 @@ export default function Agenda() {
                                       className="h-7 text-xs px-2 text-[#0C6B58] hover:bg-[#E8F3F0]"
                                       title="Ver Detalhes e Solicitações"
                                     >
-                                      <FileText className="w-3.5 h-3.5 mr-1" />
+                                      <FileText className="w-3.5 h-3.5 mr-1 shrink-0" />
                                       Detalhes
                                     </Button>
                                     <Button
@@ -1190,56 +1222,84 @@ export default function Agenda() {
                                       className="h-7 text-xs px-2 text-[#0C6B58] hover:bg-[#E8F3F0]"
                                       title="Imprimir Comprovante do Paciente com Preparo"
                                     >
-                                      <Printer className="w-3.5 h-3.5 mr-1" />
+                                      <Printer className="w-3.5 h-3.5 mr-1 shrink-0" />
                                       Comprovante
                                     </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        setAppointmentToDelete(appt)
-                                        setDeleteConfirmOpen(true)
-                                      }}
-                                      className="h-7 text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                      title="Remover"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
+
+                                    {/* Menu suspenso para mais ações (Ficha do paciente e Excluir) */}
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 w-7 p-0 text-[#5F6E69] hover:text-[#1F2A27] hover:bg-[#F0F3F2]"
+                                          title="Mais opções do agendamento"
+                                        >
+                                          <MoreVertical className="w-3.5 h-3.5" />
+                                          <span className="sr-only">Mais opções</span>
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="start" className="w-48 bg-white">
+                                        {appt.patient_id && (
+                                          <DropdownMenuItem asChild>
+                                            <Link
+                                              to={`/pacientes/${appt.patient_id}`}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="flex items-center gap-2 cursor-pointer text-xs"
+                                            >
+                                              <User className="w-3.5 h-3.5 text-[#0C6B58]" />
+                                              <span>Ficha do paciente ↗</span>
+                                            </Link>
+                                          </DropdownMenuItem>
+                                        )}
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            setVoucherAppointment(appt)
+                                            setVoucherModalOpen(true)
+                                          }}
+                                          className="flex items-center gap-2 cursor-pointer text-xs sm:hidden"
+                                        >
+                                          <Printer className="w-3.5 h-3.5 text-[#0C6B58]" />
+                                          <span>Imprimir Comprovante</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            setAppointmentToDelete(appt)
+                                            setDeleteConfirmOpen(true)
+                                          }}
+                                          className="flex items-center gap-2 cursor-pointer text-xs text-red-600 focus:text-red-700 focus:bg-red-50"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                                          <span>Excluir agendamento</span>
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   </div>
 
-                                  {/* Links rápidos: Ficha do paciente + Iniciar laudo */}
-                                  <div className="flex items-center gap-1.5">
-                                    {appt.patient_id && (
-                                      <Button
-                                        asChild
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7 text-xs px-2 border-[#0C6B58]/30 text-[#0C6B58] hover:bg-[#E8F3F0]"
-                                        title="Abrir ficha do paciente"
-                                      >
-                                        <Link
-                                          to={`/pacientes/${appt.patient_id}`}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                        >
-                                          <User className="w-3 h-3 mr-1" />
-                                          Ficha do paciente ↗
-                                        </Link>
-                                      </Button>
-                                    )}
+                                  {/* Botão de ação clínica principal (Iniciar / Abrir laudo) */}
+                                  <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                                     <Button
                                       size="sm"
                                       onClick={() => handleStartReport(appt)}
-                                      className={`h-7 text-xs font-semibold ${
+                                      className={`h-7 text-xs font-semibold px-2.5 shrink-0 ${
                                         appt.status === 'Realizado'
                                           ? 'bg-[#E8F3F0] text-[#0C6B58] hover:bg-[#d5ebe5] border border-[#0C6B58]/30'
                                           : 'bg-[#0C6B58] text-white hover:bg-[#0A5949]'
                                       }`}
+                                      title={
+                                        appt.status === 'Realizado'
+                                          ? 'Ver ou reabrir laudo deste exame'
+                                          : 'Iniciar laudo deste exame'
+                                      }
                                     >
-                                      <Play className="w-3 h-3 mr-1 fill-current" />
-                                      {appt.status === 'Realizado'
-                                        ? 'Ver / Reabrir laudo'
-                                        : 'Iniciar laudo'}
+                                      <Play className="w-3 h-3 mr-1 fill-current shrink-0" />
+                                      <span className="whitespace-nowrap">
+                                        {appt.status === 'Realizado'
+                                          ? 'Ver / Reabrir laudo'
+                                          : 'Iniciar laudo'}
+                                      </span>
                                     </Button>
                                   </div>
                                 </div>
@@ -1339,7 +1399,7 @@ export default function Agenda() {
                           <div
                             key={appt.id}
                             onClick={() => openEditModal(appt)}
-                            className={`p-2.5 rounded-lg border text-xs space-y-1 cursor-pointer transition hover:shadow-xs ${
+                            className={`p-2.5 rounded-lg border text-xs space-y-1 cursor-pointer transition hover:shadow-sm min-w-0 overflow-hidden ${
                               appt.status === 'Realizado'
                                 ? 'bg-emerald-50/50 border-emerald-200'
                                 : appt.status === 'Em atendimento'
@@ -1347,26 +1407,37 @@ export default function Agenda() {
                                   : 'bg-[#FAFBFB] border-[#E5E9E7] hover:border-[#0C6B58]'
                             }`}
                           >
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="font-bold text-[#0C6B58]">{timeStr}</span>
-                              <span className="text-[9px] px-1 rounded bg-white border border-[#E5E9E7] font-medium">
-                                {appt.clinic_location.slice(0, 10)}
+                            <div className="flex items-center justify-between gap-1 min-w-0">
+                              <span className="font-bold text-[#0C6B58] shrink-0">{timeStr}</span>
+                              <span
+                                className="text-[9px] px-1 rounded bg-white border border-[#E5E9E7] font-medium truncate max-w-[90px]"
+                                title={appt.clinic_location}
+                              >
+                                {appt.clinic_location}
                               </span>
                             </div>
-                            <span className="font-semibold text-[#1F2A27] block truncate">
+                            <span
+                              className="font-semibold text-[#1F2A27] block truncate"
+                              title={patient?.name || 'Paciente'}
+                            >
                               {patient?.name || 'Paciente'}
                             </span>
-                            <span className="text-[11px] text-[#5F6E69] block truncate">
+                            <span
+                              className="text-[11px] text-[#5F6E69] block truncate"
+                              title={appt.exam_type}
+                            >
                               {appt.exam_type}
                             </span>
-                            <div className="pt-1 flex items-center justify-between">
-                              {getStatusBadge(appt.status)}
+                            <div className="pt-1 flex items-center justify-between gap-1">
+                              <div className="shrink-0">{getStatusBadge(appt.status)}</div>
                               <button
+                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   handleStartReport(appt)
                                 }}
-                                className="text-[10px] text-[#0C6B58] font-bold hover:underline"
+                                className="text-[10px] text-[#0C6B58] font-bold hover:underline shrink-0"
+                                title="Iniciar ou ver laudo"
                               >
                                 Laudo →
                               </button>
