@@ -336,3 +336,29 @@ export interface UserPermissions {
   created?: string
   updated?: string
 }
+
+export type GeriatricInstrumentId = 'katz' | 'lawton' | 'g8' | 'fried' | 'fall_risk'
+
+export interface GeriatricAssessment extends RecordModel {
+  id: string
+  owner_id: string
+  patient_id: string
+  instrument_type: GeriatricInstrumentId
+  instrument_title: string
+  score_number?: number
+  score_display?: string
+  classification: string
+  summary_markdown?: string
+  answers_json?: Record<string, string>
+  clinical_notes?: string
+  author_name?: string
+  author_crm?: string
+  author_crm_uf?: string
+  assessment_date?: string
+  created?: string
+  updated?: string
+  expand?: {
+    patient_id?: Patient
+    owner_id?: User
+  }
+}

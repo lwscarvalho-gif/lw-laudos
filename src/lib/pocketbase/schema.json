@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T14:38:16.907Z",
+  "generatedAt": "2026-10-29T14:58:32.344Z",
   "collections": [
     {
       "name": "users",
@@ -1310,6 +1310,126 @@
         "CREATE INDEX idx_clinical_notes_owner ON clinical_notes (owner_id)",
         "CREATE INDEX idx_clinical_notes_patient ON clinical_notes (patient_id)",
         "CREATE INDEX idx_clinical_notes_created ON clinical_notes (created DESC)"
+      ]
+    },
+    {
+      "name": "geriatric_assessments",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "view": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "create": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "update": "@request.auth.id != '' && owner_id = @request.auth.id",
+        "delete": "@request.auth.id != '' && owner_id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "owner_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "patient_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "patients"
+        },
+        {
+          "name": "instrument_type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["katz", "lawton", "g8", "fried", "fall_risk"]
+        },
+        {
+          "name": "instrument_title",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "score_number",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "score_display",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "classification",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "summary_markdown",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "answers_json",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "clinical_notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "author_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "author_crm",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "author_crm_uf",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "assessment_date",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_geriatric_assess_owner ON geriatric_assessments (owner_id)",
+        "CREATE INDEX idx_geriatric_assess_patient ON geriatric_assessments (patient_id)",
+        "CREATE INDEX idx_geriatric_assess_date ON geriatric_assessments (created DESC)",
+        "CREATE INDEX idx_geriatric_assess_type ON geriatric_assessments (instrument_type)"
       ]
     }
   ]

@@ -32,7 +32,17 @@ import { appointmentsService } from '@/services/appointments'
 import { clinicalNotesService } from '@/services/clinicalNotes'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRealtime } from '@/hooks/use-realtime'
-import type { Patient, Exam, Report, Appointment, ClinicalNote, ClinicalNoteType } from '@/types'
+import type {
+  Patient,
+  Exam,
+  Report,
+  Appointment,
+  ClinicalNote,
+  ClinicalNoteType,
+  GeriatricAssessment,
+} from '@/types'
+import { geriatricAssessmentsService } from '@/services/geriatricAssessments'
+import { GeriatricAssessmentModal } from '@/components/GeriatricAssessmentModal'
 import {
   formatDateBR,
   formatDateTimeBR,
@@ -77,20 +87,29 @@ import { useToast } from '@/hooks/use-toast'
 
 interface TimelineItem {
   id: string
-  kind: 'appointment' | 'report' | 'exam' | 'clinical_note' | 'patient_note'
+  kind:
+    | 'appointment'
+    | 'report'
+    | 'exam'
+    | 'clinical_note'
+    | 'patient_note'
+    | 'geriatric_assessment'
   timestamp: string // ISO string for sorting desc
   title: string
   subtitle?: string
   status?: string
   badgeVariant?: 'default' | 'outline' | 'secondary'
   badgeColor?: string
+  scoreBadge?: string
+  classificationBadge?: string
   author?: string
   authorRole?: string
   details?: string
+  markdownContent?: string
   images?: string[]
   linkUrl?: string
   linkLabel?: string
-  sourceObj: Appointment | Report | Exam | ClinicalNote | Patient
+  sourceObj: Appointment | Report | Exam | ClinicalNote | Patient | GeriatricAssessment
 }
 
 export default function PacienteDetalhes() {
@@ -108,7 +127,9 @@ export default function PacienteDetalhes() {
   const [reports, setReports] = useState<Report[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([])
+  const [geriatricAssessments, setGeriatricAssessments] = useState<GeriatricAssessment[]>([])
   const [loading, setLoading] = useState(true)
+  const [geriatricModalOpen, setGeriatricModalOpen] = useState(false)
 
   // Edit patient form
   const [formData, setFormData] = useState({
@@ -136,7 +157,7 @@ export default function PacienteDetalhes() {
 
   // Timeline filter
   const [timelineFilter, setTimelineFilter] = useState<
-    'all' | 'appointments' | 'reports' | 'notes'
+    'all' | 'appointments' | 'reports' | 'notes' | 'geriatric'
   >('all')
 
   // Delete modal
@@ -156,13 +177,17 @@ export default function PacienteDetalhes() {
       const notesPromise = canAccessClinical
         ? clinicalNotesService.getByPatientId(id)
         : Promise.resolve([])
+      const gerPromise = canAccessClinical
+        ? geriatricAssessmentsService.getByPatientId(id)
+        : Promise.resolve([])
 
-      const [p, appts, ex, rep, notes] = await Promise.all([
+      const [p, appts, ex, rep, notes, ger] = await Promise.all([
         pPromise,
         apptPromise,
         exPromise,
         repPromise,
         notesPromise,
+        gerPromise,
       ])
 
       setPatient(p)
@@ -170,6 +195,7 @@ export default function PacienteDetalhes() {
       setExams(ex)
       setReports(rep)
       setClinicalNotes(notes)
+      setGeriatricAssessments(ger)
 
       setFormData({
         name: p.name || '',
@@ -204,6 +230,7 @@ export default function PacienteDetalhes() {
   useRealtime<Report>('reports', () => loadData())
   useRealtime<Appointment>('appointments', () => loadData())
   useRealtime<ClinicalNote>('clinical_notes', () => loadData())
+  useRealtime<GeriatricAssessment>('geriatric_assessments', () => loadData())
 
   // Save patient profile
   const handleUpdatePatient = async (e: React.FormEvent) => {
@@ -416,7 +443,41 @@ export default function PacienteDetalhes() {
       })
     })
 
-    // 4. Initial patient observation note if present
+    // 4. Geriatric assessments (GeriTools)
+    geriatricAssessments.forEach((ga) => {
+      const typeLabel =
+        ga.instrument_type === 'katz'
+          ? 'Katz ABVD'
+          : ga.instrument_type === 'lawton'
+            ? 'Lawton AIVD'
+            : ga.instrument_type === 'g8'
+              ? 'G8 Triagem'
+              : ga.instrument_type === 'fried'
+                ? 'Fried Fragilidade'
+                : 'Risco de Queda'
+
+      list.push({
+        id: `ger-${ga.id}`,
+        kind: 'geriatric_assessment',
+        timestamp: ga.assessment_date || ga.created || '',
+        title: `Avaliação Geriátrica: ${ga.instrument_title || typeLabel}`,
+        subtitle: `${typeLabel}: ${ga.score_display || 'Calculado'} — ${ga.classification}`,
+        status: typeLabel,
+        scoreBadge: ga.score_display,
+        classificationBadge: ga.classification,
+        badgeVariant: 'default',
+        badgeColor: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold',
+        author: ga.author_name
+          ? `Dr(a). ${ga.author_name}${ga.author_crm ? ` (CRM ${ga.author_crm}${ga.author_crm_uf ? `/${ga.author_crm_uf}` : ''})` : ''}`
+          : undefined,
+        authorRole: 'Médico',
+        details: ga.clinical_notes || undefined,
+        markdownContent: ga.summary_markdown,
+        sourceObj: ga,
+      })
+    })
+
+    // 5. Initial patient observation note if present
     if (patient?.notes?.trim()) {
       list.push({
         id: `pt-notes-${patient.id}`,
@@ -433,7 +494,7 @@ export default function PacienteDetalhes() {
     }
 
     return list.sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-  }, [appointments, reports, clinicalNotes, patient, canAccessClinical])
+  }, [appointments, reports, clinicalNotes, geriatricAssessments, patient, canAccessClinical])
 
   // Filtered timeline
   const filteredTimeline = useMemo(() => {
@@ -448,6 +509,9 @@ export default function PacienteDetalhes() {
       return timelineItems.filter(
         (item) => item.kind === 'clinical_note' || item.kind === 'patient_note',
       )
+    }
+    if (timelineFilter === 'geriatric') {
+      return timelineItems.filter((item) => item.kind === 'geriatric_assessment')
     }
     return timelineItems
   }, [timelineItems, timelineFilter])
@@ -537,13 +601,23 @@ export default function PacienteDetalhes() {
           </Button>
 
           {canAccessClinical && (
-            <Button
-              onClick={() => navigate(`/laudos/ultrassom?paciente=${patient.id}`)}
-              className="bg-[#0C6B58] hover:bg-[#0A5949] text-white shadow-xs text-xs font-semibold"
-            >
-              <FilePlus2 className="w-3.5 h-3.5 mr-1.5" />
-              Iniciar Laudo
-            </Button>
+            <>
+              <Button
+                onClick={() => setGeriatricModalOpen(true)}
+                className="bg-[#0C6B58] hover:bg-[#0A5949] text-white shadow-xs text-xs font-semibold"
+              >
+                <Activity className="w-3.5 h-3.5 mr-1.5" />
+                Avaliação Geriátrica
+              </Button>
+              <Button
+                onClick={() => navigate(`/laudos/ultrassom?paciente=${patient.id}`)}
+                variant="outline"
+                className="border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0] text-xs font-semibold"
+              >
+                <FilePlus2 className="w-3.5 h-3.5 mr-1.5" />
+                Iniciar Laudo
+              </Button>
+            </>
           )}
 
           <Button
@@ -670,21 +744,45 @@ export default function PacienteDetalhes() {
                     >
                       Evoluções ({clinicalNotes.length + (patient.notes ? 1 : 0)})
                     </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={timelineFilter === 'geriatric' ? 'default' : 'ghost'}
+                      onClick={() => setTimelineFilter('geriatric')}
+                      className={`h-7 text-xs ${
+                        timelineFilter === 'geriatric'
+                          ? 'bg-[#0C6B58] text-white hover:bg-[#0A5949]'
+                          : 'text-[#5F6E69]'
+                      }`}
+                    >
+                      GeriTools ({geriatricAssessments.length})
+                    </Button>
                   </>
                 )}
               </div>
             </div>
 
-            {/* Doctor evolution button */}
+            {/* Doctor actions in timeline */}
             {canAccessClinical && (
-              <Button
-                type="button"
-                onClick={() => setEvolutionModalOpen(true)}
-                className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs font-semibold h-8 shadow-xs"
-              >
-                <Plus className="w-3.5 h-3.5 mr-1.5" />
-                Nova Evolução Clínica
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  onClick={() => setGeriatricModalOpen(true)}
+                  className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs font-semibold h-8 shadow-xs"
+                >
+                  <Activity className="w-3.5 h-3.5 mr-1.5" />
+                  Nova Avaliação Geriátrica
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEvolutionModalOpen(true)}
+                  className="border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0] text-xs font-semibold h-8"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />
+                  Nova Evolução
+                </Button>
+              </div>
             )}
           </div>
 
@@ -727,6 +825,7 @@ export default function PacienteDetalhes() {
                 const isAppt = item.kind === 'appointment'
                 const isRep = item.kind === 'report'
                 const isNote = item.kind === 'clinical_note'
+                const isGer = item.kind === 'geriatric_assessment'
                 const isPtNote = item.kind === 'patient_note'
 
                 return (
@@ -738,13 +837,16 @@ export default function PacienteDetalhes() {
                           ? 'border-blue-500 text-blue-600'
                           : isRep
                             ? 'border-emerald-600 text-emerald-600'
-                            : isNote
-                              ? 'border-teal-600 text-teal-600'
-                              : 'border-gray-400 text-gray-500'
+                            : isGer
+                              ? 'border-[#0C6B58] text-[#0C6B58] bg-[#E8F3F0]'
+                              : isNote
+                                ? 'border-teal-600 text-teal-600'
+                                : 'border-gray-400 text-gray-500'
                       }`}
                     >
                       {isAppt && <Calendar className="w-2.5 h-2.5" />}
                       {isRep && <FileText className="w-2.5 h-2.5" />}
+                      {isGer && <Activity className="w-2.5 h-2.5" />}
                       {isNote && <Stethoscope className="w-2.5 h-2.5" />}
                       {isPtNote && <User className="w-2.5 h-2.5" />}
                     </div>
@@ -755,7 +857,20 @@ export default function PacienteDetalhes() {
                         <div className="space-y-0.5">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-bold text-sm text-[#1F2A27]">{item.title}</span>
-                            {item.status && (
+                            {isGer && item.scoreBadge && (
+                              <Badge className="bg-[#0C6B58] text-white text-[11px] font-bold px-2 py-0.5">
+                                Escore: {item.scoreBadge}
+                              </Badge>
+                            )}
+                            {isGer && item.classificationBadge && (
+                              <Badge
+                                variant="outline"
+                                className="border-teal-300 bg-teal-50 text-teal-900 text-[10px] font-semibold"
+                              >
+                                {item.classificationBadge}
+                              </Badge>
+                            )}
+                            {item.status && !isGer && (
                               <Badge
                                 variant={item.badgeVariant || 'outline'}
                                 className={`text-[10px] font-semibold ${item.badgeColor || ''}`}
@@ -765,7 +880,7 @@ export default function PacienteDetalhes() {
                             )}
                           </div>
                           {item.subtitle && (
-                            <p className="text-xs text-[#5F6E69] flex items-center gap-1.5">
+                            <p className="text-xs text-[#5F6E69] flex items-center gap-1.5 font-medium">
                               {item.subtitle}
                             </p>
                           )}
@@ -786,8 +901,20 @@ export default function PacienteDetalhes() {
                         </div>
                       </div>
 
-                      {/* Detail text */}
-                      {item.details && (
+                      {/* Markdown summary for geriatric assessment */}
+                      {isGer && item.markdownContent && (
+                        <div className="bg-[#FAFBFB] p-3.5 rounded-xl border border-[#D0E6E1] text-xs text-[#1F2A27] whitespace-pre-wrap leading-relaxed font-sans space-y-1">
+                          {item.markdownContent}
+                          {item.details && (
+                            <div className="pt-2 border-t border-[#E5E9E7] text-[11px] text-[#5F6E69]">
+                              <strong>Observações clínicas:</strong> {item.details}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Detail text for other items */}
+                      {!isGer && item.details && (
                         <div className="bg-[#FAFBFB] p-3 rounded-xl border border-[#E5E9E7]/80 text-xs text-[#1F2A27] whitespace-pre-wrap leading-relaxed">
                           {item.details}
                         </div>
@@ -816,6 +943,44 @@ export default function PacienteDetalhes() {
                                 />
                               </button>
                             ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action footer for geriatric assessment: copy / transfer formatted text */}
+                      {isGer && (
+                        <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-[#E5E9E7]/60">
+                          <span className="text-[10px] text-[#8A9691]">
+                            Disponível para anexação em laudos ou prontuário
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const text = item.markdownContent || item.details || ''
+                                navigator.clipboard.writeText(text)
+                                toast({
+                                  title: 'Copiado para a área de transferência',
+                                  description: 'O resumo formatado da avaliação foi copiado.',
+                                })
+                              }}
+                              className="text-xs h-7 border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
+                            >
+                              Copiar Texto Formatado
+                            </Button>
+                            <Button
+                              asChild
+                              size="sm"
+                              className="text-xs h-7 bg-[#0C6B58] hover:bg-[#0A5949] text-white"
+                            >
+                              <Link
+                                to={`/laudos/ultrassom?paciente=${patient.id}&anexo_geriatrico=${(item.sourceObj as GeriatricAssessment).id}`}
+                              >
+                                Levar para o Laudo →
+                              </Link>
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -1175,6 +1340,24 @@ export default function PacienteDetalhes() {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* MODAL: NOVA AVALIAÇÃO GERIÁTRICA (GERITOOLS) */}
+      <GeriatricAssessmentModal
+        open={geriatricModalOpen}
+        onOpenChange={setGeriatricModalOpen}
+        patientId={patient.id}
+        patientName={patient.name}
+        doctorName={
+          (user as any)?.professional_name ||
+          user?.name ||
+          (user?.email ? user.email.split('@')[0] : 'Médico')
+        }
+        doctorCrm={(user as any)?.crm}
+        doctorCrmUf={(user as any)?.crm_uf}
+        onSaved={(newAssessment) => {
+          setGeriatricAssessments((prev) => [newAssessment, ...prev])
+        }}
+      />
 
       {/* MODAL: NOVA EVOLUÇÃO CLÍNICA */}
       <Dialog open={evolutionModalOpen} onOpenChange={setEvolutionModalOpen}>
