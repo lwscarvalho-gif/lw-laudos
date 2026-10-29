@@ -22,6 +22,7 @@ export interface User {
   mwl_token?: string
   clinics_config?: string[] | string
   default_appointment_duration?: number
+  exam_durations_config?: Record<string, number> | string
   created?: string
   updated?: string
 }
@@ -287,6 +288,7 @@ export interface ExamPreparation extends RecordModel {
   specialty?: string
   instructions: string
   general_notice?: string
+  duration_minutes?: number
   is_active?: boolean
   created?: string
   updated?: string

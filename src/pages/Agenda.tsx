@@ -153,7 +153,9 @@ export default function Agenda() {
   const [voucherAppointment, setVoucherAppointment] = useState<Appointment | null>(null)
 
   // Exam preparations catalog state & confirmation dialog
-  const [prepCatalog, setPrepCatalog] = useState<{ exam_type: string; instructions: string }[]>([])
+  const [prepCatalog, setPrepCatalog] = useState<
+    { exam_type: string; instructions: string; duration_minutes?: number }[]
+  >([])
   const [pendingPrepReplacement, setPendingPrepReplacement] = useState<{
     newExam: string
     newText: string
@@ -174,6 +176,7 @@ export default function Agenda() {
         data.map((d) => ({
           exam_type: d.exam_type,
           instructions: d.instructions,
+          duration_minutes: d.duration_minutes,
         })),
       )
     })
@@ -291,11 +294,21 @@ export default function Agenda() {
     setSelectedDate(getCuiabaTodayYMD())
   }
 
-  // Auto-fill or ask before replacing notes with exam preparation
+  // Auto-fill or ask before replacing notes with exam preparation, and prefill exam duration
   const handleExamTypeChange = (newType: string) => {
     setFormExamType(newType)
     const effectiveType = newType === 'Outro (personalizado)' ? customExamType : newType
     if (!effectiveType) return
+
+    // Auto-fill duration according to the selected exam type (doctor override -> catalog -> user default)
+    const suggestedDuration = examPreparationsService.resolveDurationForExam(
+      effectiveType,
+      prepCatalog,
+      user,
+    )
+    if (suggestedDuration > 0) {
+      setFormDuration(suggestedDuration)
+    }
 
     // Find in prepCatalog
     const found = prepCatalog.find((p) => p.exam_type.toLowerCase() === effectiveType.toLowerCase())
@@ -331,13 +344,19 @@ export default function Agenda() {
     setExistingRequestImages([])
     setFormDate(dateStr)
     setFormTime(timeStr)
-    setFormDuration(user?.default_appointment_duration || 30)
-    setFormExamType('Ultrassonografia Abdome Total')
+    const initialExam = 'Ultrassonografia Abdome Total'
+    const initialDuration = examPreparationsService.resolveDurationForExam(
+      initialExam,
+      prepCatalog,
+      user,
+    )
+    setFormDuration(initialDuration)
+    setFormExamType(initialExam)
     setCustomExamType('')
     setFormClinic(doctorClinics[0] || 'HM Samuel Marques dos Santos')
     setFormStatus('Agendado')
     // Pre-fill initial default exam prep
-    const defaultPrep = prepCatalog.find((p) => p.exam_type === 'Ultrassonografia Abdome Total')
+    const defaultPrep = prepCatalog.find((p) => p.exam_type === initialExam)
     setFormNotes(
       defaultPrep?.instructions ||
         'Jejum absoluto de 8 horas. Bexiga confortavelmente cheia (beber 4 a 5 copos de água 1h antes e não urinar).',
@@ -1509,7 +1528,10 @@ export default function Agenda() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Duração (minutos)</Label>
+                <Label className="text-xs font-semibold flex items-center justify-between">
+                  <span>Duração (minutos)</span>
+                  <span className="text-[10px] text-[#0C6B58] font-normal">ajustável</span>
+                </Label>
                 <Select
                   value={String(formDuration)}
                   onValueChange={(v) => setFormDuration(Number(v))}
@@ -1518,11 +1540,20 @@ export default function Agenda() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="10">10 min</SelectItem>
                     <SelectItem value="15">15 min</SelectItem>
                     <SelectItem value="20">20 min</SelectItem>
-                    <SelectItem value="30">30 min (padrão)</SelectItem>
+                    <SelectItem value="30">30 min</SelectItem>
+                    <SelectItem value="40">40 min</SelectItem>
                     <SelectItem value="45">45 min</SelectItem>
-                    <SelectItem value="60">60 min</SelectItem>
+                    <SelectItem value="60">60 min (1h)</SelectItem>
+                    <SelectItem value="90">90 min</SelectItem>
+                    <SelectItem value="120">120 min (2h)</SelectItem>
+                    {![10, 15, 20, 30, 40, 45, 60, 90, 120].includes(formDuration) && (
+                      <SelectItem value={String(formDuration)}>
+                        {formDuration} min (personalizado)
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -1534,7 +1565,7 @@ export default function Agenda() {
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold">Tipo de Exame *</Label>
                   <span className="text-[10px] text-[#0C6B58] font-medium">
-                    Preparo preenchido automaticamente
+                    Duração e preparo automáticos
                   </span>
                 </div>
                 <Select value={formExamType} onValueChange={handleExamTypeChange}>

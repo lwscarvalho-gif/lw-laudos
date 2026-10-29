@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T13:13:53.883Z",
+  "generatedAt": "2026-10-29T13:49:12.955Z",
   "collections": [
     {
       "name": "users",
@@ -109,6 +109,12 @@
         {
           "name": "default_appointment_duration",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "exam_durations_config",
+          "type": "json",
           "required": false,
           "system": false
         }
@@ -1213,6 +1219,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "duration_minutes",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE UNIQUE INDEX idx_exam_prep_type ON exam_preparations (exam_type)"]

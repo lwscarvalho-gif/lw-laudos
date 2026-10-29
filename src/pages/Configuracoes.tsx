@@ -24,6 +24,7 @@ import {
   Plus,
   ClipboardList,
   Edit2,
+  Clock,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -167,6 +168,7 @@ export default function Configuracoes() {
   const [prepSpecialty, setPrepSpecialty] = useState('')
   const [prepInstructions, setPrepInstructions] = useState('')
   const [prepGeneralNotice, setPrepGeneralNotice] = useState('')
+  const [prepDuration, setPrepDuration] = useState<number>(30)
   const [savingPrep, setSavingPrep] = useState(false)
   const [prepSearchQuery, setPrepSearchQuery] = useState('')
 
@@ -194,6 +196,7 @@ export default function Configuracoes() {
     setPrepGeneralNotice(
       'Trazer exames anteriores, documentos pessoais, cartão SUS e chegar 15 minutos antes do horário agendado.',
     )
+    setPrepDuration(user?.default_appointment_duration || 30)
     setPrepModalOpen(true)
   }
 
@@ -203,6 +206,13 @@ export default function Configuracoes() {
     setPrepSpecialty(item.specialty || '')
     setPrepInstructions(item.instructions)
     setPrepGeneralNotice(item.general_notice || '')
+    // Effective duration for this exam according to the current doctor
+    const effDuration = examPreparationsService.resolveDurationForExam(
+      item.exam_type,
+      preparations,
+      user,
+    )
+    setPrepDuration(effDuration)
     setPrepModalOpen(true)
   }
 
@@ -219,30 +229,45 @@ export default function Configuracoes() {
 
     setSavingPrep(true)
     try {
-      if (editingPrep) {
-        await examPreparationsService.update(editingPrep.id, {
-          exam_type: prepExamType.trim(),
-          specialty: prepSpecialty.trim() || undefined,
-          instructions: prepInstructions.trim(),
-          general_notice: prepGeneralNotice.trim() || undefined,
-        })
-        toast({
-          title: 'Preparo atualizado',
-          description: `Instruções de "${prepExamType}" salvas com sucesso.`,
-        })
-      } else {
-        await examPreparationsService.create({
-          exam_type: prepExamType.trim(),
-          specialty: prepSpecialty.trim() || undefined,
-          instructions: prepInstructions.trim(),
-          general_notice: prepGeneralNotice.trim() || undefined,
-          is_active: true,
-        })
-        toast({
-          title: 'Preparo cadastrado',
-          description: `Novo preparo para "${prepExamType}" cadastrado.`,
-        })
+      const parsedDuration = Number(prepDuration) > 0 ? Number(prepDuration) : 30
+
+      // 1. If user is logged in, save the doctor's custom duration preference
+      if (user?.id) {
+        await examPreparationsService.saveUserExamDuration(
+          user.id,
+          prepExamType.trim(),
+          parsedDuration,
+        )
+        await refreshUser()
       }
+
+      // 2. If user is Admin or Admin Geral, also update the shared catalog template
+      const isAdmin = user?.role === 'Administrador' || user?.role === 'Administrador Geral'
+      if (isAdmin) {
+        if (editingPrep) {
+          await examPreparationsService.update(editingPrep.id, {
+            exam_type: prepExamType.trim(),
+            specialty: prepSpecialty.trim() || undefined,
+            instructions: prepInstructions.trim(),
+            general_notice: prepGeneralNotice.trim() || undefined,
+            duration_minutes: parsedDuration,
+          })
+        } else {
+          await examPreparationsService.create({
+            exam_type: prepExamType.trim(),
+            specialty: prepSpecialty.trim() || undefined,
+            instructions: prepInstructions.trim(),
+            general_notice: prepGeneralNotice.trim() || undefined,
+            duration_minutes: parsedDuration,
+            is_active: true,
+          })
+        }
+      }
+
+      toast({
+        title: 'Preparo e duração salvos',
+        description: `Duração de ${parsedDuration} min e orientações para "${prepExamType}" configuradas com sucesso.`,
+      })
       setPrepModalOpen(false)
       loadPreparations()
     } catch {
@@ -1297,9 +1322,20 @@ export default function Configuracoes() {
                   <div>
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <h4 className="font-bold text-xs text-[#1F2A27]">{item.exam_type}</h4>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-bold text-xs text-[#1F2A27]">{item.exam_type}</h4>
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0C6B58] bg-[#E8F3F0] border border-[#0C6B58]/20 px-2 py-0.5 rounded">
+                            <Clock className="w-3 h-3" />
+                            {examPreparationsService.resolveDurationForExam(
+                              item.exam_type,
+                              preparations,
+                              user,
+                            )}{' '}
+                            min
+                          </span>
+                        </div>
                         {item.specialty && (
-                          <span className="inline-block text-[10px] font-medium text-[#0C6B58] bg-[#E8F3F0] px-1.5 py-0.5 rounded mt-0.5">
+                          <span className="inline-block text-[10px] font-medium text-[#5F6E69] bg-[#F0F3F2] px-1.5 py-0.5 rounded mt-1">
                             {item.specialty}
                           </span>
                         )}
@@ -1310,7 +1346,7 @@ export default function Configuracoes() {
                         size="icon"
                         onClick={() => openEditPrepModal(item)}
                         className="h-7 w-7 text-[#5F6E69] hover:text-[#0C6B58]"
-                        title="Editar preparo"
+                        title="Editar preparo e duração"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </Button>
@@ -1359,14 +1395,37 @@ export default function Configuracoes() {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Especialidade / Grupo</Label>
-              <Input
-                value={prepSpecialty}
-                onChange={(e) => setPrepSpecialty(e.target.value)}
-                placeholder="Ex.: Ultrassonografia Geral, Ginecologia, Obstetrícia..."
-                className="text-xs"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Especialidade / Grupo</Label>
+                <Input
+                  value={prepSpecialty}
+                  onChange={(e) => setPrepSpecialty(e.target.value)}
+                  placeholder="Ex.: Ultrassonografia Geral, Obstetrícia..."
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold flex items-center justify-between">
+                  <span>Duração Padrão *</span>
+                  <span className="text-[10px] text-[#0C6B58] font-normal">minutos por exame</span>
+                </Label>
+                <Input
+                  type="number"
+                  min={5}
+                  max={240}
+                  step={5}
+                  value={prepDuration}
+                  onChange={(e) => setPrepDuration(Math.max(5, Number(e.target.value) || 5))}
+                  placeholder="Ex.: 30"
+                  className="text-xs"
+                  required
+                />
+                <p className="text-[10px] text-[#71827C]">
+                  Tempo reservado automaticamente na grade ao agendar.
+                </p>
+              </div>
             </div>
 
             <div className="space-y-1.5">
