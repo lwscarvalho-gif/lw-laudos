@@ -11,7 +11,6 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { runSyntheticArchitectureTests, SyntheticTestResult } from '@/lib/syntheticSignatureTests'
-import { runGeriatricCalculationFixtures, type FixtureTestResult } from '@/lib/geriatricFixtures'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
@@ -20,19 +19,15 @@ export default function DiagnosticoDesenvolvimento() {
   const { toast } = useToast()
   const [runningTests, setRunningTests] = useState(false)
   const [testResults, setTestResults] = useState<SyntheticTestResult[] | null>(null)
-  const [geriatricResults, setGeriatricResults] = useState<FixtureTestResult[] | null>(null)
 
   const handleRunTests = async () => {
     setRunningTests(true)
     try {
       const res = await runSyntheticArchitectureTests()
       setTestResults(res)
-      const gerRes = runGeriatricCalculationFixtures()
-      setGeriatricResults(gerRes)
       toast({
         title: 'Verificação concluída',
-        description:
-          'Testes sintéticos de regras e instrumentos geriátricos executados em memória.',
+        description: 'Testes sintéticos de integridade de regras e hashing executados em memória.',
       })
     } catch {
       toast({
@@ -173,46 +168,6 @@ export default function DiagnosticoDesenvolvimento() {
                   <div className="space-y-0.5">
                     <span className="font-bold block">{t.title}</span>
                     <p className="text-[11px] opacity-90 leading-relaxed">{t.details}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {geriatricResults && (
-          <div className="space-y-3 pt-4 border-t border-[#E5E9E7]">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-xs text-[#1F2A27] block">
-                Validação de Cálculos Geriátricos (GeriTools / Fixtures Sintéticas):
-              </span>
-              <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">
-                {geriatricResults.filter((g) => g.passed).length}/{geriatricResults.length}{' '}
-                aprovados
-              </Badge>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {geriatricResults.map((g, idx) => (
-                <div
-                  key={idx}
-                  className={`p-3 rounded-lg border text-xs flex items-start gap-2.5 ${
-                    g.passed
-                      ? 'bg-emerald-50/50 border-emerald-200 text-emerald-950'
-                      : 'bg-red-50/50 border-red-200 text-red-950'
-                  }`}
-                >
-                  {g.passed ? (
-                    <CheckCircle className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-red-700 shrink-0 mt-0.5" />
-                  )}
-                  <div className="space-y-0.5">
-                    <span className="font-bold block">
-                      [{g.instrument}] {g.caseName}
-                    </span>
-                    <p className="text-[10px] text-[#5F6E69]">
-                      Esperado: {g.expected} | Recebido: {g.received}
-                    </p>
                   </div>
                 </div>
               ))}

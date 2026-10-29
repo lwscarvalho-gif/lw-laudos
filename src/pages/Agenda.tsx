@@ -1191,7 +1191,7 @@ export default function Agenda() {
                                     </Button>
                                   </div>
 
-                                  {/* Links rápidos: Abrir prontuário + Iniciar laudo */}
+                                  {/* Links rápidos: Ficha do paciente + Iniciar laudo */}
                                   <div className="flex items-center gap-1.5">
                                     {appt.patient_id && (
                                       <Button
@@ -1199,7 +1199,7 @@ export default function Agenda() {
                                         variant="outline"
                                         size="sm"
                                         className="h-7 text-xs px-2 border-[#0C6B58]/30 text-[#0C6B58] hover:bg-[#E8F3F0]"
-                                        title="Abrir prontuário eletrônico completo"
+                                        title="Abrir ficha do paciente"
                                       >
                                         <Link
                                           to={`/pacientes/${appt.patient_id}`}
@@ -1207,7 +1207,7 @@ export default function Agenda() {
                                           rel="noreferrer"
                                         >
                                           <User className="w-3 h-3 mr-1" />
-                                          Prontuário ↗
+                                          Ficha do paciente ↗
                                         </Link>
                                       </Button>
                                     )}
@@ -1986,10 +1986,10 @@ export default function Agenda() {
                         target="_blank"
                         rel="noreferrer"
                         className="text-[11px] text-[#0C6B58] hover:underline font-semibold flex items-center gap-1"
-                        title="Abrir prontuário eletrônico completo"
+                        title="Abrir ficha do paciente"
                       >
                         <User className="w-3 h-3" />
-                        Abrir prontuário ↗
+                        Ficha do paciente ↗
                       </Link>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[#5F6E69]">

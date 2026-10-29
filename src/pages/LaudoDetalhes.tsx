@@ -306,7 +306,7 @@ export default function LaudoDetalhes() {
             <h2 className="font-bold text-base text-[#0C6B58] tracking-tight">
               {user?.header || 'Clínica Médica de Diagnóstico e Imagem'}
             </h2>
-            <p className="text-xs text-[#5F6E69] mt-0.5">Prontuário e Laudo Médico Eletrônico</p>
+            <p className="text-xs text-[#5F6E69] mt-0.5">Sistema de Laudos de Imagem</p>
           </div>
           <div className="text-left sm:text-right text-xs text-[#8A9691]">
             <span>Emitido em: {formatDateBR(report.signature_date || report.created)}</span>
@@ -564,7 +564,7 @@ export default function LaudoDetalhes() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir laudo?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação removerá este laudo permanentemente do prontuário.
+              Esta ação removerá este laudo permanentemente do sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

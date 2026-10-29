@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.27**  
+> **Versão do Projeto**: **v0.0.28**  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -138,22 +138,25 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
 - **v0.0.25–v0.0.26 — Estabilização e Validações Gerais de Fluxo**:
 - Consolidação de templates, diagnósticos e correções nas regras de formulário.
 
-- **v0.0.27 — Prontuário Eletrônico Próprio Integrado (Ficha Clínica & Linha do Tempo)**:
-- Decisão estratégica de produto: **Prontuário próprio integrado** dentro do LW Laudos, unificando todo o histórico do paciente sem dependência de sistemas externos.
-- **Ficha de Prontuário Completa (`/pacientes/:id`)**:
-  - Cabeçalho com identificação cadastral (CPF, data de nascimento, sexo, contatos, CNS/SUS, endereço completo).
-  - **Linha do tempo clínica cronológica** (mais recente primeiro) agregando em feed único: agendamentos (status, clínica, responsável pelo agendamento), laudos (rascunho/finalizado com link para abrir no editor), anexos (fotos de guias médicas ampliáveis com clique) e notas clínicas.
-- **Evolução Clínica Médica (Coleção `clinical_notes`, migração 0013)**:
-  - Médico registra notas de evolução com carimbo de data automática, tipo (Evolução, Anamnese, Retorno, Intercorrência, Geral) e identificação com CRM.
-  - **Isolamento e RLS**: Coleção protegida no nível de banco por `owner_id = @request.auth.id`. Perfis de apoio (Secretária, Gestor, Contabilidade) não visualizam conteúdo clínico privativo nem evoluções, preservando o sigilo médico e as permissões multiperfil.
-- **Integração Bidirecional com a Agenda e o Editor de Laudos**:
-  - Da ficha do paciente: botões de ação rápida para agendar consulta (`/agenda?paciente=:id`) ou iniciar laudo (`/laudos/ultrassom?paciente=:id`) com pré-vinculação imediata.
-  - Na Agenda: links diretos _"Abrir prontuário ↗"_ nos cards e no modal de detalhes do agendamento.
-  - No Editor de Laudo: link _"Abrir prontuário ↗"_ ao selecionar ou editar o laudo do paciente.
+- **v0.0.27 — Histórico de Prontuário Integrado (Transição)**:
+  - Experimentação inicial de prontuário integrado com linha do tempo clínica e avaliações geriátricas (GeriTools).
+
+- **v0.0.28 — Separação Estratégica: Foco Exclusivo em Laudos de Imagem**:
+  - **Decisão do Proprietário**: _"Vou separar o prontuário do sistema de laudos. ENTÃO NESSE PROJETO MANTEREMOS APENAS OS LAUDOS."_
+  - O **LW Laudos** passa a concentrar 100% de sua energia no fluxo de laudos de imagem, agenda completa com AccessionNumber/MWL DICOM (Orthanc), comprovante A4, preparos, duração por exame, body marks e isolamento multiperfil.
+  - O prontuário eletrônico completo (evoluções clínicas, anamneses, consultas de retorno, escalas geriátricas) será desenvolvido futuramente como um **produto separado**.
+  - **O que foi removido da UI nesta versão**:
+    - Seções e botões de evolução clínica (`clinical_notes`) na ficha do paciente.
+    - Avaliações geriátricas (`geriatric_assessments`), modal GeriTools, badges de escores geriátricos e o parâmetro/fluxo `?anexo_geriatrico` no `UltrasoundReportEditor`.
+    - Os utilitários e fixtures órfãos de cálculo geriátrico foram removidos do bundle do app e da página de diagnóstico.
+    - A identidade "Prontuário ↗" na Agenda e no Editor foi renomeada para **"Ficha do paciente ↗"**.
+    - A rota `/pacientes/:id` voltou a ser a **Ficha do Paciente laudo-cêntrica**: laudos de ultrassonografia (rascunho/finalizado) em destaque com link direto para o editor, e abaixo os agendamentos de exames com status, clínica, responsável pelo agendamento e fotos ampliáveis das solicitações médicas (contexto essencial do exame).
+  - **Preservação de Dados no Banco**:
+    - **NENHUMA coleção ou dado foi destruído no banco de dados**. As coleções `clinical_notes` (migração 0013) e `geriatric_assessments` (migração 0014) continuam intactas no schema PocketBase com todas as suas regras de RLS e índices, preparadas para futura exportação/migração para o novo produto de prontuário quando for lançado.
 
 ---
 
-## 3. Arquitetura Atual do Sistema (v0.0.27)
+## 3. Arquitetura Atual do Sistema (v0.0.28)
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -180,8 +183,8 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
 │  • SQLite embutido com transações ACID                                  │
 │  • Coleções: users, patients, exams, reports, templates,               │
 │    medical_specialties, appointments, user_permissions,                 │
-│    exam_preparations, clinical_notes                                    │
-│  • Regras RLS estritas (médico acessa seus laudos e evoluções;          │
+│    exam_preparations, clinical_notes, geriatric_assessments             │
+│  • Regras RLS estritas (médico acessa seus laudos;                      │
 │    secretária/gestor acessam agenda e pacientes sem dados clínicos)     │
 │  • pb_hooks:                                                            │
 │    - GET  /backend/v1/mwl/appointments (autenticado por Token MWL)      │
@@ -282,4 +285,4 @@ O agente externo (ChatGPT / Codex / Claude Code / etc.) deve observar estritamen
 
 ---
 
-_Documento consolidado para orientação do agente local no notebook do Dr. Lucas Willian da Silva (CRM RO 6955) — Estado do Projeto v0.0.27._
+_Documento consolidado para orientação do agente local no notebook do Dr. Lucas Willian da Silva (CRM RO 6955) — Estado do Projeto v0.0.28._

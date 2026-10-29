@@ -288,7 +288,7 @@ export class DigitalSignatureAdapter {
       return {
         status: 'Não configurado',
         detail:
-          'O laudo foi editado após a última solicitação. O hash criptográfico do documento atual é diferente do anterior. A solicitação prévia foi invalidada para proteger a integridade do prontuário.',
+          'O laudo foi editado após a última solicitação. O hash criptográfico do documento atual é diferente do anterior. A solicitação prévia foi invalidada para proteger a integridade do laudo.',
         isModifiedSinceSigned: true,
         activeRecord: record,
       }

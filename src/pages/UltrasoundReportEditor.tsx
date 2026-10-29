@@ -29,7 +29,6 @@ import { examsService } from '@/services/exams'
 import { digitalSignatureService } from '@/services/digitalSignature'
 import { patientsService } from '@/services/patients'
 import { appointmentsService } from '@/services/appointments'
-import { geriatricAssessmentsService } from '@/services/geriatricAssessments'
 import { ultrasoundFindingsService } from '@/services/ultrasoundFindings'
 import { examImagesService } from '@/services/examImages'
 import { useAuth } from '@/contexts/AuthContext'
@@ -108,7 +107,6 @@ export default function UltrasoundReportEditor() {
   const prefilledExamId = searchParams.get('exame') || ''
   const prefilledPatientId = searchParams.get('paciente') || ''
   const prefilledAppointmentId = searchParams.get('agendamento') || ''
-  const prefilledGeriatricId = searchParams.get('anexo_geriatrico') || ''
 
   const { user } = useAuth()
   const { toast } = useToast()
@@ -283,47 +281,6 @@ export default function UltrasoundReportEditor() {
             /* ignore */
           }
         }
-
-        // Check if anexo_geriatrico was passed in query
-        if (prefilledGeriatricId) {
-          try {
-            const ga = await geriatricAssessmentsService.getById(prefilledGeriatricId)
-            if (ga && ga.summary_markdown) {
-              const formattedBlock = `\n\n--- AVALIAÇÃO GERIÁTRICA ANEXA (${ga.instrument_title}) ---\nEscore: ${ga.score_display} | Classificação: ${ga.classification}\n${ga.summary_markdown}\n${ga.clinical_notes ? `Observações: ${ga.clinical_notes}\n` : ''}--------------------------------------------------`
-
-              setSections((prev) => {
-                const obsIndex = prev.findIndex((s) => s.id === 'observacoes')
-                if (obsIndex >= 0) {
-                  return prev.map((s, idx) =>
-                    idx === obsIndex
-                      ? {
-                          ...s,
-                          text: s.text
-                            ? `${s.text.trim()}${formattedBlock}`
-                            : formattedBlock.trim(),
-                        }
-                      : s,
-                  )
-                }
-                return [
-                  ...prev,
-                  {
-                    id: 'avaliacao_geriatrica',
-                    label: 'Avaliação Geriátrica Anexa',
-                    text: formattedBlock.trim(),
-                  },
-                ]
-              })
-              setHasUnsavedChanges(true)
-              toast({
-                title: 'Avaliação geriátrica anexada',
-                description: `${ga.instrument_title} inserida na seção de Observações Técnicas do laudo.`,
-              })
-            }
-          } catch (err) {
-            console.error('Falha ao anexar avaliação geriátrica ao laudo:', err)
-          }
-        }
       } catch (err) {
         console.error(err)
       } finally {
@@ -331,7 +288,7 @@ export default function UltrasoundReportEditor() {
       }
     }
     init()
-  }, [reportIdParam, prefilledExamId, prefilledGeriatricId])
+  }, [reportIdParam, prefilledExamId, prefilledAppointmentId])
 
   // Load patient's exams when patientId changes
   useEffect(() => {
@@ -1009,10 +966,10 @@ export default function UltrasoundReportEditor() {
                       target="_blank"
                       rel="noreferrer"
                       className="text-[11px] text-[#0C6B58] hover:underline font-semibold flex items-center gap-1"
-                      title="Abrir prontuário eletrônico completo do paciente em nova aba"
+                      title="Abrir ficha do paciente em nova aba"
                     >
                       <User className="w-3 h-3" />
-                      Abrir prontuário ↗
+                      Ficha do paciente ↗
                     </Link>
                   )}
                 </div>

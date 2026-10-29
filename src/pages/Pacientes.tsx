@@ -196,7 +196,7 @@ export default function Pacientes() {
         <div>
           <h1 className="text-2xl font-bold text-[#1F2A27]">Pacientes</h1>
           <p className="text-sm text-[#5F6E69] mt-0.5">
-            Gerencie os prontuários dos seus pacientes
+            Gerencie os cadastros e fichas dos seus pacientes
           </p>
         </div>
         <Button
@@ -283,7 +283,7 @@ export default function Pacientes() {
                       <div className="flex items-center justify-end gap-1.5">
                         <Link
                           to={`/pacientes/${p.id}`}
-                          title="Abrir prontuário"
+                          title="Abrir ficha do paciente"
                           className="p-1.5 text-[#5F6E69] hover:text-[#0C6B58] hover:bg-[#E8F3F0] rounded-md transition"
                         >
                           <Eye className="w-4 h-4" />
