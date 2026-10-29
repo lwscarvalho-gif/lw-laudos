@@ -1,7 +1,8 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
+> **Versão do Projeto**: **v0.0.24**  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
-> **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação nem realizar desenvolvimento**.
+> **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
 ---
 
@@ -10,17 +11,22 @@
 - **Nome do Sistema**: **LW Laudos — Sistema Médico Multiperfil** (exibido na interface provisoriamente como _"Sistema Médico Multiperfil"_).
 - **Idioma e Tom**: 100% em português brasileiro (`pt-BR`), com design clínico sóbrio, foco em usabilidade médica ágil, contraste acessível e tipografia legível para ambiente hospitalar/ambulatorial.
 - **Usuário Inicial e Administrador**: Dr. Lucas Willian da Silva, Médico Radiologista, **CRM RO 6955** (perfil administrador).
-- **Princípio Multiperfil e Isolamento de Dados**:
-  - Contas de médicos adicionais são criadas **exclusivamente por convite** enviado pelo administrador (não há auto-cadastro público).
-  - Isolamento estrito de prontuários, pacientes, exames, agendamentos e laudos por `owner_id` no banco de dados (Row Level Security nativo do PocketBase).
-  - O administrador gerencia os usuários, mas não tem acesso automático ao conteúdo clínico privado dos outros médicos.
-  - Cada laudo emitido possui a identificação profissional formal do médico autor (nome completo, CRM, UF, especialidade e logotipo individual cadastrado em Configurações).
+- **Princípio Multiperfil e Matriz de Acesso (v0.0.19–v0.0.24)**:
+  - Perfis suportados no sistema:
+    - **Administrador Geral** e **Administrador**: Gestão completa de usuários, convites, especialidades, catálogo de preparos e configurações do sistema.
+    - **Médico**: Acesso clínico a laudos, emissão, assinatura, modelos, agenda, configuração individual de tempo por exame e geração de token MWL.
+    - **Secretária**: Gestão da agenda de consultas, cadastro de pacientes, upload e análise de fotos de solicitações médicas por IA no backend, impressão de comprovante do paciente.
+    - **Gestor**: Acompanhamento de indicadores operacionais, listagem de agendamentos e pacientes.
+    - **Contabilidade**: Visualização e conferência de agendamentos e volumes para fins de faturamento.
+  - Contas são criadas **exclusivamente por convite** enviado pelo administrador (não há auto-cadastro público).
+  - Isolamento estrito de prontuários e laudos clínicos por `owner_id` no banco de dados (Row Level Security nativo do PocketBase). O administrador gerencia os usuários, mas não acessa automaticamente o conteúdo clínico privado dos outros médicos.
+  - Registro de auditoria de quem agendou (`created_by`, `created_by_name`, `created_by_role`, `updated_by`, `updated_by_name`, `updated_by_role`).
 
 ---
 
 ## 2. Histórico de Versões
 
-Abaixo está o resumo cronológico de evolução do sistema no repositório:
+Abaixo está o resumo cronológico completo da evolução do sistema no repositório:
 
 - **v0.0.2 — Base Multiperfil e Estrutura Clínica**:
   - Autenticação e controle de acesso com isolamento por `owner_id`.
@@ -67,7 +73,7 @@ Abaixo está o resumo cronológico de evolução do sistema no repositório:
 
 - **v0.0.14 — Agendamento de Consultas com DICOM Modality Worklist (MWL)**:
   - Agenda individual por médico vinculada à clínica/unidade de atendimento.
-  - Geração automática no servidor de **Accession Number** padronizado (`LW-AAAA-MM-DD-XXXX`).
+  - Geração automática no servidor de **Accession Number** padronizado (`LW-YYYYMMDD-XXXX`).
   - Preenchimento completo de tags DICOM padrão para ultrassonografia (SOP Class MWL `1.2.840.10008.5.1.4.31`, Modality `US`, charset `ISO_IR 192`).
   - Emissão de Token MWL de 32 caracteres por médico em **Configurações → Worklist DICOM & Unidades de Atendimento**.
   - Endpoint seguro e autenticado no backend (`GET /backend/v1/mwl/appointments`) para consulta por token.
@@ -84,82 +90,139 @@ Abaixo está o resumo cronológico de evolução do sistema no repositório:
   - Gestão de especialidades clínicas exclusiva para o administrador.
   - Ação de clonagem/cópia de modelo geral preservando especialidade.
 
-- **v0.0.17 — Pacote de Instalação Automatizada da Ponte MWL**:
+- **v0.0.17–v0.0.18 — Pacote de Instalação Automatizada da Ponte MWL**:
   - Script automatizado PowerShell para Windows: `tools/mwl_bridge/INSTALAR_WINDOWS.ps1`.
   - Atalhos operacionais de 1 clique:
     - `1-iniciar-orthanc.bat` (sobe o servidor DICOM local na porta 104).
     - `2-iniciar-ponte.bat` (sobe o agente Python que puxa agendamentos da nuvem).
     - `3-testar.bat` (executa a bateria de validação de prontidão em `VERIFICAR.py`).
-  - Script de verificação automatizada dos 8 itens essenciais: `tools/mwl_bridge/VERIFICAR.py`.
+  - Script de verificação automatizada `tools/mwl_bridge/VERIFICAR.py`.
   - Arquivo modelo de variáveis locais `config_ponte.env.example`.
   - Manual passo a passo para o agente de IA: `docs/INSTALACAO_AGENTE_IA.md`.
+  - Documento de status inicial em `docs/STATUS_PROJETO.md`.
+
+- **v0.0.19–v0.0.21 — Novos Perfis, Operação SUS Municipal, Preparos de Exames e Importação com IA no Backend**:
+  - **Novos perfis de acesso** (migração `0009_multi_profile_schedule_sus.js`): inclusão dos papéis `Secretaria`, `Gestor` e `Contabilidade`, além de `Médico` e `Administrador`.
+  - **Auditoria de agendamento**: rastreamento de quem criou e editou o agendamento (`created_by`, `created_by_name`, `created_by_role`, etc.).
+  - **Renomeação da unidade pública**: substituição da antiga _"Clínica Principal"_ por **"HM Samuel Marques dos Santos"** (Hospital Municipal vinculado à Prefeitura de Mirante da Serra).
+  - **Regra de identificação SUS**: validação estrita de CPF, Cartão do SUS (15 dígitos) e Endereço no HM Samuel Marques dos Santos.
+  - **Anexos da solicitação médica**: upload de fotos/xerox da guia médica direto no agendamento (`request_images`).
+  - **Catálogo de preparos por tipo de exame** (migração `0010_create_exam_preparations.js`): instruções clínicas parametrizáveis em **Configurações → Preparos de Exames** com injeção automática nas observações do agendamento.
+  - **Comprovante do paciente em A4**: modal `AppointmentVoucherModal` com botão de impressão de via formatada do agendamento contendo dados da unidade, horário, Accession Number e preparo clínico em destaque.
+  - **Importação da guia por foto via IA no backend**: endpoint `POST /backend/v1/ai/analyze-request-image` em `pocketbase/hooks/mwl_bridge.pb.js` utilizando visão computacional no servidor. A chave do gateway de IA **nunca trafega pelo navegador**. Os dados extraídos chegam como proposta preliminar e exigem **revisão humana obrigatória** antes de salvar.
+
+- **v0.0.22 — Duração Configurável por Tipo de Exame**:
+  - Migração `0011_exam_durations_by_exam_type.js`.
+  - Adição do campo `duration_minutes` no catálogo de preparos e `exam_durations_config` (JSON) na coleção de usuários (`_pb_users_auth_`).
+  - Cada médico pode definir os minutos padrão por exame em **Configurações → Preparos de Exames**; na Agenda o horário de término é calculado automaticamente conforme a duração configurada, permanecendo editável caso a caso.
+
+- **v0.0.23 — Correção de Escopo de Obrigatoriedade Documental**:
+  - Migração `0012_make_patient_document_optional.js`: o campo `document` (CPF) da coleção `patients` tornou-se opcional a nível de schema.
+  - A obrigatoriedade de CPF, Cartão do SUS e Endereço é aplicada **EXCLUSIVAMENTE** na unidade **HM Samuel Marques dos Santos** (regra do SUS municipal).
+  - Nas clínicas particulares (ex.: Gastroimagem ou clínicas privadas cadastradas pelo médico), apenas o **nome** do paciente é obrigatório no agendamento, agilizando atendimentos privados e de urgência.
+
+- **v0.0.24 — Fortalecimento da Integração Orthanc/MWL e Ciclo de Vida Completo**:
+  - **Ciclo de vida completo no agente `bridge.py`**:
+    - Criação de nova entrada com AccessionNumber determinístico e higienizado via `sanitize_worklist_id`.
+    - Atualização idempotente via `PUT /worklists/{id}` (ou recriação controlada via `POST /worklists/create` com remoção prévia).
+    - Cancelamento e conclusão de exames: remoção imediata da worklist via `DELETE /worklists/{id}` ou exclusão do arquivo `.wl`, impedindo poluição da tela do aparelho.
+    - Gravação atômica no fallback de arquivos `.wl` (escrita em `.tmp` seguida de `os.replace`) para evitar leitura corrompida de arquivos parciais pelo Orthanc.
+  - **Tratamento robusto de erros no agente**:
+    - Detecção de token revogado, expirado ou inválido (HTTP 401/403) com mensagem explicativa em português claro no console e orientação direta de regeneração na UI.
+    - Retry com backoff exponencial diante de falhas momentâneas de rede ou quedas do hotspot celular.
+  - **Verificação de ponta a ponta em `VERIFICAR.py`**:
+    - Teste de ciclo de vida sintético real no Orthanc (cria entrada sintética sem dados reais de pacientes, verifica se foi listada e remove em seguida).
+    - Teste de conectividade e autenticação com o endpoint na nuvem (`GET /backend/v1/mwl/appointments`) usando o token local.
+    - Veredito estrito: a mensagem `"★★★★★  VEREDITO: PRONTO PARA O APARELHO!  ★★★★★"` só é emitida se 100% dos itens forem validados com sucesso.
 
 ---
 
-## 3. Arquitetura Atual do Sistema
+## 3. Arquitetura Atual do Sistema (v0.0.24)
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          NAVEGADOR DO MÉDICO                            │
+│                          NAVEGADOR DO USUÁRIO                           │
 │  React 18 + Vite + TypeScript + Tailwind CSS (shadcn/ui)                │
 │                                                                         │
-│  • Single Page Application (SPA) responsiva                             │
-│  • Editor estruturado de US com atalhos de teclado (Ctrl+N)            │
-│  • Módulo Body Mark (SVGs vetoriais puros em memória)                   │
-│  • Motor de PDF binário real (%PDF-1.4 em TypeScript) sem API externa   │
+│  • Perfis: Administrador Geral, Admin, Médico, Secretária, Gestor,      │
+│    Contabilidade                                                        │
+│  • Editor estruturado de US com atalhos (Ctrl+N) e banco de frases      │
+│  • Módulo Body Mark (SVGs vetoriais puros de mama, pelve, ombro...)     │
+│  • Compilador de PDF binário real (%PDF-1.4 em TypeScript) sem API ext  │
+│  • Agenda com cálculo automático de duração por tipo de exame           │
+│  • Comprovante do paciente em A4 com preparo e orientações de exame     │
+│  • Importação de guia médica por foto (proposta sujeita à revisão)      │
 └───────────────────────┬─────────────────────────────────────────────────┘
                         │
                         │ HTTPS REST + Realtime SSE (PocketBase JS SDK)
-                        │ (URL dinâmica: VITE_POCKETBASE_URL ou Nuvem)
+                        │ (URL dinâmica: VITE_POCKETBASE_URL ou Nuvem Skip)
                         ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                       BACKEND (PocketBase v0.22+)                       │
 │  Hospedado no Skip Cloud (portável para servidor local Windows/Linux)   │
 │                                                                         │
 │  • SQLite embutido com transações ACID                                  │
-│  • Coleções principais: users, patients, exams, reports, templates,    │
-│    medical_specialties, appointments, user_permissions                  │
-│  • Regras RLS estritas de isolamento por owner_id                       │
-│  • pb_hooks com endpoints customizados (/backend/v1/mwl/appointments)   │
-│  • Migrações declarativas (0001 a 0008)                                 │
+│  • Coleções: users, patients, exams, reports, templates,               │
+│    medical_specialties, appointments, user_permissions,                 │
+│    exam_preparations                                                    │
+│  • Regras RLS estritas (médico acessa seus laudos; secretária/gestor    │
+│    acessam agenda e pacientes)                                          │
+│  • pb_hooks:                                                            │
+│    - GET  /backend/v1/mwl/appointments (autenticado por Token MWL)      │
+│    - POST /backend/v1/ai/analyze-request-image (Gateway IA no backend)  │
+│    - Geração automática de AccessionNumber (LW-YYYYMMDD-XXXX)           │
+│  • Migrações declarativas aplicadas: 0001 a 0012                        │
+└───────────────────────┬─────────────────────────────────────────────────┘
+                        │
+                        │ Polling HTTPS (Bearer Token do Médico)
+                        ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     NOTEBOOK DO MÉDICO (WINDOWS)                        │
+│                                                                         │
+│  • Hotspot 4G/5G do celular: conecta o notebook à nuvem                 │
+│  • tools/mwl_bridge/bridge.py: sincroniza agendamentos ativos           │
+│  • Orthanc Server (localhost:8042 REST / porta TCP 104 DICOM)           │
+│  • Plugin Modality Worklists (entradas atômicas / ciclo de vida)        │
+│  • tools/mwl_bridge/VERIFICAR.py: bateria de prontidão ponta a ponta   │
+└───────────────────────┬─────────────────────────────────────────────────┘
+                        │
+                        │ Cabo Ethernet Direto (TCP/IP 192.168.1.x)
+                        │ Protocolo DICOM 3.0 C-FIND SCP (porta 104)
+                        ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                   APARELHO DE ULTRASSONOGRAFIA                          │
+│                   SAEVO FT412 (Mirante da Serra, RO)                    │
+│                                                                         │
+│  • Consulta Worklist nativa (New Patient → WorkList → Search)           │
+│  • Importa paciente, ID, sexo, data e Accession Number sem digitação    │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
-
-### Principais Características Técnicas
-
-1. **Frontend**: Desenvolvido em React + Vite + TypeScript. Não usa serviços de terceiros para montagem de laudos ou manipulação gráfica.
-2. **Backend**: Instância PocketBase. Todas as regras de controle de acesso são checadas no lado do servidor. URL configurável em tempo de build/execução através de `VITE_POCKETBASE_URL`.
-3. **Geração de PDF**: Compilador binário direto (`src/lib/pdfBuilder.ts` e `src/lib/pdfGenerator.ts`). Não depende de Puppeteer, wkhtmltopdf, serviços externos ou Node.js em tempo de execução. Roda 100% no navegador cliente.
-4. **Isolamento de Dados**: Cada médico só acessa o que gerou (`owner_id = @request.auth.id`). Os tokens MWL são únicos por médico e validam a chave nos hooks do PocketBase.
 
 ---
 
 ## 4. Estado dos Dados no Banco
 
-- O banco de dados contém **APENAS registros de teste fictícios e sintéticos** utilizados durante a validação da arquitetura:
+- O banco de dados em produção/demonstração contém **registros sintéticos de teste**:
   - Paciente sintético de teste: `"TESTE — Demonstração LW (fictício)"` (ID: `mjjngduz3steate`, CPF fictício `000.000.000-00`).
   - Laudo rascunho de demonstração: ID `muvdbwmrw3hagrr` (associado ao exame `dgw4edb2sb9jfqg`).
-- **Nenhum dado real de paciente** está cadastrado no sistema.
-- **Importante**: O agente externo **não deve apagar, alterar nem sobrescrever** estes registros sintéticos, pois eles servem como fixture de demonstração e validação do fluxo do rascunho.
+- **Nenhum dado sensível de paciente real** está registrado sem consentimento ou de forma estática.
+- **Importante**: O agente externo **não deve apagar, alterar nem sobrescrever** registros de demonstração ou tabelas do banco.
 
 ---
 
-## 5. O que NÃO Está Feito / O que NÃO Conectar
+## 5. O que NÃO Está Feito / Pendências Reais de Campo
 
-Para garantir honestidade técnica intransigente, o agente externo deve estar ciente de que:
+Para manter honestidade técnica rigorosa, registre o que ainda está pendente:
 
-1. **Assistente de IA Médica (LLMs)**:
-   - O painel exibe deliberadamente a condição _"Não conectado"_.
-   - **Nenhum** provedor de IA (OpenAI, Anthropic, Claude, Skip AI) está configurado com chaves ativas no frontend. Não tente "consertar" nem simular respostas de IA.
-2. **Ponte MWL Local (Orthanc + bridge.py)**:
-   - A ponte foi desenvolvida, testada em simulação estática e empacotada em scripts `.bat` e `.ps1`.
-   - **Ela nunca foi executada em um ambiente físico real com o aparelho Saevo FT412**. O teste de campo em Mirante da Serra será a sua primeira execução prática real.
-3. **Provedores de Assinatura Digital ICP-Brasil**:
-   - Os adaptadores para PSCs (VIDaaS, BirdID, SafeID, SerproID, RemoteID) estão estruturados na arquitetura, mas **não possuem credenciais comerciais cadastradas**.
-   - O sistema opera com a assinatura manual/carimbo no papel por padrão (modo offline) ou emissão digital simples. Não insira credenciais falsas.
-4. **Homologação com Fabricantes**:
-   - Não há homologação ou certificado assinado por nenhum fabricante de equipamento (Saevo, GE, Philips, Mindray).
-   - O software opera estritamente sob as especificações abertas da norma internacional DICOM 3.0 e do manual técnico público do Saevo FT412.
+1. **Teste de Campo Físico em Mirante da Serra com o Saevo FT412**:
+   - A ponte `bridge.py` e os scripts de teste (`VERIFICAR.py`) foram desenvolvidos e validados com simulações e ciclo de vida sintético.
+   - **O teste físico real com o cabo de rede conectado ao equipamento Saevo FT412 em Mirante da Serra ainda está pendente**. A prova de campo definirá o sucesso da comunicação física DICOM C-FIND.
+2. **Prova Final da Ponte com Orthanc Real no Notebook**:
+   - Depende de o executável `Orthanc.exe` com a biblioteca `ModalityWorklists.dll` estar instalado na máquina Windows conforme orientações de `docs/INSTALACAO_AGENTE_IA.md`.
+3. **Cliques Reais no SVG dos Body Marks**:
+   - O editor visual de Body Marks renderiza os esquemas SVG e permite posicionar e listar marcadores com quadrantes/horas/regiões; melhorias no mapeamento de clique vetorial interativo direto sobre cada polígono específico continuam como evolução futura.
+4. **Provedores de Assinatura Digital ICP-Brasil**:
+   - A infraestrutura está pronta nos adaptadores de serviço (`src/services/digitalSignature.ts`), porém **desativada por padrão**, operando no modo de assinatura manual em papel ou emissão digital simples. Nenhuma credencial comercial falsa deve ser inserida.
 
 ---
 
@@ -167,14 +230,15 @@ Para garantir honestidade técnica intransigente, o agente externo deve estar ci
 
 O agente externo (ChatGPT / Codex / Claude Code / etc.) deve observar estritamente as regras abaixo:
 
-1. **Escopo Restrito à Instalação Local**:
+1. **Papel Exclusivo de Instalação Local**:
    - Sua única responsabilidade é seguir os passos de instalação da ponte local no notebook Windows do médico.
-   - **Não altere** nenhum arquivo de código do app (`src/**`), nenhum componente React, nenhuma folha de estilo e nenhuma migração do PocketBase.
+   - **NÃO alterar** nenhum arquivo de código do app (`src/**`), nenhum componente React, nenhuma folha de estilo, nenhum arquivo de migração do PocketBase (`pocketbase/migrations/**`), nem regras de hook.
+   - O desenvolvimento e a evolução do código do sistema continuam guiados exclusivamente pelo **Skip**.
 2. **Preservação de Credenciais e Segurança**:
    - Não altere senhas, chaves de autenticação, nem regras de permissão no PocketBase.
    - O token MWL do médico deve ser lido unicamente do arquivo local `tools/mwl_bridge/config_ponte.env` (que nunca deve ser commitado no Git). Nunca "hardcode" o token no código.
 3. **Integridade de Dados**:
-   - Não remova, não renomeie e não altere os registros existentes no banco de dados (ex.: paciente fictício `mjjngduz3steate` e rascunho `muvdbwmrw3hagrr`).
+   - Não remova, não renomeie e não altere os registros existentes no banco de dados.
 4. **Honestidade Técnica nos Testes**:
    - Diferencie claramente **revisão estática de código** de **execução real em tempo de execução**.
    - Nunca afirme que um serviço funcionou sem ter verificado o código de retorno ou a saída real dos scripts no console do Windows.
@@ -182,10 +246,10 @@ O agente externo (ChatGPT / Codex / Claude Code / etc.) deve observar estritamen
    - Siga rigorosamente o passo a passo descrito em [`docs/INSTALACAO_AGENTE_IA.md`](INSTALACAO_AGENTE_IA.md).
 6. **Plano B Operacional**:
    - Se por qualquer motivo a ponte Orthanc ou a comunicação DICOM falhar no local, acione imediatamente o **Plano B**:
-     - O médico digita o nome e CPF do paciente direto no aparelho Saevo FT412.
+     - O médico digita o nome do paciente direto no aparelho Saevo FT412.
      - O exame é realizado normalmente.
      - As fotos são exportadas para um pendrive USB e anexadas no laudo do LW Laudos pelo notebook conectado ao hotspot do celular.
-     - O laudo é gerado em PDF e impresso normalmente. Nenhum paciente fica sem atendimento.
+     - O laudo é gerado em PDF e impresso normalmente. Nenhum atendimento é interrompido.
 
 ---
 
@@ -193,13 +257,13 @@ O agente externo (ChatGPT / Codex / Claude Code / etc.) deve observar estritamen
 
 | Parâmetro                        | Detalhe                                                                                                                                                                                                                                                             |
 | :------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Localização**                  | Clínica em Mirante da Serra (interior de Rondônia).                                                                                                                                                                                                                 |
-| **Condições do Local**           | Sala de atendimento **sem infraestrutura de TI prévia** (sem servidor local, sem cabeamento estruturado, sem PACS, sem roteador corporativo).                                                                                                                       |
+| **Localização**                  | HM Samuel Marques dos Santos / Clínica em Mirante da Serra (interior de Rondônia).                                                                                                                                                                                  |
+| **Condições do Local**           | Sala de atendimento **sem infraestrutura de TI prévia** (sem servidor dedicado de TI, sem cabeamento estruturado de rede, sem PACS hospitalar, sem roteador corporativo).                                                                                           |
 | **Equipamento de Ultrassom**     | **SAEVO FT412** (dispõe de suporte nativo a DICOM Worklist no manual técnico).                                                                                                                                                                                      |
 | **Topologia de Rede Local**      | Notebook do médico conectado ao aparelho Saevo via **cabo Ethernet direto** (IPs estáticos: Notebook `192.168.1.100`, Saevo `192.168.1.50`, porta DICOM `104`, AE Title `LW-ORTHO`).                                                                                |
-| **Conexão com a Nuvem**          | Notebook conectado via Wi-Fi ao **Hotspot 4G/5G do celular** do médico para sincronizar a agenda do LW Laudos com a nuvem. O aparelho Saevo não necessita de internet.                                                                                              |
+| **Conexão com a Nuvem**          | Notebook conectado via Wi-Fi ao **Hotspot 4G/5G do celular** do médico para sincronizar a agenda do LW Laudos com a nuvem Skip. O aparelho Saevo não necessita de internet.                                                                                         |
 | **Critério de Sucesso do Teste** | Um exame agendado na tela de **Agenda** do LW Laudos na nuvem é baixado pelo script `bridge.py`, disponibilizado pelo Orthanc local e **aparece listado na tela de Worklist (New Patient → Worklist) do aparelho Saevo FT412** pronto para transferência dos dados. |
 
 ---
 
-_Documento consolidado para orientação do agente local no notebook do Dr. Lucas Willian da Silva (CRM RO 6955)._
+_Documento consolidado para orientação do agente local no notebook do Dr. Lucas Willian da Silva (CRM RO 6955) — Estado do Projeto v0.0.24._
