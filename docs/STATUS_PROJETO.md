@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.40**  
+> **Versão do Projeto**: **v0.0.41**  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,28 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.41 — Elevação do Limite do Campo Body e Textos Longos para Laudos Completos**:
+  - **Diagnóstico da Causa Raiz ("body: Must be no more than 5000 character(s).")**:
+    - No PocketBase v0.22+/v0.36, campos do tipo `text` sem atributo `max` explícito adotam por padrão interno o limite de **5.000 caracteres**.
+    - Ao utilizar a ação global **"Tudo Normal"** (introduzida na v0.0.39), o laudo de ultrassonografia de abdome total preenche todas as seções anatômicas (fígado, vesícula, vias biliares, pâncreas, baço, rins, bexiga, vasos e cavidade). O HTML estruturado compilado (`generateFullHtmlBody`) ultrapassa legitimamente os 5.000 caracteres (geralmente entre 5.200 e 8.000 caracteres).
+    - Graças à extração detalhada de erro por campo adicionada na v0.0.40, o toast vermelho informou com precisão cirúrgica: `body: Must be no more than 5000 character(s).`
+  - **Migração Idempotente de Esquema (`0019_increase_reports_text_limits.js`)**:
+    - Elevação do limite do campo `body` da coleção `reports` para **100.000 caracteres** (capacidade ampla para laudos extensos com HTML e imagens base64/SVGs).
+    - Auditoria preventiva em todos os outros campos de texto longo:
+      - `reports.conclusion`: elevado para **50.000 caracteres**.
+      - `templates.body`: elevado para **100.000 caracteres** e `templates.description` para **20.000 caracteres**.
+      - `ultrasound_findings.text_content`: elevado para **50.000 caracteres**.
+      - `exams.indication` (10.000) e `exams.technical_notes` (20.000).
+      - `patients.notes` (20.000).
+    - Aplicação imediata via `apply_migrations` no PocketBase sem tocar em nenhum registro existente.
+  - **Auditoria do Editor de Ultrassom (`UltrasoundReportEditor.tsx`)**:
+    - Confirmado que o gerador de HTML (`generateFullHtmlBody`) e o payload de envio (`handleFinalizeReport` / `performSaveDraft`) não realizam truncamento nem corte de texto (`slice`/`substring`), preservando 100% da integridade clínica descrita pelo médico.
+  - **Extensão do Painel de Simulação E2E (`SimulationReportFinalizeE2E.tsx`)**:
+    - O cenário de teste de finalização em `/diagnostico` foi expandido para gerar um laudo completo sintético com todos os 10 órgãos preenchidos pelo padrão normal, somando mais de 5.200 caracteres de body HTML.
+    - O teste valida a criação 2xx do laudo longo com status `Finalizado` e assinatura Bird ID, confirma a leitura completa no banco e exclui o registro de teste em seguida, mantendo o banco limpo.
+  - **Integridade Garantida**:
+    - O rascunho oficial de laudo do Dr. Lucas (`muvdbwmrw3hagrr`, owner `kxhlkfxh0yddn64`, status `Rascunho`) permanece 100% intacto e verificado antes e depois da migração.
 
 - **v0.0.40 — Correção da Finalização de Laudo Novo e Mensagens de Erro por Campo no Toast**:
   - **Diagnóstico da Causa Raiz ("Failed to create record")**:
