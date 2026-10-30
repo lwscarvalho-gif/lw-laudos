@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.39**  
+> **Versão do Projeto**: **v0.0.40**  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,21 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.40 — Correção da Finalização de Laudo Novo e Mensagens de Erro por Campo no Toast**:
+  - **Diagnóstico da Causa Raiz ("Failed to create record")**:
+    - No editor `/laudos/ultrassom`, ao finalizar um laudo **NOVO** (sem ID salvo previamente), o caminho executava `reportsService.create` e em seguida chamava `examImagesService.linkImagesToReport` apenas no fluxo de update.
+    - O tratamento de exceções de erro do PocketBase (`getErrorMessage` em `src/lib/pocketbase/errors.ts`) agrupava apenas os valores sem o nome do campo ou caía no genérico `error.message` ("Failed to create record"), ocultando a causa exata do erro no toast vermelho do médico.
+    - Aprimoramento da função `getErrorMessage` para extrair cada par `campo: mensagem de validação` (`field: msg`) da resposta do PocketBase (ex.: `patient_id: valor inválido`, `title: Cannot be blank`), garantindo diagnóstico imediato e honesto pela UI em qualquer falha de validação futura.
+    - No fluxo de `handleFinalizeReport` de laudo novo (`!currentReportId`), foi adicionada a vinculação automática das imagens do exame ao laudo recém-criado (`linkImagesToReport`), alinhando o comportamento com o fluxo de edição.
+  - **Validação E2E com Assinatura Digital Bird ID Ativa**:
+    - Criado componente de auditoria e teste E2E em `/diagnostico` (`SimulationReportFinalizeE2E`), reproduzindo exatamente o fluxo do médico (Dr. Lucas Willian da Silva) para o paciente Carlos Eduardo Ribeiro de Souza com assinatura Bird ID ativa:
+      1. Avaliação e verificação de sessão em nuvem ativa Bird ID.
+      2. Envio do payload completo de criação de laudo novo com status `Finalizado`.
+      3. Verificação de persistência 2xx no banco de dados.
+      4. Limpeza atômica do registro temporário de teste após confirmação.
+  - **Integridade Garantida**:
+    - O rascunho oficial de laudo do Dr. Lucas (`muvdbwmrw3hagrr`) permaneceu rigorosamente intacto (Status: `Rascunho`, Owner: `kxhlkfxh0yddn64`).
 
 - **v0.0.39 — Botão "Tudo Normal" no Editor de Laudo de Ultrassonografia**:
   - **Ação Global "Tudo Normal" no Topo do Formulário de Órgãos**:

@@ -1111,6 +1111,16 @@ export default function UltrasoundReportEditor() {
           signature_status: sigStatus,
           signature_provider: sigProvider || undefined,
         })
+
+        // Vincular eventuais imagens pendentes ao novo laudo finalizado
+        if (images.length > 0) {
+          await examImagesService
+            .linkImagesToReport(
+              images.map((img) => img.id),
+              finalizedReport.id,
+            )
+            .catch(() => {})
+        }
       }
 
       // Conclude exam if linked
