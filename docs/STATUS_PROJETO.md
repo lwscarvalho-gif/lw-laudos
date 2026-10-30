@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.34**  
+> **Versão do Projeto**: **v0.0.35**  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,26 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.35 — Modalidade Dupla de Operação e Chave Liga/Desliga de Assinatura Digital no Painel com Certificado A1**:
+  - **Meta de 2 modalidades operacionais concretizada**:
+    - **Modalidade offline/manual**: laudo impresso para assinatura física do médico (comporta operação sem certificado ou em trânsito).
+    - **Modalidade online/digital**: laudo com identificação, carimbo visual e dados do certificado digital ICP-Brasil.
+  - **Chave no Painel (`/painel`, `Painel.tsx`)**:
+    - Cartão compacto sob a saudação _"Olá, [Nome] 👋"_ contendo um switch Liga/Desliga rotulado **"Assinatura digital"**.
+    - Estados explicativos claros:
+      - **Ligada**: _"Laudos saem assinados digitalmente"_.
+      - **Desligada**: _"Assinatura manual após impressão"_.
+    - Visibilidade restrita aos perfis médicos e administradores (oculto para operadores).
+    - Persistência individual por médico no campo `digital_signature_enabled` do perfil (`_pb_users_auth_`) via migração idempotente `0017_add_digital_signature_preference.js`.
+  - **Gestão do Certificado A1 Client-Side (LGPD & Ética Médica)**:
+    - Ao ligar pela primeira vez ou se não houver certificado ativo, abre modal para upload do arquivo `.pfx` ou `.p12` e validação da senha.
+    - O certificado e a chave privada permanecem **estritamente no navegador local do médico** (IndexedDB `lw_laudos_doctor_pki_v1`), **nunca transmitidos ao servidor**.
+    - Extração e exibição do titular (Common Name), emissor e serial ativo, com opção de gerenciar, substituir ou remover.
+  - **Integração com o Gerador de PDF e Emissão de Laudos**:
+    - Com a chave ligada e certificado configurado, o PDF compilado (`pdfGenerator.ts`) e o visualizador (`LaudoDetalhes.tsx`, `UltrasoundReportEditor.tsx`) embutem o selo formal de assinatura digital (ICP-Brasil / PAdES visual) com titular, CRM, emissor, serial, data/hora e hash SHA-256.
+    - Com a chave desligada, o fluxo de assinatura manual permanece inalterado.
+    - Se a chave estiver ligada sem certificado configurado, a interface alerta e permite seguir sem bloqueios involuntários do laudo.
 
 - **v0.0.34 — Operadores do Sistema com Vínculo ao Local, Isolamento Rígido, LGPD e Ética Médica**:
   - **Criação do Perfil "Operador"**:

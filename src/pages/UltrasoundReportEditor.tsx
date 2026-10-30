@@ -27,6 +27,10 @@ import pb from '@/lib/pocketbase/client'
 import { reportsService } from '@/services/reports'
 import { examsService } from '@/services/exams'
 import { digitalSignatureService } from '@/services/digitalSignature'
+import {
+  doctorA1CertificateService,
+  type ActiveA1CertificateInfo,
+} from '@/services/doctorA1Certificate'
 import { patientsService } from '@/services/patients'
 import { appointmentsService } from '@/services/appointments'
 import { ultrasoundFindingsService } from '@/services/ultrasoundFindings'
@@ -151,6 +155,15 @@ export default function UltrasoundReportEditor() {
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
   const [pdfPreviewHtml, setPdfPreviewHtml] = useState('')
   const [downloadingRealPdf, setDownloadingRealPdf] = useState(false)
+  const [doctorCert, setDoctorCert] = useState<ActiveA1CertificateInfo | null>(null)
+
+  useEffect(() => {
+    if (user?.id) {
+      doctorA1CertificateService.getCertificateInfo(user.id).then((cert) => {
+        setDoctorCert(cert)
+      })
+    }
+  }, [user?.id])
 
   const [replaceConfirmOpen, setReplaceConfirmOpen] = useState(false)
   const [pendingTextToInsert, setPendingTextToInsert] = useState<{
@@ -756,6 +769,16 @@ export default function UltrasoundReportEditor() {
       images: selectedImgs,
       imagesPerPage,
       bodyMarks: bodyMarks.schemeId !== 'none' ? bodyMarks : undefined,
+      digitalSignature:
+        user?.digital_signature_enabled && doctorCert
+          ? {
+              enabled: true,
+              commonName: doctorCert.commonName,
+              issuer: doctorCert.issuer,
+              serialNumber: doctorCert.serialNumber,
+              signedAt: new Date().toISOString(),
+            }
+          : undefined,
     }
   }, [
     patients,
@@ -773,6 +796,7 @@ export default function UltrasoundReportEditor() {
     currentReportId,
     imagesPerPage,
     bodyMarks,
+    doctorCert,
   ])
 
   // Open in-app PDF preview modal
@@ -1709,6 +1733,22 @@ export default function UltrasoundReportEditor() {
                   {images.filter((img) => img.selected_for_print !== false).length} imagem(ns)
                   anexada(s) para impressão
                 </span>
+              </div>
+              <div className="pt-1 border-t border-[#E5E9E7] flex items-center justify-between">
+                <span className="text-[#8A9691]">Modalidade de Assinatura:</span>
+                {user?.digital_signature_enabled && doctorCert ? (
+                  <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    ✓ Assinatura Digital A1 ({doctorCert.commonName})
+                  </span>
+                ) : user?.digital_signature_enabled && !doctorCert ? (
+                  <span className="font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    ⚠ Chave ligada sem certificado no navegador (sairá manual)
+                  </span>
+                ) : (
+                  <span className="font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                    Assinatura manual após impressão
+                  </span>
+                )}
               </div>
             </div>
 

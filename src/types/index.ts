@@ -32,6 +32,7 @@ export interface User {
   exam_durations_config?: Record<string, number> | string
   assigned_doctor?: string
   allowed_clinics?: string[] | string
+  digital_signature_enabled?: boolean
   created?: string
   updated?: string
 }

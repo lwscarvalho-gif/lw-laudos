@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-30T01:47:22.719Z",
+  "generatedAt": "2026-10-30T02:04:59.285Z",
   "collections": [
     {
       "name": "users",
@@ -129,6 +129,12 @@
         {
           "name": "allowed_clinics",
           "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "digital_signature_enabled",
+          "type": "bool",
           "required": false,
           "system": false
         }

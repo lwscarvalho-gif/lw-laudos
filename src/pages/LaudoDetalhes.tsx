@@ -19,6 +19,10 @@ import {
 } from 'lucide-react'
 import { reportsService } from '@/services/reports'
 import { digitalSignatureService, DigitalSignatureStatus } from '@/services/digitalSignature'
+import {
+  doctorA1CertificateService,
+  type ActiveA1CertificateInfo,
+} from '@/services/doctorA1Certificate'
 import { useNetworkStatus } from '@/lib/networkStatus'
 import { computeSha256Hex, buildReportCanonicalDigestString } from '@/lib/cryptoDigest'
 import { useAuth } from '@/contexts/AuthContext'
@@ -141,6 +145,15 @@ export default function LaudoDetalhes() {
   }
 
   const [downloadingRealPdf, setDownloadingRealPdf] = useState(false)
+  const [doctorCert, setDoctorCert] = useState<ActiveA1CertificateInfo | null>(null)
+
+  useEffect(() => {
+    if (user?.id) {
+      doctorA1CertificateService.getCertificateInfo(user.id).then((cert) => {
+        setDoctorCert(cert)
+      })
+    }
+  }, [user?.id])
 
   const buildPrintReportProps = () => {
     if (!report) return null
@@ -219,6 +232,17 @@ export default function LaudoDetalhes() {
         report.structured_data?.body_marks?.schemeId &&
         report.structured_data.body_marks.schemeId !== 'none'
           ? report.structured_data.body_marks
+          : undefined,
+      digitalSignature:
+        user?.digital_signature_enabled && doctorCert
+          ? {
+              enabled: true,
+              commonName: doctorCert.commonName,
+              issuer: doctorCert.issuer,
+              serialNumber: doctorCert.serialNumber,
+              signedAt: report.signature_date || report.created,
+              hashSha256: currentSha256,
+            }
           : undefined,
     }
   }

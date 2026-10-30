@@ -22,6 +22,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import type { Report, User } from '@/types'
 import { formatDateBR, formatRelativeDate } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
+import { DigitalSignatureCard } from '@/components/DigitalSignatureCard'
 
 export default function Painel() {
   const { user, isAdmin } = useAuth()
@@ -130,6 +131,12 @@ export default function Painel() {
         <h1 className="text-2xl sm:text-3xl font-bold text-[#1F2A27]">Olá, {firstName} 👋</h1>
         <p className="text-sm text-[#5F6E69] mt-1 capitalize">{todayFormatted}</p>
       </div>
+
+      {/* Switch Assinatura Digital (médico / administrador) */}
+      {(user?.role === 'Médico' ||
+        user?.role === 'Administrador' ||
+        user?.role === 'Administrador Geral' ||
+        !user?.role) && <DigitalSignatureCard />}
 
       {/* 4 Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

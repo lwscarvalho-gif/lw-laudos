@@ -33,6 +33,14 @@ export interface PrintReportProps {
   images?: PrintReportImageItem[]
   imagesPerPage?: 2 | 4 | 6
   bodyMarks?: BodyMarksState
+  digitalSignature?: {
+    enabled: boolean
+    commonName?: string
+    issuer?: string
+    serialNumber?: string
+    signedAt?: string
+    hashSha256?: string
+  }
 }
 
 // Fixed legal indicator
@@ -666,7 +674,8 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
   }
 
   // Signature Block
-  const sigHeight = 70
+  const isDigital = Boolean(props.digitalSignature?.enabled)
+  const sigHeight = isDigital ? 120 : 70
   if (cursorY - sigHeight < pageBottomLimit) {
     currentPage = doc.addPage()
     textPages.push(currentPage)
@@ -676,53 +685,156 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
 
   cursorY -= 20
   const sigCenterX = marginX + contentWidth / 2
-  currentPage.drawLine(sigCenterX - 110, cursorY, sigCenterX + 110, cursorY, COLOR_TEXT_MAIN, 0.75)
-  cursorY -= 12
 
-  // Author Name
-  currentPage.drawText(props.authorName || 'Médico Responsável', sigCenterX, cursorY, {
-    fontSize: 10.5,
-    bold: true,
-    align: 'center',
-    color: COLOR_TEXT_MAIN,
-  })
-  cursorY -= 12
+  if (isDigital) {
+    // Carimbo Visual Oficial de Assinatura Digital (ICP-Brasil PAdES compliant visual representation)
+    const stampW = 340
+    const stampH = 72
+    const stampX = sigCenterX - stampW / 2
+    const stampY = cursorY - stampH
 
-  // Author Title: default to "Médico / CRM <num>" without presuming specialty
-  const authorCrmStr = props.authorCrm
-    ? `CRM ${props.authorCrmUf ? `${props.authorCrmUf} ` : ''}${props.authorCrm}`
-    : 'CRM não informado'
-  const displayTitle = props.authorTitle ? props.authorTitle : `Médico / ${authorCrmStr}`
+    // Fundo do selo digital e borda verde
+    currentPage.drawRect(stampX, stampY, stampW, stampH, {
+      fillColor: [0.965, 0.985, 0.975],
+      strokeColor: COLOR_PRIMARY,
+      lineWidth: 1,
+    })
+    // Barra lateral do selo
+    currentPage.drawRect(stampX, stampY, 5, stampH, {
+      fillColor: COLOR_PRIMARY,
+    })
 
-  currentPage.drawText(authorCrmStr, sigCenterX, cursorY, {
-    fontSize: 9.5,
-    bold: true,
-    align: 'center',
-    color: COLOR_PRIMARY,
-  })
-  cursorY -= 11
+    // Cabeçalho do selo
+    currentPage.drawText(
+      'DOCUMENTO ASSINADO DIGITALMENTE (PADES / ICP-BRASIL)',
+      stampX + 14,
+      stampY + stampH - 14,
+      {
+        fontSize: 8,
+        bold: true,
+        color: COLOR_PRIMARY,
+      },
+    )
 
-  currentPage.drawText(displayTitle, sigCenterX, cursorY, {
-    fontSize: 8.5,
-    italic: true,
-    align: 'center',
-    color: COLOR_MUTED,
-  })
-  cursorY -= 10
+    // Linha 1: Titular e CRM
+    const certHolder =
+      props.digitalSignature?.commonName || props.authorName || 'Médico Responsável'
+    const authorCrmStr = props.authorCrm
+      ? `CRM ${props.authorCrmUf ? `${props.authorCrmUf} ` : ''}${props.authorCrm}`
+      : 'CRM não informado'
+    currentPage.drawText(
+      `Assinante: ${certHolder} • ${authorCrmStr}`,
+      stampX + 14,
+      stampY + stampH - 28,
+      {
+        fontSize: 8.5,
+        bold: true,
+        color: COLOR_TEXT_MAIN,
+      },
+    )
 
-  const sigDateStr = props.signatureDate
-    ? new Date(props.signatureDate).toLocaleDateString('pt-BR')
-    : new Date().toLocaleDateString('pt-BR')
-  currentPage.drawText(
-    `Identificação profissional registrada eletronicamente em ${sigDateStr}`,
-    sigCenterX,
-    cursorY,
-    {
-      fontSize: 7.5,
+    // Linha 2: Emissor e Serial do Certificado A1
+    const certIssuer = props.digitalSignature?.issuer || 'Autoridade Certificadora ICP-Brasil'
+    const certSerial = props.digitalSignature?.serialNumber
+      ? ` • Serial: ${props.digitalSignature.serialNumber}`
+      : ''
+    currentPage.drawText(
+      `Certificado A1: ${certIssuer.slice(0, 48)}${certSerial}`,
+      stampX + 14,
+      stampY + stampH - 41,
+      {
+        fontSize: 7.5,
+        color: COLOR_MUTED,
+      },
+    )
+
+    // Linha 3: Data/Hora e Hash
+    const signDateStr = props.digitalSignature?.signedAt
+      ? new Date(props.digitalSignature.signedAt).toLocaleString('pt-BR')
+      : new Date().toLocaleString('pt-BR')
+    const hashShort = props.digitalSignature?.hashSha256
+      ? ` • SHA-256: ${props.digitalSignature.hashSha256.slice(0, 16)}...`
+      : ''
+    currentPage.drawText(
+      `Data da assinatura: ${signDateStr}${hashShort}`,
+      stampX + 14,
+      stampY + stampH - 54,
+      {
+        fontSize: 7,
+        color: COLOR_MUTED,
+      },
+    )
+
+    // Linha 4: Validação
+    currentPage.drawText(
+      'Conforme MP nº 2.200-2/2001 e Resolução CFM nº 2.299/2021',
+      stampX + 14,
+      stampY + stampH - 65,
+      {
+        fontSize: 6.5,
+        italic: true,
+        color: COLOR_PRIMARY,
+      },
+    )
+
+    cursorY = stampY - 14
+  } else {
+    // Fluxo clássico de assinatura manual
+    currentPage.drawLine(
+      sigCenterX - 110,
+      cursorY,
+      sigCenterX + 110,
+      cursorY,
+      COLOR_TEXT_MAIN,
+      0.75,
+    )
+    cursorY -= 12
+
+    // Author Name
+    currentPage.drawText(props.authorName || 'Médico Responsável', sigCenterX, cursorY, {
+      fontSize: 10.5,
+      bold: true,
+      align: 'center',
+      color: COLOR_TEXT_MAIN,
+    })
+    cursorY -= 12
+
+    // Author Title: default to "Médico / CRM <num>" without presuming specialty
+    const authorCrmStr = props.authorCrm
+      ? `CRM ${props.authorCrmUf ? `${props.authorCrmUf} ` : ''}${props.authorCrm}`
+      : 'CRM não informado'
+    const displayTitle = props.authorTitle ? props.authorTitle : `Médico / ${authorCrmStr}`
+
+    currentPage.drawText(authorCrmStr, sigCenterX, cursorY, {
+      fontSize: 9.5,
+      bold: true,
+      align: 'center',
+      color: COLOR_PRIMARY,
+    })
+    cursorY -= 11
+
+    currentPage.drawText(displayTitle, sigCenterX, cursorY, {
+      fontSize: 8.5,
+      italic: true,
       align: 'center',
       color: COLOR_MUTED,
-    },
-  )
+    })
+    cursorY -= 10
+
+    const sigDateStr = props.signatureDate
+      ? new Date(props.signatureDate).toLocaleDateString('pt-BR')
+      : new Date().toLocaleDateString('pt-BR')
+    currentPage.drawText(
+      `Identificação profissional registrada eletronicamente em ${sigDateStr}`,
+      sigCenterX,
+      cursorY,
+      {
+        fontSize: 7.5,
+        align: 'center',
+        color: COLOR_MUTED,
+      },
+    )
+  }
 
   // 3.5. Body Mark Anatomical Scheme Page (Placed BETWEEN text and photographic images)
   if (props.bodyMarks && props.bodyMarks.schemeId && props.bodyMarks.schemeId !== 'none') {
@@ -1477,13 +1589,37 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
         : ''
     }
 
-    <div class="signature-block">
-      <div class="signature-line"></div>
-      <div class="author-name">${props.authorName}</div>
-      ${crmFormatted ? `<div class="author-crm">${crmFormatted}</div>` : ''}
-      <div class="author-title">${authorTitleFormatted}</div>
-      <div class="signature-date">Identificação profissional registrada eletronicamente em ${sigDateFormatted}</div>
-    </div>
+    ${
+      props.digitalSignature?.enabled
+        ? `
+      <div style="margin-top: 28px; page-break-inside: avoid; border: 1.5px solid #0C6B58; border-radius: 6px; padding: 12px 16px; background: #F4F9F7; font-family: -apple-system, sans-serif; text-align: left; max-width: 440px; margin-left: auto; margin-right: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="color: #0C6B58; font-weight: 800; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #D1E5DE; padding-bottom: 4px; margin-bottom: 6px;">
+          ✓ Documento Assinado Digitalmente (ICP-Brasil / PAdES)
+        </div>
+        <div style="font-size: 9pt; font-weight: 700; color: #1F2A27;">
+          Assinante: ${props.digitalSignature.commonName || props.authorName}${crmFormatted ? ` • ${crmFormatted}` : ''}
+        </div>
+        <div style="font-size: 8pt; color: #5F6E69; margin-top: 2px;">
+          Certificado A1: ${props.digitalSignature.issuer || 'Autoridade Certificadora ICP-Brasil'}${props.digitalSignature.serialNumber ? ` • Serial: ${props.digitalSignature.serialNumber}` : ''}
+        </div>
+        <div style="font-size: 7.5pt; color: #5F6E69; margin-top: 2px;">
+          Data da assinatura: ${props.digitalSignature.signedAt ? new Date(props.digitalSignature.signedAt).toLocaleString('pt-BR') : sigDateFormatted}${props.digitalSignature.hashSha256 ? ` • SHA-256: ${props.digitalSignature.hashSha256.slice(0, 16)}...` : ''}
+        </div>
+        <div style="font-size: 7pt; color: #0C6B58; margin-top: 4px; font-style: italic;">
+          Conforme MP nº 2.200-2/2001 e Resolução CFM nº 2.299/2021
+        </div>
+      </div>
+    `
+        : `
+      <div class="signature-block">
+        <div class="signature-line"></div>
+        <div class="author-name">${props.authorName}</div>
+        ${crmFormatted ? `<div class="author-crm">${crmFormatted}</div>` : ''}
+        <div class="author-title">${authorTitleFormatted}</div>
+        <div class="signature-date">Identificação profissional registrada eletronicamente em ${sigDateFormatted}</div>
+      </div>
+    `
+    }
   </div>
 
   <!-- BODY MARK SECTION (Between Text and Images) -->
