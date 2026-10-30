@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.50** (Fechada — Otimização do Layout do Editor de Ultrassom: Body Mark e Documentação Fotográfica na Coluna Lateral Direita)  
+> **Versão do Projeto**: **v0.0.51** (Fechada — Modo Tela Dividida com Histórico da Paciente e Otimização da Consulta Visual de Imagens no Editor de Ultrassom)  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,40 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.51 — Modo Tela Dividida (Split Screen) com Histórico da Paciente e Otimização Visual das Imagens no Editor de Ultrassom**:
+  - **Atendimento à Solicitação do Médico / Proprietário**:
+    - _"o objetivo é as imagens ficarem visíveis ao medico, de forma que ele esta fazendo o laudo e caso tenha duvida consiga ver as imagens com facilidade para sanar essa duvida. tambem quero que tenha um botão nessa parte lateral que caso acionado divida a tela ao meio e numa metade fique o laudo atual e na outra metade o historico de laudos da paciente com a possibilidade de consulta a integra dos laudos antigos e inclusive importar partes (pode ser pelo copiar colar mesmo)."_
+  - **1. Imagens do Exame Sempre à Vista e de Fácil Consulta Médica**:
+    - No `ExamImagesManager.tsx`, as capturas ecográficas anexadas (JPG, PNG, DICOM local e frames do PACS Orthanc) receberam miniaturas maiores e foco na agilidade clínica.
+    - Adicionado seletor de visualização rápida:
+      - **"Padrão"**: card completo com legenda, ordenação e seleção de impressão.
+      - **"Visão Clínica"**: grade com miniaturas ecográficas aumentadas para sanar dúvidas instantaneamente durante o preenchimento descritivo.
+    - **Lightbox / Zoom Clínico de Alta Resolução**:
+      - Clique direto em qualquer imagem abre o visualizador em tela cheia com navegação sequencial anterior/próxima (`ChevronLeft` / `ChevronRight`) e carrossel de miniaturas no rodapé, permitindo inspeção minuciosa dos detalhes anatômicos.
+    - Upload via seletor nativo, arrastar e soltar (drag & drop), decodificação DICOM local e busca no PACS Orthanc mantidos 100% funcionais.
+  - **2. Modo Tela Dividida (Split Screen) com Histórico de Laudos da Paciente**:
+    - Adicionado botão discreto na coluna lateral direita: **"Dividir Tela com Histórico"** (também disponível na barra de ações superior).
+    - Quando acionado, o editor divide o espaço de trabalho ao meio (50% laudo atual em edição, 50% histórico de laudos da mesma paciente em telas desktop; empilhamento responsivo em telas estreitas).
+    - Criação do componente dedicado `PatientReportHistoryPanel.tsx` (`src/components/ultrasound/PatientReportHistoryPanel.tsx`):
+      - Consulta todos os laudos anteriores da mesma paciente através de `reportsService.getByPatientId(patientId)`, filtrando e excluindo o laudo atual em edição e respeitando as regras de isolamento por médico/locatário (RLS do PocketBase).
+      - Lista lateral com filtro rápido de busca por tipo de exame, título ou trecho textual, exibindo data e status (Rascunho ou Finalizado).
+      - **Consulta à Íntegra de Qualquer Laudo Antigo**:
+        - Apresenta todas as seções anatômicas estruturadas (Fígado, Vias Biliares, Rins, etc.) ou corpo de texto livre.
+        - Conclusão diagnóstica em destaque visual.
+        - Renderização do Body Mark antigo (com coordenadas e esquema anatômico) caso tenha sido gravado no laudo anterior.
+        - Exibição da documentação fotográfica antiga com fotogramas e legendas associadas.
+        - Link de consulta externa para abrir o laudo antigo em nova aba (`/laudos/:id`).
+      - **Importação e Cópia de Trechos**:
+        - Texto 100% selecionável com o mouse para uso natural de `Ctrl+C` e `Ctrl+V`.
+        - Botão **"Copiar Texto Completo"** no cabeçalho do laudo antigo.
+        - Botão **"Copiar trecho"** dedicado para cada órgão/seção e para a conclusão diagnóstica.
+        - Botão ergonômico **"Inserir na caixa ativa"** que anexa o texto selecionado diretamente na seção anatômica atualmente focada pelo médico ou na conclusão.
+    - Desativação imediata pelo mesmo botão no cabeçalho ou pelo botão "Fechar Dividida" no painel, restaurando o layout padrão do editor.
+  - **3. Preservação Total de Regras, Geração de PDF e Dados**:
+    - Nenhuma alteração no gerador de PDF (`pdfGenerator.ts`) nem no documento impresso: o PDF segue idêntico e preservado.
+    - O rascunho oficial de laudo do Dr. Lucas (`muvdbwmrw3hagrr`, status `Rascunho`, owner `kxhlkfxh0yddn64`) permanece 100% intacto no banco de dados.
+    - Pipeline de QA (`oxlint`, `tsc -p tsconfig.app.json`, `vite build`) 100% verde com zero erros.
 
 - **v0.0.50 — Otimização do Layout do Editor de Ultrassom: Body Mark e Documentação Fotográfica na Coluna Lateral Direita**:
   - **Atendimento à Solicitação do Usuário/Proprietário**:

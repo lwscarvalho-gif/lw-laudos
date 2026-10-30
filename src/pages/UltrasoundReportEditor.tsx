@@ -97,6 +97,8 @@ import BodyMarkEditor from '@/components/ultrasound/BodyMarkEditor'
 import BodyMarkModal from '@/components/ultrasound/BodyMarkModal'
 import { ANATOMICAL_SCHEMES } from '@/lib/bodyMarks/schemes'
 import { TextMasksModal } from '@/components/ultrasound/TextMasksModal'
+import PatientReportHistoryPanel from '@/components/ultrasound/PatientReportHistoryPanel'
+import { Columns, SplitSquareVertical } from 'lucide-react'
 import type { BodyMarksState } from '@/types'
 
 // Default structured sections for Abdome Total
@@ -206,6 +208,9 @@ export default function UltrasoundReportEditor() {
 
   // Text Masks Modal state (for free text mode & general rapid models)
   const [textMasksModalOpen, setTextMasksModalOpen] = useState(false)
+
+  // Split Screen Mode: Current Report Editor alongside Prior Patient Reports History
+  const [splitScreenHistoryOpen, setSplitScreenHistoryOpen] = useState(false)
 
   // Autosave tracking
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>(
@@ -455,6 +460,48 @@ export default function UltrasoundReportEditor() {
   const handleSectionTextChange = (id: string, text: string) => {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, text } : s)))
     setHasUnsavedChanges(true)
+  }
+
+  // Quick insertion helper from history panel into the active organ or free text
+  const handleInsertTextFromHistory = (textToInsert: string) => {
+    if (!textToInsert) return
+    if (mode === 'freetext') {
+      setFreeTextBody((prev) => (prev ? `${prev}\n\n${textToInsert}` : textToInsert))
+      setHasUnsavedChanges(true)
+      toast({
+        title: 'Texto inserido',
+        description: 'Trecho do laudo anterior anexado ao corpo de texto livre.',
+      })
+      return
+    }
+
+    if (activeOrganId === 'conclusao') {
+      setConclusion((prev) => (prev ? `${prev}\n${textToInsert}` : textToInsert))
+      setHasUnsavedChanges(true)
+      toast({
+        title: 'Conclusão atualizada',
+        description: 'Trecho inserido na conclusão diagnóstica.',
+      })
+      return
+    }
+
+    // Inserir na seção ativa
+    const targetSection = sections.find((s) => s.id === activeOrganId)
+    if (targetSection) {
+      if (targetSection.text.trim()) {
+        requestInsertText(activeOrganId, textToInsert)
+      } else {
+        handleSectionTextChange(activeOrganId, textToInsert)
+        toast({
+          title: 'Texto inserido',
+          description: `Trecho inserido na seção "${targetSection.label}".`,
+        })
+      }
+    } else {
+      // Fallback para a primeira seção ou conclusão
+      setConclusion((prev) => (prev ? `${prev}\n${textToInsert}` : textToInsert))
+      setHasUnsavedChanges(true)
+    }
   }
 
   // Assemble HTML body for storage and printing
@@ -1279,6 +1326,29 @@ export default function UltrasoundReportEditor() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      {/* Indicador de Modo Tela Dividida Ativo no topo */}
+      {splitScreenHistoryOpen && (
+        <div className="bg-[#E8F3F0] border border-[#0C6B58]/30 rounded-xl p-3 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2 text-xs text-[#0C6B58]">
+            <Columns className="w-4 h-4 shrink-0 font-bold" />
+            <span>
+              <strong>Modo Tela Dividida Ativo:</strong> Laudo atual à esquerda e histórico de
+              laudos da paciente à direita. Você pode consultar a íntegra, copiar trechos ou clicar
+              em "Inserir na caixa ativa".
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setSplitScreenHistoryOpen(false)}
+            className="h-7 text-xs bg-white text-[#0C6B58] border-[#0C6B58] hover:bg-[#FAFBFB] shrink-0"
+          >
+            Voltar à Tela Inteira
+          </Button>
+        </div>
+      )}
+
       {/* Top sticky navigation bar */}
       <div className="bg-white p-4 rounded-xl border border-[#E5E9E7] shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4 sticky top-16 z-10">
         <div className="flex items-center gap-3">
@@ -1375,6 +1445,23 @@ export default function UltrasoundReportEditor() {
             Salvar Rascunho
           </Button>
 
+          {/* Botão de Tela Dividida também disponível no cabeçalho */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setSplitScreenHistoryOpen((prev) => !prev)}
+            className={`text-xs h-9 font-medium transition ${
+              splitScreenHistoryOpen
+                ? 'bg-[#0C6B58] text-white hover:bg-[#0A5949] border-[#0C6B58]'
+                : 'border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]'
+            }`}
+            title="Dividir a tela ao meio para consultar laudos antigos da paciente lado a lado"
+          >
+            <Columns className="w-3.5 h-3.5 mr-1.5" />
+            {splitScreenHistoryOpen ? 'Fechar Tela Dividida' : 'Tela Dividida (Histórico)'}
+          </Button>
+
           <Button
             type="button"
             variant="outline"
@@ -1409,191 +1496,157 @@ export default function UltrasoundReportEditor() {
         </div>
       </div>
 
-      {/* Main Grid: Left Editor (75%), Right AI/Tools (25%) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (Forms & Organ Boxes) */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* Metadata Card: Patient, Exam, Title */}
-          <div className="bg-white p-6 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
+      {/* Split Screen Container: if splitScreenHistoryOpen is true, layout becomes 2 equal columns (50% editor, 50% history panel); otherwise standard 75% editor, 25% side column */}
+      {splitScreenHistoryOpen ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+          {/* Lado Esquerdo: Editor do Laudo Atual (50% da tela) */}
+          <div className="space-y-6 min-w-0">
+            {/* Metadata Card: Patient, Exam, Title */}
+            <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-[#1F2A27]">
+                      Identificação do Paciente *
+                    </Label>
+                    {patientId && (
+                      <Link
+                        to={`/pacientes/${patientId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-[#0C6B58] hover:underline font-semibold flex items-center gap-1"
+                        title="Abrir ficha do paciente em nova aba"
+                      >
+                        <User className="w-3 h-3" />
+                        Ficha ↗
+                      </Link>
+                    )}
+                  </div>
+                  <Select value={patientId} onValueChange={handlePatientChange}>
+                    <SelectTrigger className="text-xs">
+                      <SelectValue placeholder="Selecione o paciente..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {patients.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} {p.document ? `(CPF: ${p.document})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-[#1F2A27]">
-                    Identificação do Paciente *
+                    Exame Vinculado (validação estrita)
                   </Label>
-                  {patientId && (
-                    <Link
-                      to={`/pacientes/${patientId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[11px] text-[#0C6B58] hover:underline font-semibold flex items-center gap-1"
-                      title="Abrir ficha do paciente em nova aba"
+                  <Select
+                    value={examId}
+                    onValueChange={handleExamChange}
+                    disabled={!patientId || exams.length === 0}
+                  >
+                    <SelectTrigger className="text-xs">
+                      <SelectValue
+                        placeholder={
+                          !patientId
+                            ? 'Selecione o paciente primeiro'
+                            : exams.length === 0
+                              ? 'Nenhum exame deste paciente'
+                              : 'Selecione o exame...'
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {exams.map((ex) => (
+                        <SelectItem key={ex.id} value={ex.id}>
+                          {ex.type} — {formatDateBR(ex.exam_date)} ({ex.status})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 pt-2 border-t border-[#E5E9E7]">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-[#1F2A27]">Título do Laudo *</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-[#5F6E69]">Modo:</span>
+                    <button
+                      type="button"
+                      onClick={() => setMode('structured')}
+                      className={`px-2 py-0.5 rounded text-xs transition ${
+                        mode === 'structured'
+                          ? 'bg-[#0C6B58] text-white font-semibold'
+                          : 'text-[#5F6E69] hover:bg-gray-100'
+                      }`}
                     >
-                      <User className="w-3 h-3" />
-                      Ficha do paciente ↗
-                    </Link>
-                  )}
+                      Estruturado
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (mode === 'structured' && !freeTextBody) {
+                          setFreeTextBody(generateFullHtmlBody())
+                        }
+                        setMode('freetext')
+                      }}
+                      className={`px-2 py-0.5 rounded text-xs transition ${
+                        mode === 'freetext'
+                          ? 'bg-[#0C6B58] text-white font-semibold'
+                          : 'text-[#5F6E69] hover:bg-gray-100'
+                      }`}
+                    >
+                      Texto livre
+                    </button>
+                  </div>
                 </div>
-                <Select value={patientId} onValueChange={handlePatientChange}>
-                  <SelectTrigger className="text-xs">
-                    <SelectValue placeholder="Selecione o paciente..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {patients.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} {p.document ? `(CPF: ${p.document})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-[#1F2A27]">
-                  Exame Vinculado (validação estrita)
-                </Label>
-                <Select
-                  value={examId}
-                  onValueChange={handleExamChange}
-                  disabled={!patientId || exams.length === 0}
-                >
-                  <SelectTrigger className="text-xs">
-                    <SelectValue
-                      placeholder={
-                        !patientId
-                          ? 'Selecione o paciente primeiro'
-                          : exams.length === 0
-                            ? 'Nenhum exame deste paciente'
-                            : 'Selecione o exame...'
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {exams.map((ex) => (
-                      <SelectItem key={ex.id} value={ex.id}>
-                        {ex.type} — {formatDateBR(ex.exam_date)} ({ex.status})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value)
+                    setHasUnsavedChanges(true)
+                  }}
+                  className="text-sm font-semibold"
+                  placeholder="Ex.: Laudo de Ultrassonografia de Abdome Total"
+                />
               </div>
             </div>
 
-            <div className="space-y-1.5 pt-2 border-t border-[#E5E9E7]">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-[#1F2A27]">Título do Laudo *</Label>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-[#5F6E69]">Modo:</span>
-                  <button
-                    type="button"
-                    onClick={() => setMode('structured')}
-                    className={`px-2 py-0.5 rounded text-xs transition ${
-                      mode === 'structured'
-                        ? 'bg-[#0C6B58] text-white font-semibold'
-                        : 'text-[#5F6E69] hover:bg-gray-100'
-                    }`}
-                  >
-                    Estruturado por órgãos
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (mode === 'structured' && !freeTextBody) {
-                        setFreeTextBody(generateFullHtmlBody())
-                      }
-                      setMode('freetext')
-                    }}
-                    className={`px-2 py-0.5 rounded text-xs transition ${
-                      mode === 'freetext'
-                        ? 'bg-[#0C6B58] text-white font-semibold'
-                        : 'text-[#5F6E69] hover:bg-gray-100'
-                    }`}
-                  >
-                    Texto livre
-                  </button>
-                </div>
-              </div>
-              <Input
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value)
-                  setHasUnsavedChanges(true)
-                }}
-                className="text-sm font-semibold"
-                placeholder="Ex.: Laudo de Ultrassonografia de Abdome Total"
-              />
-            </div>
-          </div>
-
-          {/* Mode Switcher */}
-          {mode === 'freetext' ? (
-            /* LEGACY FREE TEXT MODE */
-            <div className="bg-white p-6 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex items-center gap-2">
+            {/* Mode Switcher no Modo Tela Dividida */}
+            {mode === 'freetext' ? (
+              <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
                   <h3 className="font-bold text-sm text-[#1F2A27]">Corpo do Laudo (Texto Livre)</h3>
-                  <span className="text-[11px] text-[#0C6B58] bg-[#E8F3F0] px-2 py-0.5 rounded font-medium border border-[#D0E6E1]">
-                    Editor de texto livre
-                  </span>
-                </div>
-
-                {/* Toolbar de Máscaras de Texto */}
-                <div className="flex items-center gap-2">
                   <Button
                     type="button"
                     onClick={() => setTextMasksModalOpen(true)}
                     className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs h-8 font-semibold shadow-sm px-3"
-                    title="Abrir biblioteca de máscaras de laudo pré-prontas do sistema ou pessoais"
                   >
                     <BookOpen className="w-3.5 h-3.5 mr-1.5" />
                     Máscaras de Laudo
                   </Button>
                 </div>
+                <Textarea
+                  rows={18}
+                  value={freeTextBody}
+                  onChange={(e) => {
+                    setFreeTextBody(e.target.value)
+                    setHasUnsavedChanges(true)
+                  }}
+                  className="font-serif-report text-sm leading-relaxed"
+                  placeholder="Digite o laudo ou copie trechos do laudo antigo ao lado..."
+                />
               </div>
-
-              {/* Informative banner on free-text mode */}
-              <div className="p-2.5 bg-[#FAFBFB] rounded-lg border border-[#E5E9E7] flex items-center justify-between text-xs text-[#5F6E69]">
-                <span className="text-[11px]">
-                  💡 <strong>Dica clínica:</strong> Clique em <strong>Máscaras de Laudo</strong>{' '}
-                  para carregar modelos pré-prontos (normal, litíase, esteatose, etc.) ou salvar seu
-                  texto como máscara particular.
-                </span>
-                {freeTextBody.trim() && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setTextMasksModalOpen(true)}
-                    className="h-6 text-[11px] text-[#0C6B58] hover:bg-[#E8F3F0] font-medium px-2 shrink-0"
-                  >
-                    Salvar este texto como máscara
-                  </Button>
-                )}
-              </div>
-
-              <Textarea
-                rows={16}
-                value={freeTextBody}
-                onChange={(e) => {
-                  setFreeTextBody(e.target.value)
-                  setHasUnsavedChanges(true)
-                }}
-                className="font-serif-report text-sm leading-relaxed"
-                placeholder="Digite livremente o conteúdo descritivo ou clique no botão Máscaras de Laudo para inserir um modelo pronto..."
-              />
-            </div>
-          ) : (
-            /* STRUCTURED ORGAN-BY-ORGAN EDITOR */
-            <div className="space-y-4">
-              {/* Top Organ Actions Toolbar: "Tudo Normal" Button & Shortcut hints */}
-              <div className="p-3.5 bg-gradient-to-r from-[#E8F3F0] via-[#EEF6F4] to-white rounded-xl border border-[#D0E6E1] shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-center gap-3">
+            ) : (
+              <div className="space-y-4">
+                {/* Organ Actions Toolbar */}
+                <div className="p-3 bg-gradient-to-r from-[#E8F3F0] via-[#EEF6F4] to-white rounded-xl border border-[#D0E6E1] shadow-sm flex items-center justify-between gap-3">
                   <Button
                     type="button"
                     onClick={handleTudoNormalClick}
                     disabled={tudoNormalLoading}
-                    className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs h-9 font-semibold shadow-sm px-4 shrink-0"
-                    title="Preencher todas as seções de órgãos como normal com um clique"
+                    className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs h-8 font-semibold shadow-sm px-3 shrink-0"
                   >
                     {tudoNormalLoading ? (
                       <>
@@ -1602,52 +1655,38 @@ export default function UltrasoundReportEditor() {
                       </>
                     ) : (
                       <>
-                        <CheckCheck className="w-4 h-4 mr-1.5 text-emerald-200" />
+                        <CheckCheck className="w-3.5 h-3.5 mr-1.5 text-emerald-200" />
                         Tudo Normal
                       </>
                     )}
                   </Button>
-
-                  <div className="text-xs text-[#0C6B58]">
-                    <div className="font-semibold flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-[#0C6B58] shrink-0" />
-                      Preenchimento Global do Laudo
-                    </div>
-                    <p className="text-[11px] text-[#5F6E69] leading-tight">
-                      Preenche as estruturas com o padrão normal sem apagar o que você já digitou.
-                    </p>
+                  <div className="flex items-center gap-2 text-xs text-[#5F6E69]">
+                    <span>Ativa:</span>
+                    <span className="text-[10px] bg-white text-[#0C6B58] px-2 py-0.5 rounded border border-[#D0E6E1] font-semibold">
+                      {activeOrganLabel}
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-xs border-t sm:border-t-0 pt-2 sm:pt-0 border-[#D0E6E1]/60 text-[#5F6E69] shrink-0">
-                  <span className="hidden md:inline">
-                    Caixa ativa: <code>Ctrl+N</code>
-                  </span>
-                  <span className="text-[10px] bg-white text-[#0C6B58] px-2 py-0.5 rounded border border-[#D0E6E1] font-semibold">
-                    {activeOrganLabel}
-                  </span>
-                </div>
-              </div>
+                {/* Organ Textarea Boxes */}
+                <div className="space-y-3">
+                  {sections.map((section) => {
+                    const isActive = activeOrganId === section.id
+                    const hasUndo = historyUndo[section.id] !== undefined
 
-              {/* Organ Textarea Boxes */}
-              <div className="space-y-4">
-                {sections.map((section) => {
-                  const isActive = activeOrganId === section.id
-                  const hasUndo = historyUndo[section.id] !== undefined
-
-                  return (
-                    <div
-                      key={section.id}
-                      className={`bg-white p-4 rounded-xl border transition shadow-sm ${
-                        isActive ? 'border-[#0C6B58] ring-1 ring-[#0C6B58]/20' : 'border-[#E5E9E7]'
-                      }`}
-                    >
-                      {/* Box Header */}
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
+                    return (
+                      <div
+                        key={section.id}
+                        className={`bg-white p-3.5 rounded-xl border transition shadow-xs ${
+                          isActive
+                            ? 'border-[#0C6B58] ring-1 ring-[#0C6B58]/20'
+                            : 'border-[#E5E9E7]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
                           <label
-                            htmlFor={`organ_${section.id}`}
-                            className="font-bold text-sm text-[#1F2A27] cursor-pointer"
+                            htmlFor={`split_organ_${section.id}`}
+                            className="font-bold text-xs text-[#1F2A27] cursor-pointer"
                             onClick={() => {
                               setActiveOrganId(section.id)
                               setActiveOrganLabel(section.label)
@@ -1655,491 +1694,909 @@ export default function UltrasoundReportEditor() {
                           >
                             {section.label}
                           </label>
-                          {section.text.trim() ? (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded font-medium border border-emerald-200">
-                              <Check className="w-2.5 h-2.5" /> Normal / Descrito
-                            </span>
-                          ) : null}
-                          {isActive && (
-                            <span className="text-[10px] bg-[#E8F3F0] text-[#0C6B58] px-1.5 py-0.2 rounded font-medium">
-                              Caixa ativa
-                            </span>
-                          )}
-                        </div>
 
-                        {/* Box Quick Tools */}
-                        <div className="flex items-center gap-1.5">
-                          {hasUndo && (
+                          <div className="flex items-center gap-1">
+                            {hasUndo && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleUndo(section.id)}
+                                className="h-6 text-[11px] text-[#5F6E69] px-1.5"
+                              >
+                                <RotateCcw className="w-3 h-3 mr-1" />
+                                Desfazer
+                              </Button>
+                            )}
                             <Button
                               type="button"
                               size="sm"
-                              variant="ghost"
-                              onClick={() => handleUndo(section.id)}
-                              className="h-7 text-xs text-[#5F6E69] hover:text-[#1F2A27]"
-                              title="Desfazer substituição"
+                              variant="outline"
+                              onClick={() => handleInsertNormalForOrgan(section.id)}
+                              className="h-6 text-[11px] border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0] px-2"
                             >
-                              <RotateCcw className="w-3 h-3 mr-1" />
-                              Desfazer
+                              <Check className="w-2.5 h-2.5 mr-1" />
+                              Normal
                             </Button>
-                          )}
-
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleInsertNormalForOrgan(section.id)}
-                            className="h-7 text-xs border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
-                            title="Inserir texto normal para este órgão (Ctrl+N)"
-                          >
-                            <Check className="w-3 h-3 mr-1" />
-                            Normal
-                          </Button>
-
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openLibraryForOrgan(section.id, section.label)}
-                            className="h-7 text-xs border-[#E5E9E7] text-[#5F6E69] hover:text-[#1F2A27]"
-                            title="Abrir biblioteca de frases e achados deste órgão"
-                          >
-                            <BookOpen className="w-3 h-3 mr-1" />
-                            Frases
-                          </Button>
-
-                          {section.isCustom && (
                             <Button
                               type="button"
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleRemoveCustomSection(section.id)}
-                              className="h-7 w-7 text-red-500 hover:text-red-700"
-                              title="Remover seção personalizada"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openLibraryForOrgan(section.id, section.label)}
+                              className="h-6 text-[11px] border-[#E5E9E7] text-[#5F6E69] px-2"
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <BookOpen className="w-2.5 h-2.5 mr-1" />
+                              Frases
                             </Button>
-                          )}
+                          </div>
                         </div>
+
+                        <Textarea
+                          id={`split_organ_${section.id}`}
+                          rows={2}
+                          value={section.text}
+                          onFocus={() => {
+                            setActiveOrganId(section.id)
+                            setActiveOrganLabel(section.label)
+                          }}
+                          onChange={(e) => handleSectionTextChange(section.id, e.target.value)}
+                          placeholder={`Achados de ${section.label}...`}
+                          className="text-xs leading-relaxed font-sans"
+                        />
                       </div>
+                    )
+                  })}
+                </div>
 
-                      {/* Textarea */}
-                      <Textarea
-                        id={`organ_${section.id}`}
-                        ref={(el) => {
-                          textareaRefs.current[section.id] = el
-                        }}
-                        rows={3}
-                        value={section.text}
-                        onFocus={() => {
-                          setActiveOrganId(section.id)
-                          setActiveOrganLabel(section.label)
-                        }}
-                        onChange={(e) => handleSectionTextChange(section.id, e.target.value)}
-                        placeholder={`Descreva os achados de ${section.label} (vazio = não laudado)...`}
-                        className="text-xs leading-relaxed font-sans"
-                      />
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* Add Custom Section Button */}
-              <div className="pt-2">
+                {/* Add Custom Section */}
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setAddSectionOpen(true)}
-                  className="w-full text-xs border-dashed border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
+                  className="w-full text-xs border-dashed border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0] h-8"
                 >
                   <Plus className="w-3.5 h-3.5 mr-1" />
                   Adicionar Outra Seção ou Órgão
                 </Button>
+
+                {/* Conclusion Box */}
+                <div
+                  className={`bg-white p-4 rounded-xl border transition shadow-xs ${
+                    activeOrganId === 'conclusao'
+                      ? 'border-[#0C6B58] ring-1 ring-[#0C6B58]/20'
+                      : 'border-[#E5E9E7]'
+                  }`}
+                >
+                  <label
+                    htmlFor="split_organ_conclusao"
+                    className="font-bold text-xs text-[#0C6B58] uppercase cursor-pointer block mb-1.5"
+                    onClick={() => {
+                      setActiveOrganId('conclusao')
+                      setActiveOrganLabel('Conclusão Diagnóstica')
+                    }}
+                  >
+                    Conclusão Diagnóstica Separada
+                  </label>
+                  <Textarea
+                    id="split_organ_conclusao"
+                    rows={3}
+                    value={conclusion}
+                    onFocus={() => {
+                      setActiveOrganId('conclusao')
+                      setActiveOrganLabel('Conclusão Diagnóstica')
+                    }}
+                    onChange={(e) => {
+                      setConclusion(e.target.value)
+                      setHasUnsavedChanges(true)
+                    }}
+                    placeholder="Síntese diagnóstica..."
+                    className="text-xs leading-relaxed font-semibold font-sans bg-[#FAFBFB]"
+                  />
+                </div>
               </div>
+            )}
 
-              {/* SEPARATE CONCLUSION BOX */}
-              <div
-                className={`bg-white p-5 rounded-xl border transition shadow-sm ${
-                  activeOrganId === 'conclusao'
-                    ? 'border-[#0C6B58] ring-1 ring-[#0C6B58]/20'
-                    : 'border-[#E5E9E7]'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <label
-                      htmlFor="organ_conclusao"
-                      className="font-bold text-sm text-[#0C6B58] uppercase cursor-pointer"
-                      onClick={() => {
-                        setActiveOrganId('conclusao')
-                        setActiveOrganLabel('Conclusão Diagnóstica')
-                      }}
-                    >
-                      Conclusão Diagnóstica Separada
-                    </label>
-                    {activeOrganId === 'conclusao' && (
-                      <span className="text-[10px] bg-[#E8F3F0] text-[#0C6B58] px-1.5 py-0.2 rounded font-medium">
-                        Ativa
-                      </span>
-                    )}
-                  </div>
+            {/* Imagens do Exame Atual no Split Screen (também acessíveis e visíveis) */}
+            <div className="bg-white p-4 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
+                <span className="font-bold text-xs text-[#1F2A27] flex items-center gap-1.5">
+                  <ImageIcon className="w-4 h-4 text-[#0C6B58]" />
+                  Documentação Fotográfica do Exame Atual
+                </span>
+                <span className="text-[10px] text-[#0C6B58] bg-[#E8F3F0] px-1.5 py-0.5 rounded font-semibold">
+                  {images.length} imagem(ns)
+                </span>
+              </div>
+              <ExamImagesManager
+                images={images}
+                onImagesChange={(newImgs) => {
+                  setImages(newImgs)
+                  setHasUnsavedChanges(true)
+                }}
+                reportId={currentReportId}
+                examId={examId}
+                patientName={patients.find((p) => p.id === patientId)?.name || ''}
+                patientId={patientId || ''}
+              />
+            </div>
+          </div>
 
-                  <div className="flex items-center gap-1.5">
-                    {historyUndo['conclusao'] !== undefined && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleUndo('conclusao')}
-                        className="h-7 text-xs text-[#5F6E69] hover:text-[#1F2A27]"
+          {/* Lado Direito: Painel de Histórico de Laudos Anteriores da Paciente (50% da tela) */}
+          <div className="sticky top-4 h-[calc(100vh-100px)] min-w-0">
+            <PatientReportHistoryPanel
+              patientId={patientId}
+              currentReportId={currentReportId}
+              patientName={patients.find((p) => p.id === patientId)?.name || ''}
+              onClose={() => setSplitScreenHistoryOpen(false)}
+              onInsertTextIntoActiveSection={handleInsertTextFromHistory}
+            />
+          </div>
+        </div>
+      ) : (
+        /* Modo Padrão: 75% Editor, 25% Coluna Lateral */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column (Forms & Organ Boxes) */}
+          <div className="lg:col-span-8 space-y-6">
+            {/* Metadata Card: Patient, Exam, Title */}
+            <div className="bg-white p-6 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-[#1F2A27]">
+                      Identificação do Paciente *
+                    </Label>
+                    {patientId && (
+                      <Link
+                        to={`/pacientes/${patientId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-[#0C6B58] hover:underline font-semibold flex items-center gap-1"
+                        title="Abrir ficha do paciente em nova aba"
                       >
-                        <RotateCcw className="w-3 h-3 mr-1" />
-                        Desfazer
-                      </Button>
+                        <User className="w-3 h-3" />
+                        Ficha do paciente ↗
+                      </Link>
                     )}
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleInsertNormalForOrgan('conclusao')}
-                      className="h-7 text-xs border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
-                    >
-                      <Check className="w-3 h-3 mr-1" />
-                      Normal
-                    </Button>
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openLibraryForOrgan('conclusao', 'Conclusão Diagnóstica')}
-                      className="h-7 text-xs border-[#E5E9E7] text-[#5F6E69] hover:text-[#1F2A27]"
-                    >
-                      <BookOpen className="w-3 h-3 mr-1" />
-                      Frases
-                    </Button>
                   </div>
+                  <Select value={patientId} onValueChange={handlePatientChange}>
+                    <SelectTrigger className="text-xs">
+                      <SelectValue placeholder="Selecione o paciente..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {patients.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} {p.document ? `(CPF: ${p.document})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                <Textarea
-                  id="organ_conclusao"
-                  ref={(el) => {
-                    textareaRefs.current['conclusao'] = el
-                  }}
-                  rows={4}
-                  value={conclusion}
-                  onFocus={() => {
-                    setActiveOrganId('conclusao')
-                    setActiveOrganLabel('Conclusão Diagnóstica')
-                  }}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#1F2A27]">
+                    Exame Vinculado (validação estrita)
+                  </Label>
+                  <Select
+                    value={examId}
+                    onValueChange={handleExamChange}
+                    disabled={!patientId || exams.length === 0}
+                  >
+                    <SelectTrigger className="text-xs">
+                      <SelectValue
+                        placeholder={
+                          !patientId
+                            ? 'Selecione o paciente primeiro'
+                            : exams.length === 0
+                              ? 'Nenhum exame deste paciente'
+                              : 'Selecione o exame...'
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {exams.map((ex) => (
+                        <SelectItem key={ex.id} value={ex.id}>
+                          {ex.type} — {formatDateBR(ex.exam_date)} ({ex.status})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 pt-2 border-t border-[#E5E9E7]">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-[#1F2A27]">Título do Laudo *</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-[#5F6E69]">Modo:</span>
+                    <button
+                      type="button"
+                      onClick={() => setMode('structured')}
+                      className={`px-2 py-0.5 rounded text-xs transition ${
+                        mode === 'structured'
+                          ? 'bg-[#0C6B58] text-white font-semibold'
+                          : 'text-[#5F6E69] hover:bg-gray-100'
+                      }`}
+                    >
+                      Estruturado por órgãos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (mode === 'structured' && !freeTextBody) {
+                          setFreeTextBody(generateFullHtmlBody())
+                        }
+                        setMode('freetext')
+                      }}
+                      className={`px-2 py-0.5 rounded text-xs transition ${
+                        mode === 'freetext'
+                          ? 'bg-[#0C6B58] text-white font-semibold'
+                          : 'text-[#5F6E69] hover:bg-gray-100'
+                      }`}
+                    >
+                      Texto livre
+                    </button>
+                  </div>
+                </div>
+                <Input
+                  value={title}
                   onChange={(e) => {
-                    setConclusion(e.target.value)
+                    setTitle(e.target.value)
                     setHasUnsavedChanges(true)
                   }}
-                  placeholder="Síntese diagnóstica, achados positivos ou impressão conclusiva..."
-                  className="text-xs leading-relaxed font-semibold font-sans bg-[#FAFBFB]"
+                  className="text-sm font-semibold"
+                  placeholder="Ex.: Laudo de Ultrassonografia de Abdome Total"
                 />
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Right Column: AI Assistant Panel & Quick Actions (25%) */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* AI Panel */}
-          <AiAssistantPanel
-            sections={sections}
-            conclusionText={conclusion}
-            onApplyText={(targetId, newText) => {
-              requestInsertText(targetId, newText)
-            }}
-          />
-
-          {/* PAINEL DE FOTOS DA SOLICITAÇÃO MÉDICA / ENCAMINHAMENTO */}
-          {linkedAppointment && (
-            <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[#0C6B58]" />
-                  <span className="font-bold text-xs text-[#1F2A27]">
-                    Solicitação Médica do Exame
-                  </span>
-                </div>
-                <Badge
-                  variant="outline"
-                  className="text-[10px] bg-[#E8F3F0] text-[#0C6B58] border-[#C8DFD7]"
-                >
-                  {linkedAppointment.clinic_location}
-                </Badge>
-              </div>
-
-              <div className="text-xs space-y-1 text-[#5F6E69]">
-                <p>
-                  <strong className="text-[#1F2A27]">Exame solicitado: </strong>
-                  {linkedAppointment.exam_type}
-                </p>
-                {linkedAppointment.referring_physician && (
-                  <p>
-                    <strong className="text-[#1F2A27]">Médico solicitante: </strong>
-                    {linkedAppointment.referring_physician}
-                  </p>
-                )}
-                {linkedAppointment.notes && (
-                  <p className="text-[11px] italic bg-[#FAFBFB] p-2 rounded border border-[#E5E9E7]">
-                    Obs: {linkedAppointment.notes}
-                  </p>
-                )}
-              </div>
-
-              {/* Photos from appointment */}
-              {(() => {
-                const imgs = Array.isArray(linkedAppointment.request_images)
-                  ? linkedAppointment.request_images
-                  : linkedAppointment.request_images
-                    ? [linkedAppointment.request_images]
-                    : []
-
-                if (imgs.length === 0) {
-                  return (
-                    <div className="p-3 text-center bg-[#FAFBFB] rounded-lg border border-dashed border-[#E5E9E7] text-[11px] text-[#8A9691]">
-                      Sem fotos da requisição médica anexadas na agenda.
-                    </div>
-                  )
-                }
-
-                return (
-                  <div className="space-y-2 pt-1">
-                    <span className="text-[11px] font-semibold text-[#1F2A27] block">
-                      Fotos / Xerox da Requisição ({imgs.length}):
+            {/* Mode Switcher */}
+            {mode === 'freetext' ? (
+              /* LEGACY FREE TEXT MODE */
+              <div className="bg-white p-6 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-sm text-[#1F2A27]">
+                      Corpo do Laudo (Texto Livre)
+                    </h3>
+                    <span className="text-[11px] text-[#0C6B58] bg-[#E8F3F0] px-2 py-0.5 rounded font-medium border border-[#D0E6E1]">
+                      Editor de texto livre
                     </span>
-                    <div className="grid grid-cols-2 gap-2">
-                      {imgs.map((fn, idx) => {
-                        const url = appointmentsService.getRequestImageUrl(linkedAppointment, fn)
-                        return (
-                          <div
-                            key={idx}
-                            onClick={() => {
-                              setActiveRequestPhotoUrl(url)
-                              setRequestPhotosModalOpen(true)
-                            }}
-                            className="group relative border rounded-lg overflow-hidden bg-slate-50 aspect-4/3 cursor-pointer hover:border-[#0C6B58] transition"
-                          >
-                            <img
-                              src={url}
-                              alt={`Requisição médica ${idx + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold">
-                              Ampliar
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
+                  </div>
+
+                  {/* Toolbar de Máscaras de Texto */}
+                  <div className="flex items-center gap-2">
                     <Button
                       type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const first = appointmentsService.getRequestImageUrl(
-                          linkedAppointment,
-                          imgs[0],
-                        )
-                        setActiveRequestPhotoUrl(first)
-                        setRequestPhotosModalOpen(true)
-                      }}
-                      className="w-full h-7 text-xs border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
+                      onClick={() => setTextMasksModalOpen(true)}
+                      className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs h-8 font-semibold shadow-sm px-3"
+                      title="Abrir biblioteca de máscaras de laudo pré-prontas do sistema ou pessoais"
                     >
-                      <Eye className="w-3.5 h-3.5 mr-1" />
-                      Visualizar Requisição Completa
+                      <BookOpen className="w-3.5 h-3.5 mr-1.5" />
+                      Máscaras de Laudo
                     </Button>
                   </div>
-                )
-              })()}
-            </div>
-          )}
-
-          {/* Professional Identification Preview */}
-          <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
-              <span className="font-bold text-xs text-[#1F2A27]">
-                Identificação do Responsável Técnico
-              </span>
-              <span className="text-[10px] text-[#0C6B58] bg-[#E8F3F0] px-1.5 py-0.5 rounded font-semibold">
-                Configurada
-              </span>
-            </div>
-
-            <div className="text-xs space-y-1 text-[#5F6E69]">
-              <p className="font-bold text-[#1F2A27]">
-                {user?.professional_name || user?.name || 'Dr. Médico'}
-              </p>
-              <p>
-                CRM {user?.crm_uf ? `${user?.crm_uf} ` : ''}
-                {user?.crm || 'Não informado'}
-              </p>
-              <p className="text-[11px] text-[#0C6B58] font-medium">
-                {user?.professional_title ||
-                  `Médico / CRM ${user?.crm_uf ? `${user?.crm_uf} ` : ''}${user?.crm || 'Não informado'}`}
-              </p>
-            </div>
-
-            <p className="text-[11px] text-[#8A9691] pt-1 border-t border-[#E5E9E7]">
-              Identificação profissional emitida automaticamente no rodapé do laudo (sem menção a
-              assinatura digital certificada).
-            </p>
-          </div>
-
-          {/* CARD BODY MARK — Acesso direto e indicador na coluna lateral */}
-          <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-[#E8F3F0] flex items-center justify-center text-[#0C6B58]">
-                  <Layers className="w-4 h-4" />
                 </div>
-                <div>
-                  <span className="font-bold text-xs text-[#1F2A27] block">
-                    Esquema Anatômico / Body Mark
+
+                {/* Informative banner on free-text mode */}
+                <div className="p-2.5 bg-[#FAFBFB] rounded-lg border border-[#E5E9E7] flex items-center justify-between text-xs text-[#5F6E69]">
+                  <span className="text-[11px]">
+                    💡 <strong>Dica clínica:</strong> Clique em <strong>Máscaras de Laudo</strong>{' '}
+                    para carregar modelos pré-prontos (normal, litíase, esteatose, etc.) ou salvar
+                    seu texto como máscara particular.
                   </span>
-                  <span className="text-[10px] text-[#5F6E69]">Mapeamento gráfico de lesões</span>
+                  {freeTextBody.trim() && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setTextMasksModalOpen(true)}
+                      className="h-6 text-[11px] text-[#0C6B58] hover:bg-[#E8F3F0] font-medium px-2 shrink-0"
+                    >
+                      Salvar este texto como máscara
+                    </Button>
+                  )}
                 </div>
-              </div>
 
-              {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' ? (
-                <span className="text-[10px] text-[#0C6B58] bg-[#E8F3F0] px-1.5 py-0.5 rounded font-semibold">
-                  Ativo no laudo
-                </span>
-              ) : (
-                <span className="text-[10px] text-[#8A9691] bg-gray-100 px-1.5 py-0.5 rounded">
-                  Opcional
-                </span>
-              )}
-            </div>
-
-            {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' ? (
-              <div className="p-2.5 rounded-lg bg-[#FAFBFB] border border-[#E5E9E7] space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-[#5F6E69]">Esquema ativo:</span>
-                  <strong className="text-[#0C6B58]">
-                    {ANATOMICAL_SCHEMES[bodyMarks.schemeId]?.title || bodyMarks.schemeId}
-                  </strong>
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-[#5F6E69]">
-                  <span>Marcas anotadas:</span>
-                  <span className="font-semibold text-[#1F2A27]">
-                    {(bodyMarks.points || []).length}{' '}
-                    {(bodyMarks.points || []).length === 1 ? 'marca' : 'marcas'}
-                  </span>
-                </div>
-                <p className="text-[10px] text-[#0C6B58] pt-1 border-t border-[#E5E9E7]">
-                  ✓ O esquema com as marcações sairá impresso no laudo principal.
-                </p>
+                <Textarea
+                  rows={16}
+                  value={freeTextBody}
+                  onChange={(e) => {
+                    setFreeTextBody(e.target.value)
+                    setHasUnsavedChanges(true)
+                  }}
+                  className="font-serif-report text-sm leading-relaxed"
+                  placeholder="Digite livremente o conteúdo descritivo ou clique no botão Máscaras de Laudo para inserir um modelo pronto..."
+                />
               </div>
             ) : (
-              <p className="text-xs text-[#5F6E69] leading-relaxed">
-                Mapeie lesões, quadrantes (mama), posicionamento de DIU ou tendões
-                (ombro/joelho/tornozelo) graficamente para sair no laudo impresso.
-              </p>
+              /* STRUCTURED ORGAN-BY-ORGAN EDITOR */
+              <div className="space-y-4">
+                {/* Top Organ Actions Toolbar: "Tudo Normal" Button & Shortcut hints */}
+                <div className="p-3.5 bg-gradient-to-r from-[#E8F3F0] via-[#EEF6F4] to-white rounded-xl border border-[#D0E6E1] shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      type="button"
+                      onClick={handleTudoNormalClick}
+                      disabled={tudoNormalLoading}
+                      className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs h-9 font-semibold shadow-sm px-4 shrink-0"
+                      title="Preencher todas as seções de órgãos como normal com um clique"
+                    >
+                      {tudoNormalLoading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                          Preenchendo...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCheck className="w-4 h-4 mr-1.5 text-emerald-200" />
+                          Tudo Normal
+                        </>
+                      )}
+                    </Button>
+
+                    <div className="text-xs text-[#0C6B58]">
+                      <div className="font-semibold flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-[#0C6B58] shrink-0" />
+                        Preenchimento Global do Laudo
+                      </div>
+                      <p className="text-[11px] text-[#5F6E69] leading-tight">
+                        Preenche as estruturas com o padrão normal sem apagar o que você já digitou.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs border-t sm:border-t-0 pt-2 sm:pt-0 border-[#D0E6E1]/60 text-[#5F6E69] shrink-0">
+                    <span className="hidden md:inline">
+                      Caixa ativa: <code>Ctrl+N</code>
+                    </span>
+                    <span className="text-[10px] bg-white text-[#0C6B58] px-2 py-0.5 rounded border border-[#D0E6E1] font-semibold">
+                      {activeOrganLabel}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Organ Textarea Boxes */}
+                <div className="space-y-4">
+                  {sections.map((section) => {
+                    const isActive = activeOrganId === section.id
+                    const hasUndo = historyUndo[section.id] !== undefined
+
+                    return (
+                      <div
+                        key={section.id}
+                        className={`bg-white p-4 rounded-xl border transition shadow-sm ${
+                          isActive
+                            ? 'border-[#0C6B58] ring-1 ring-[#0C6B58]/20'
+                            : 'border-[#E5E9E7]'
+                        }`}
+                      >
+                        {/* Box Header */}
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <label
+                              htmlFor={`organ_${section.id}`}
+                              className="font-bold text-sm text-[#1F2A27] cursor-pointer"
+                              onClick={() => {
+                                setActiveOrganId(section.id)
+                                setActiveOrganLabel(section.label)
+                              }}
+                            >
+                              {section.label}
+                            </label>
+                            {section.text.trim() ? (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded font-medium border border-emerald-200">
+                                <Check className="w-2.5 h-2.5" /> Normal / Descrito
+                              </span>
+                            ) : null}
+                            {isActive && (
+                              <span className="text-[10px] bg-[#E8F3F0] text-[#0C6B58] px-1.5 py-0.2 rounded font-medium">
+                                Caixa ativa
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Box Quick Tools */}
+                          <div className="flex items-center gap-1.5">
+                            {hasUndo && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleUndo(section.id)}
+                                className="h-7 text-xs text-[#5F6E69] hover:text-[#1F2A27]"
+                                title="Desfazer substituição"
+                              >
+                                <RotateCcw className="w-3 h-3 mr-1" />
+                                Desfazer
+                              </Button>
+                            )}
+
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleInsertNormalForOrgan(section.id)}
+                              className="h-7 text-xs border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
+                              title="Inserir texto normal para este órgão (Ctrl+N)"
+                            >
+                              <Check className="w-3 h-3 mr-1" />
+                              Normal
+                            </Button>
+
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openLibraryForOrgan(section.id, section.label)}
+                              className="h-7 text-xs border-[#E5E9E7] text-[#5F6E69] hover:text-[#1F2A27]"
+                              title="Abrir biblioteca de frases e achados deste órgão"
+                            >
+                              <BookOpen className="w-3 h-3 mr-1" />
+                              Frases
+                            </Button>
+
+                            {section.isCustom && (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleRemoveCustomSection(section.id)}
+                                className="h-7 w-7 text-red-500 hover:text-red-700"
+                                title="Remover seção personalizada"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Textarea */}
+                        <Textarea
+                          id={`organ_${section.id}`}
+                          ref={(el) => {
+                            textareaRefs.current[section.id] = el
+                          }}
+                          rows={3}
+                          value={section.text}
+                          onFocus={() => {
+                            setActiveOrganId(section.id)
+                            setActiveOrganLabel(section.label)
+                          }}
+                          onChange={(e) => handleSectionTextChange(section.id, e.target.value)}
+                          placeholder={`Descreva os achados de ${section.label} (vazio = não laudado)...`}
+                          className="text-xs leading-relaxed font-sans"
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Add Custom Section Button */}
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setAddSectionOpen(true)}
+                    className="w-full text-xs border-dashed border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Adicionar Outra Seção ou Órgão
+                  </Button>
+                </div>
+
+                {/* SEPARATE CONCLUSION BOX */}
+                <div
+                  className={`bg-white p-5 rounded-xl border transition shadow-sm ${
+                    activeOrganId === 'conclusao'
+                      ? 'border-[#0C6B58] ring-1 ring-[#0C6B58]/20'
+                      : 'border-[#E5E9E7]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="organ_conclusao"
+                        className="font-bold text-sm text-[#0C6B58] uppercase cursor-pointer"
+                        onClick={() => {
+                          setActiveOrganId('conclusao')
+                          setActiveOrganLabel('Conclusão Diagnóstica')
+                        }}
+                      >
+                        Conclusão Diagnóstica Separada
+                      </label>
+                      {activeOrganId === 'conclusao' && (
+                        <span className="text-[10px] bg-[#E8F3F0] text-[#0C6B58] px-1.5 py-0.2 rounded font-medium">
+                          Ativa
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {historyUndo['conclusao'] !== undefined && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleUndo('conclusao')}
+                          className="h-7 text-xs text-[#5F6E69] hover:text-[#1F2A27]"
+                        >
+                          <RotateCcw className="w-3 h-3 mr-1" />
+                          Desfazer
+                        </Button>
+                      )}
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleInsertNormalForOrgan('conclusao')}
+                        className="h-7 text-xs border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
+                      >
+                        <Check className="w-3 h-3 mr-1" />
+                        Normal
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openLibraryForOrgan('conclusao', 'Conclusão Diagnóstica')}
+                        className="h-7 text-xs border-[#E5E9E7] text-[#5F6E69] hover:text-[#1F2A27]"
+                      >
+                        <BookOpen className="w-3 h-3 mr-1" />
+                        Frases
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Textarea
+                    id="organ_conclusao"
+                    ref={(el) => {
+                      textareaRefs.current['conclusao'] = el
+                    }}
+                    rows={4}
+                    value={conclusion}
+                    onFocus={() => {
+                      setActiveOrganId('conclusao')
+                      setActiveOrganLabel('Conclusão Diagnóstica')
+                    }}
+                    onChange={(e) => {
+                      setConclusion(e.target.value)
+                      setHasUnsavedChanges(true)
+                    }}
+                    placeholder="Síntese diagnóstica, achados positivos ou impressão conclusiva..."
+                    className="text-xs leading-relaxed font-semibold font-sans bg-[#FAFBFB]"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: AI Assistant Panel & Quick Actions (25%) */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* AI Panel */}
+            <AiAssistantPanel
+              sections={sections}
+              conclusionText={conclusion}
+              onApplyText={(targetId, newText) => {
+                requestInsertText(targetId, newText)
+              }}
+            />
+
+            {/* PAINEL DE FOTOS DA SOLICITAÇÃO MÉDICA / ENCAMINHAMENTO */}
+            {linkedAppointment && (
+              <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-[#0C6B58]" />
+                    <span className="font-bold text-xs text-[#1F2A27]">
+                      Solicitação Médica do Exame
+                    </span>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] bg-[#E8F3F0] text-[#0C6B58] border-[#C8DFD7]"
+                  >
+                    {linkedAppointment.clinic_location}
+                  </Badge>
+                </div>
+
+                <div className="text-xs space-y-1 text-[#5F6E69]">
+                  <p>
+                    <strong className="text-[#1F2A27]">Exame solicitado: </strong>
+                    {linkedAppointment.exam_type}
+                  </p>
+                  {linkedAppointment.referring_physician && (
+                    <p>
+                      <strong className="text-[#1F2A27]">Médico solicitante: </strong>
+                      {linkedAppointment.referring_physician}
+                    </p>
+                  )}
+                  {linkedAppointment.notes && (
+                    <p className="text-[11px] italic bg-[#FAFBFB] p-2 rounded border border-[#E5E9E7]">
+                      Obs: {linkedAppointment.notes}
+                    </p>
+                  )}
+                </div>
+
+                {/* Photos from appointment */}
+                {(() => {
+                  const imgs = Array.isArray(linkedAppointment.request_images)
+                    ? linkedAppointment.request_images
+                    : linkedAppointment.request_images
+                      ? [linkedAppointment.request_images]
+                      : []
+
+                  if (imgs.length === 0) {
+                    return (
+                      <div className="p-3 text-center bg-[#FAFBFB] rounded-lg border border-dashed border-[#E5E9E7] text-[11px] text-[#8A9691]">
+                        Sem fotos da requisição médica anexadas na agenda.
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div className="space-y-2 pt-1">
+                      <span className="text-[11px] font-semibold text-[#1F2A27] block">
+                        Fotos / Xerox da Requisição ({imgs.length}):
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        {imgs.map((fn, idx) => {
+                          const url = appointmentsService.getRequestImageUrl(linkedAppointment, fn)
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                setActiveRequestPhotoUrl(url)
+                                setRequestPhotosModalOpen(true)
+                              }}
+                              className="group relative border rounded-lg overflow-hidden bg-slate-50 aspect-4/3 cursor-pointer hover:border-[#0C6B58] transition"
+                            >
+                              <img
+                                src={url}
+                                alt={`Requisição médica ${idx + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold">
+                                Ampliar
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const first = appointmentsService.getRequestImageUrl(
+                            linkedAppointment,
+                            imgs[0],
+                          )
+                          setActiveRequestPhotoUrl(first)
+                          setRequestPhotosModalOpen(true)
+                        }}
+                        className="w-full h-7 text-xs border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]"
+                      >
+                        <Eye className="w-3.5 h-3.5 mr-1" />
+                        Visualizar Requisição Completa
+                      </Button>
+                    </div>
+                  )
+                })()}
+              </div>
             )}
 
-            <div className="flex items-center gap-2 pt-1">
-              {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        'Deseja remover o esquema anatômico deste laudo e suas marcas?',
-                      )
-                    ) {
-                      setBodyMarks({ schemeId: 'none', points: [] })
-                      setHasUnsavedChanges(true)
-                    }
-                  }}
-                  className="text-xs text-[#DC2626] hover:bg-red-50 h-8 flex-1"
-                  title="Remover esquema deste laudo"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1" />
-                  Remover
-                </Button>
-              )}
-
+            {/* BOTÃO DISCRETO PARA ATIVAR O MODO TELA DIVIDIDA COM O HISTÓRICO DA PACIENTE */}
+            <div className="bg-gradient-to-br from-[#E8F3F0] to-white p-4 rounded-xl border border-[#0C6B58]/30 shadow-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs text-[#0C6B58] flex items-center gap-1.5">
+                  <SplitSquareVertical className="w-4 h-4 text-[#0C6B58]" />
+                  Modo Tela Dividida
+                </span>
+                <span className="text-[9px] bg-[#0C6B58] text-white px-1.5 py-0.2 rounded font-bold uppercase">
+                  Novo
+                </span>
+              </div>
+              <p className="text-[11px] text-[#5F6E69] leading-relaxed">
+                Divida a tela ao meio para visualizar o laudo atual ao lado do histórico anterior
+                desta paciente, facilitando a comparação de achados e a importação de textos.
+              </p>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setBodyMarkModalOpen(true)}
-                className={`text-xs h-8 font-semibold transition flex-1 ${
-                  bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
-                    ? 'border-[#0C6B58] bg-[#E8F3F0] text-[#0C6B58] hover:bg-[#d8ece6]'
-                    : 'border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]'
-                }`}
+                onClick={() => setSplitScreenHistoryOpen(true)}
+                className="w-full text-xs font-semibold border-[#0C6B58] text-[#0C6B58] hover:bg-[#0C6B58] hover:text-white transition h-8"
+                title="Dividir a tela ao meio e abrir o histórico de laudos da paciente"
               >
-                <Layers className="w-3.5 h-3.5 mr-1.5" />
-                {bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
-                  ? 'Editar Body Mark'
-                  : 'Ativar Body Mark'}
+                <Columns className="w-3.5 h-3.5 mr-1.5" />
+                Dividir Tela com Histórico
               </Button>
             </div>
-          </div>
 
-          {/* CARD DOCUMENTAÇÃO FOTOGRÁFICA / IMAGENS DO EXAME NA COLUNA LATERAL */}
-          <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
-              <div>
-                <span className="font-bold text-xs text-[#1F2A27] flex items-center gap-1.5">
-                  <ImageIcon className="w-4 h-4 text-[#0C6B58]" />
-                  Documentação Fotográfica
+            {/* Professional Identification Preview */}
+            <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
+                <span className="font-bold text-xs text-[#1F2A27]">
+                  Identificação do Responsável Técnico
                 </span>
-                <span className="text-[10px] text-[#5F6E69] block mt-0.5">
-                  Anexos de imagens do exame (JPG, PNG e DICOM)
+                <span className="text-[10px] text-[#0C6B58] bg-[#E8F3F0] px-1.5 py-0.5 rounded font-semibold">
+                  Configurada
                 </span>
               </div>
-              <span className="text-[10px] text-[#0C6B58] bg-[#E8F3F0] px-1.5 py-0.5 rounded font-semibold shrink-0">
-                {images.length} {images.length === 1 ? 'imagem' : 'imagens'}
-              </span>
+
+              <div className="text-xs space-y-1 text-[#5F6E69]">
+                <p className="font-bold text-[#1F2A27]">
+                  {user?.professional_name || user?.name || 'Dr. Médico'}
+                </p>
+                <p>
+                  CRM {user?.crm_uf ? `${user?.crm_uf} ` : ''}
+                  {user?.crm || 'Não informado'}
+                </p>
+                <p className="text-[11px] text-[#0C6B58] font-medium">
+                  {user?.professional_title ||
+                    `Médico / CRM ${user?.crm_uf ? `${user?.crm_uf} ` : ''}${user?.crm || 'Não informado'}`}
+                </p>
+              </div>
+
+              <p className="text-[11px] text-[#8A9691] pt-1 border-t border-[#E5E9E7]">
+                Identificação profissional emitida automaticamente no rodapé do laudo (sem menção a
+                assinatura digital certificada).
+              </p>
             </div>
 
-            {/* Configuração de layout por página do anexo */}
-            <div className="flex items-center justify-between gap-2 p-2 bg-[#FAFBFB] rounded-lg border border-[#E5E9E7] text-xs">
-              <span className="text-[#5F6E69] text-[11px] leading-tight">
-                Imagens por página de impressão:
-              </span>
-              <Select
-                value={String(imagesPerPage)}
-                onValueChange={(val) => {
-                  setImagesPerPage(Number(val) as any)
+            {/* CARD BODY MARK — Acesso direto e indicador na coluna lateral */}
+            <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#E8F3F0] flex items-center justify-center text-[#0C6B58]">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-xs text-[#1F2A27] block">
+                      Esquema Anatômico / Body Mark
+                    </span>
+                    <span className="text-[10px] text-[#5F6E69]">Mapeamento gráfico de lesões</span>
+                  </div>
+                </div>
+
+                {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' ? (
+                  <span className="text-[10px] text-[#0C6B58] bg-[#E8F3F0] px-1.5 py-0.5 rounded font-semibold">
+                    Ativo no laudo
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-[#8A9691] bg-gray-100 px-1.5 py-0.5 rounded">
+                    Opcional
+                  </span>
+                )}
+              </div>
+
+              {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' ? (
+                <div className="p-2.5 rounded-lg bg-[#FAFBFB] border border-[#E5E9E7] space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#5F6E69]">Esquema ativo:</span>
+                    <strong className="text-[#0C6B58]">
+                      {ANATOMICAL_SCHEMES[bodyMarks.schemeId]?.title || bodyMarks.schemeId}
+                    </strong>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-[#5F6E69]">
+                    <span>Marcas anotadas:</span>
+                    <span className="font-semibold text-[#1F2A27]">
+                      {(bodyMarks.points || []).length}{' '}
+                      {(bodyMarks.points || []).length === 1 ? 'marca' : 'marcas'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-[#0C6B58] pt-1 border-t border-[#E5E9E7]">
+                    ✓ O esquema com as marcações sairá impresso no laudo principal.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-[#5F6E69] leading-relaxed">
+                  Mapeie lesões, quadrantes (mama), posicionamento de DIU ou tendões
+                  (ombro/joelho/tornozelo) graficamente para sair no laudo impresso.
+                </p>
+              )}
+
+              <div className="flex items-center gap-2 pt-1">
+                {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          'Deseja remover o esquema anatômico deste laudo e suas marcas?',
+                        )
+                      ) {
+                        setBodyMarks({ schemeId: 'none', points: [] })
+                        setHasUnsavedChanges(true)
+                      }
+                    }}
+                    className="text-xs text-[#DC2626] hover:bg-red-50 h-8 flex-1"
+                    title="Remover esquema deste laudo"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+                    Remover
+                  </Button>
+                )}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBodyMarkModalOpen(true)}
+                  className={`text-xs h-8 font-semibold transition flex-1 ${
+                    bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
+                      ? 'border-[#0C6B58] bg-[#E8F3F0] text-[#0C6B58] hover:bg-[#d8ece6]'
+                      : 'border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5 mr-1.5" />
+                  {bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
+                    ? 'Editar Body Mark'
+                    : 'Ativar Body Mark'}
+                </Button>
+              </div>
+            </div>
+
+            {/* CARD DOCUMENTAÇÃO FOTOGRÁFICA / IMAGENS DO EXAME NA COLUNA LATERAL */}
+            <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
+                <div>
+                  <span className="font-bold text-xs text-[#1F2A27] flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4 text-[#0C6B58]" />
+                    Documentação Fotográfica
+                  </span>
+                  <span className="text-[10px] text-[#5F6E69] block mt-0.5">
+                    Anexos de imagens do exame (JPG, PNG e DICOM)
+                  </span>
+                </div>
+                <span className="text-[10px] text-[#0C6B58] bg-[#E8F3F0] px-1.5 py-0.5 rounded font-semibold shrink-0">
+                  {images.length} {images.length === 1 ? 'imagem' : 'imagens'}
+                </span>
+              </div>
+
+              {/* Configuração de layout por página do anexo */}
+              <div className="flex items-center justify-between gap-2 p-2 bg-[#FAFBFB] rounded-lg border border-[#E5E9E7] text-xs">
+                <span className="text-[#5F6E69] text-[11px] leading-tight">
+                  Imagens por página de impressão:
+                </span>
+                <Select
+                  value={String(imagesPerPage)}
+                  onValueChange={(val) => {
+                    setImagesPerPage(Number(val) as any)
+                    setHasUnsavedChanges(true)
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-28 text-xs shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2">2 por página</SelectItem>
+                    <SelectItem value="4">4 por página</SelectItem>
+                    <SelectItem value="6">6 por página</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Gerenciador completo de imagens */}
+              <ExamImagesManager
+                images={images}
+                onImagesChange={(newImgs) => {
+                  setImages(newImgs)
                   setHasUnsavedChanges(true)
                 }}
-              >
-                <SelectTrigger className="h-7 w-28 text-xs shrink-0">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2">2 por página</SelectItem>
-                  <SelectItem value="4">4 por página</SelectItem>
-                  <SelectItem value="6">6 por página</SelectItem>
-                </SelectContent>
-              </Select>
+                reportId={currentReportId}
+                examId={examId}
+                patientName={patients.find((p) => p.id === patientId)?.name || ''}
+                patientId={patientId || ''}
+              />
             </div>
-
-            {/* Gerenciador completo de imagens */}
-            <ExamImagesManager
-              images={images}
-              onImagesChange={(newImgs) => {
-                setImages(newImgs)
-                setHasUnsavedChanges(true)
-              }}
-              reportId={currentReportId}
-              examId={examId}
-              patientName={patients.find((p) => p.id === patientId)?.name || ''}
-              patientId={patientId || ''}
-            />
           </div>
         </div>
-      </div>
+      )}
 
       {/* CONFIRMATION DIALOG: TUDO NORMAL WITH EXISTING CONTENT */}
       <Dialog open={tudoNormalConfirmOpen} onOpenChange={setTudoNormalConfirmOpen}>

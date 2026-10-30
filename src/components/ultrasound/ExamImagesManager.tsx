@@ -8,11 +8,14 @@ import {
   MoveUp,
   MoveDown,
   Loader2,
-  FileText,
-  AlertCircle,
   Eye,
   Server,
   FileCode,
+  Maximize2,
+  ChevronLeft,
+  ChevronRight,
+  Grid,
+  List,
 } from 'lucide-react'
 import { examImagesService } from '@/services/examImages'
 import type { ExamImage } from '@/types'
@@ -45,8 +48,9 @@ export default function ExamImagesManager({
   const [uploading, setUploading] = useState(false)
   const [uploadProgressText, setUploadProgressText] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
-  const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null)
+  const [previewModalIndex, setPreviewModalIndex] = useState<number | null>(null)
   const [pacsModalOpen, setPacsModalOpen] = useState(false)
+  const [displayMode, setDisplayMode] = useState<'card' | 'expanded'>('card')
 
   const processAndUploadFiles = async (fileList: FileList | File[]) => {
     if (!fileList || fileList.length === 0) return
@@ -458,14 +462,43 @@ export default function ExamImagesManager({
         </div>
       </div>
 
-      {/* Summary status */}
+      {/* Summary status and view mode toggles */}
       <div className="flex items-center justify-between text-xs text-[#5F6E69] px-1">
         <span>
-          Total: <strong>{images.length}</strong> imagem(ns) vinculada(s)
+          <strong>{images.length}</strong> imagem(ns) • <strong>{selectedCount}</strong> na
+          impressão
         </span>
-        <span>
-          Selecionadas para impressão/PDF: <strong>{selectedCount}</strong> de {images.length}
-        </span>
+
+        {images.length > 0 && (
+          <div className="flex items-center gap-1 bg-[#FAFBFB] p-0.5 rounded-lg border border-[#E5E9E7]">
+            <button
+              type="button"
+              onClick={() => setDisplayMode('card')}
+              className={`p-1 rounded text-xs transition flex items-center gap-1 ${
+                displayMode === 'card'
+                  ? 'bg-white shadow-xs font-semibold text-[#0C6B58]'
+                  : 'text-[#5F6E69] hover:text-[#1F2A27]'
+              }`}
+              title="Visualização padrão com dados e edição de legenda"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span className="text-[10px]">Padrão</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplayMode('expanded')}
+              className={`p-1 rounded text-xs transition flex items-center gap-1 ${
+                displayMode === 'expanded'
+                  ? 'bg-white shadow-xs font-semibold text-[#0C6B58]'
+                  : 'text-[#5F6E69] hover:text-[#1F2A27]'
+              }`}
+              title="Miniaturas ampliadas com foco na consulta médica visual"
+            >
+              <Grid className="w-3.5 h-3.5" />
+              <span className="text-[10px]">Visão Clínica</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Images Grid — na coluna lateral fica com rolagem suave caso haja muitas imagens */}
@@ -481,129 +514,234 @@ export default function ExamImagesManager({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 max-h-[640px] overflow-y-auto pr-1">
-          {images.map((img, index) => {
-            const isSelected = img.selected_for_print !== false
-            const url = examImagesService.getImageUrl(img)
+        <div className="space-y-3">
+          <div
+            className={`overflow-y-auto pr-1 max-h-[700px] scrollbar-thin ${
+              displayMode === 'expanded'
+                ? 'grid grid-cols-1 sm:grid-cols-2 gap-2.5'
+                : 'grid grid-cols-1 gap-3'
+            }`}
+          >
+            {images.map((img, index) => {
+              const isSelected = img.selected_for_print !== false
+              const url = examImagesService.getImageUrl(img)
 
-            return (
-              <div
-                key={img.id}
-                className={`bg-white rounded-xl border transition flex flex-col overflow-hidden ${
-                  isSelected
-                    ? 'border-[#0C6B58] ring-1 ring-[#0C6B58]/20 shadow-sm'
-                    : 'border-[#E5E9E7] opacity-60'
-                }`}
-              >
-                {/* Image display & overlay buttons */}
-                <div className="relative h-44 bg-[#0B0E0D] flex items-center justify-center overflow-hidden group">
-                  <img
-                    src={url}
-                    alt={img.caption || `Imagem ${index + 1}`}
-                    className="max-h-full max-w-full object-contain"
-                  />
-
-                  {/* Print checkbox tag top-left */}
-                  <button
-                    type="button"
-                    onClick={() => handleTogglePrintSelection(index)}
-                    className={`absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-semibold transition ${
+              if (displayMode === 'expanded') {
+                // Expanded clinical viewing: large thumbnail with quick zoom click
+                return (
+                  <div
+                    key={img.id}
+                    className={`bg-white rounded-lg border transition flex flex-col overflow-hidden group ${
                       isSelected
-                        ? 'bg-[#0C6B58] text-white shadow'
-                        : 'bg-white/90 text-[#5F6E69] hover:bg-white'
+                        ? 'border-[#0C6B58] ring-1 ring-[#0C6B58]/20 shadow-xs'
+                        : 'border-[#E5E9E7] opacity-75'
                     }`}
-                    title={isSelected ? 'Incluída na impressão' : 'Oculta na impressão'}
                   >
                     <div
-                      className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${
-                        isSelected ? 'border-white bg-[#0C6B58]' : 'border-[#5F6E69] bg-transparent'
-                      }`}
+                      className="relative h-40 bg-[#0B0E0D] flex items-center justify-center overflow-hidden cursor-pointer"
+                      onClick={() => setPreviewModalIndex(index)}
+                      title="Clique para ampliar em tela cheia para consulta de dúvidas"
                     >
-                      {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
-                    </div>
-                    {isSelected ? 'Na impressão' : 'Desmarcada'}
-                  </button>
+                      <img
+                        src={url}
+                        alt={img.caption || `Imagem ${index + 1}`}
+                        className="max-h-full max-w-full object-contain transition-transform group-hover:scale-105 duration-200"
+                        loading="lazy"
+                      />
 
-                  {/* Top-right preview zoom */}
-                  <button
-                    type="button"
-                    onClick={() => setPreviewModalUrl(url)}
-                    className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/90 text-white rounded opacity-0 group-hover:opacity-100 transition"
-                    title="Ampliar imagem"
+                      {/* Top-left position & DICOM */}
+                      <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
+                        <span className="bg-black/75 text-white text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">
+                          #{index + 1}
+                        </span>
+                        {(img.is_real_dicom ||
+                          img.caption?.includes('DICOM') ||
+                          img.caption?.includes('PACS')) && (
+                          <span className="bg-[#0C6B58] text-white text-[9px] px-1 py-0.5 rounded font-semibold">
+                            DICOM
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Top-right zoom action button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setPreviewModalIndex(index)
+                        }}
+                        className="absolute top-1.5 right-1.5 p-1 bg-black/70 hover:bg-black text-white rounded transition"
+                        title="Ampliar em tela cheia"
+                      >
+                        <Maximize2 className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Center hover indicator */}
+                      <div className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition pointer-events-none">
+                        <span className="text-xs font-semibold bg-black/70 px-2.5 py-1 rounded-md flex items-center gap-1">
+                          <Eye className="w-3.5 h-3.5" />
+                          Consultar Imagem
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Bottom minimal strip with caption & print toggle */}
+                    <div className="p-2 bg-white flex items-center justify-between gap-1 text-[11px] border-t border-[#E5E9E7]">
+                      <span
+                        className="truncate text-[#1F2A27] font-medium flex-1"
+                        title={img.caption || `Imagem ${index + 1}`}
+                      >
+                        {img.caption || `Imagem ${index + 1}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePrintSelection(index)}
+                        className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold transition ${
+                          isSelected ? 'bg-[#E8F3F0] text-[#0C6B58]' : 'bg-gray-100 text-[#8A9691]'
+                        }`}
+                        title={isSelected ? 'Incluída no anexo do laudo' : 'Oculta na impressão'}
+                      >
+                        {isSelected ? '✓ Imprimir' : 'Oculta'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+
+              // Standard card mode with full caption input and reordering controls
+              return (
+                <div
+                  key={img.id}
+                  className={`bg-white rounded-xl border transition flex flex-col overflow-hidden ${
+                    isSelected
+                      ? 'border-[#0C6B58] ring-1 ring-[#0C6B58]/20 shadow-sm'
+                      : 'border-[#E5E9E7] opacity-65'
+                  }`}
+                >
+                  {/* Image display & overlay buttons */}
+                  <div
+                    className="relative h-48 bg-[#0B0E0D] flex items-center justify-center overflow-hidden group cursor-pointer"
+                    onClick={() => setPreviewModalIndex(index)}
+                    title="Clique para ampliar imagem em alta resolução"
                   >
-                    <Eye className="w-3.5 h-3.5" />
-                  </button>
-
-                  {/* Position badge */}
-                  <span className="absolute bottom-2 left-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
-                    #{index + 1}
-                  </span>
-
-                  {/* DICOM Real Tag */}
-                  {(img.is_real_dicom ||
-                    img.caption?.includes('DICOM') ||
-                    img.caption?.includes('PACS')) && (
-                    <span className="absolute bottom-2 right-2 bg-[#0C6B58]/90 text-white text-[9px] px-1.5 py-0.5 rounded font-semibold tracking-wider">
-                      FRAME REAL DICOM
-                    </span>
-                  )}
-                </div>
-
-                {/* Bottom Controls: Caption & reorder */}
-                <div className="p-3 space-y-2 flex-1 flex flex-col justify-between bg-white">
-                  <div>
-                    <Label className="text-[10px] text-[#5F6E69] font-medium block mb-1">
-                      Legenda / Identificação:
-                    </Label>
-                    <Input
-                      placeholder="Ex.: Fígado corte longitudinal"
-                      value={img.caption || ''}
-                      onChange={(e) => handleCaptionChange(index, e.target.value)}
-                      className="h-7 text-xs"
+                    <img
+                      src={url}
+                      alt={img.caption || `Imagem ${index + 1}`}
+                      className="max-h-full max-w-full object-contain transition-transform group-hover:scale-102 duration-200"
+                      loading="lazy"
                     />
+
+                    {/* Print checkbox tag top-left */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleTogglePrintSelection(index)
+                      }}
+                      className={`absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-semibold transition ${
+                        isSelected
+                          ? 'bg-[#0C6B58] text-white shadow'
+                          : 'bg-white/90 text-[#5F6E69] hover:bg-white'
+                      }`}
+                      title={isSelected ? 'Incluída na impressão' : 'Oculta na impressão'}
+                    >
+                      <div
+                        className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${
+                          isSelected
+                            ? 'border-white bg-[#0C6B58]'
+                            : 'border-[#5F6E69] bg-transparent'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                      </div>
+                      {isSelected ? 'Na impressão' : 'Desmarcada'}
+                    </button>
+
+                    {/* Top-right preview zoom */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPreviewModalIndex(index)
+                      }}
+                      className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/90 text-white rounded transition flex items-center gap-1 text-[11px]"
+                      title="Ampliar imagem para sanar dúvidas"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Ampliar</span>
+                    </button>
+
+                    {/* Position badge */}
+                    <span className="absolute bottom-2 left-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">
+                      #{index + 1}
+                    </span>
+
+                    {/* DICOM Real Tag */}
+                    {(img.is_real_dicom ||
+                      img.caption?.includes('DICOM') ||
+                      img.caption?.includes('PACS')) && (
+                      <span className="absolute bottom-2 right-2 bg-[#0C6B58]/90 text-white text-[9px] px-1.5 py-0.5 rounded font-semibold tracking-wider">
+                        FRAME REAL DICOM
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-[#E5E9E7]">
-                    <div className="flex items-center gap-1">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        disabled={index === 0}
-                        onClick={() => handleMoveUp(index)}
-                        className="h-6 w-6 text-[#5F6E69] hover:text-[#1F2A27]"
-                        title="Mover para cima"
-                      >
-                        <MoveUp className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        disabled={index === images.length - 1}
-                        onClick={() => handleMoveDown(index)}
-                        className="h-6 w-6 text-[#5F6E69] hover:text-[#1F2A27]"
-                        title="Mover para baixo"
-                      >
-                        <MoveDown className="w-3 h-3" />
-                      </Button>
+                  {/* Bottom Controls: Caption & reorder */}
+                  <div className="p-3 space-y-2 flex-1 flex flex-col justify-between bg-white">
+                    <div>
+                      <Label className="text-[10px] text-[#5F6E69] font-medium block mb-1">
+                        Legenda / Identificação:
+                      </Label>
+                      <Input
+                        placeholder="Ex.: Fígado corte longitudinal"
+                        value={img.caption || ''}
+                        onChange={(e) => handleCaptionChange(index, e.target.value)}
+                        className="h-7 text-xs"
+                      />
                     </div>
 
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => handleDeleteImage(index)}
-                      className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
-                      title="Excluir imagem do exame"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
+                    <div className="flex items-center justify-between pt-2 border-t border-[#E5E9E7]">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          disabled={index === 0}
+                          onClick={() => handleMoveUp(index)}
+                          className="h-6 w-6 text-[#5F6E69] hover:text-[#1F2A27]"
+                          title="Mover para cima"
+                        >
+                          <MoveUp className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          disabled={index === images.length - 1}
+                          onClick={() => handleMoveDown(index)}
+                          className="h-6 w-6 text-[#5F6E69] hover:text-[#1F2A27]"
+                          title="Mover para baixo"
+                        >
+                          <MoveDown className="w-3 h-3" />
+                        </Button>
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleDeleteImage(index)}
+                        className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        title="Excluir imagem do exame"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -616,23 +754,100 @@ export default function ExamImagesManager({
         defaultPatientId=""
       />
 
-      {/* Preview Dialog */}
-      <Dialog open={!!previewModalUrl} onOpenChange={(open) => !open && setPreviewModalUrl(null)}>
-        <DialogContent className="max-w-4xl p-2 bg-black border-none flex flex-col items-center">
-          <div className="w-full flex justify-end p-2">
-            <button
-              onClick={() => setPreviewModalUrl(null)}
-              className="text-white hover:text-gray-300 p-1"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          {previewModalUrl && (
-            <img
-              src={previewModalUrl}
-              alt="Ampliação"
-              className="max-h-[80vh] max-w-full object-contain"
-            />
+      {/* Lightbox / High Resolution Viewer Dialog with Prev/Next Navigation */}
+      <Dialog
+        open={previewModalIndex !== null}
+        onOpenChange={(open) => !open && setPreviewModalIndex(null)}
+      >
+        <DialogContent className="max-w-5xl w-[96vw] h-[92vh] p-0 bg-[#0B0E0D] border-none flex flex-col overflow-hidden text-white">
+          {previewModalIndex !== null && images[previewModalIndex] && (
+            <>
+              {/* Header with image index, caption and close */}
+              <div className="flex items-center justify-between px-4 py-3 bg-black/60 border-b border-white/10 shrink-0">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono font-bold bg-[#0C6B58] px-2 py-0.5 rounded">
+                    Imagem {previewModalIndex + 1} de {images.length}
+                  </span>
+                  <span className="text-xs text-white/90 truncate max-w-md">
+                    {images[previewModalIndex].caption || 'Sem legenda'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewModalIndex(null)}
+                    className="p-1 rounded-md text-white/80 hover:text-white hover:bg-white/10"
+                    title="Fechar visualizador"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Main image stage with prev/next overlays */}
+              <div className="relative flex-1 flex items-center justify-center p-4 overflow-hidden select-none bg-black">
+                <img
+                  src={examImagesService.getImageUrl(images[previewModalIndex])}
+                  alt={images[previewModalIndex].caption || `Imagem ${previewModalIndex + 1}`}
+                  className="max-h-full max-w-full object-contain"
+                />
+
+                {/* Left arrow */}
+                {previewModalIndex > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewModalIndex(previewModalIndex - 1)}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white transition border border-white/20"
+                    title="Imagem anterior"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+                )}
+
+                {/* Right arrow */}
+                {previewModalIndex < images.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewModalIndex(previewModalIndex + 1)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white transition border border-white/20"
+                    title="Próxima imagem"
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                )}
+              </div>
+
+              {/* Footer strip: Thumbnails carousel for rapid hopping */}
+              <div className="px-4 py-2 bg-black/80 border-t border-white/10 shrink-0 flex items-center gap-2 overflow-x-auto">
+                {images.map((thumbImg, thumbIdx) => {
+                  const thumbUrl = examImagesService.getImageUrl(thumbImg)
+                  const isCurrent = thumbIdx === previewModalIndex
+                  return (
+                    <button
+                      key={thumbImg.id}
+                      type="button"
+                      onClick={() => setPreviewModalIndex(thumbIdx)}
+                      className={`relative w-14 h-11 shrink-0 rounded overflow-hidden border-2 transition ${
+                        isCurrent
+                          ? 'border-[#0C6B58] scale-105'
+                          : 'border-white/20 hover:border-white/60 opacity-60 hover:opacity-100'
+                      }`}
+                      title={thumbImg.caption || `Imagem ${thumbIdx + 1}`}
+                    >
+                      <img
+                        src={thumbUrl}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      <span className="absolute bottom-0 right-0 bg-black/80 text-[9px] px-1 font-mono">
+                        #{thumbIdx + 1}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
