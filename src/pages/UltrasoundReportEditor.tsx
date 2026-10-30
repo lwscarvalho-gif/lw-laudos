@@ -1840,192 +1840,8 @@ export default function UltrasoundReportEditor() {
                   className="text-xs leading-relaxed font-semibold font-sans bg-[#FAFBFB]"
                 />
               </div>
-
-              {/* Botão de acesso ao Body Mark entre Conclusão e Fotos */}
-              <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-[#E5E9E7] shadow-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-[#E8F3F0] flex items-center justify-center text-[#0C6B58]">
-                    <Layers className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-[#1F2A27] block">
-                      Esquema Anatômico / Body Mark
-                    </span>
-                    <span className="text-[11px] text-[#5F6E69]">
-                      {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' ? (
-                        <>
-                          Ativo:{' '}
-                          <strong className="text-[#0C6B58]">
-                            {ANATOMICAL_SCHEMES[bodyMarks.schemeId]?.title}
-                          </strong>{' '}
-                          ({(bodyMarks.points || []).length}{' '}
-                          {(bodyMarks.points || []).length === 1 ? 'marca' : 'marcas'}) — sairá no
-                          PDF
-                        </>
-                      ) : (
-                        'Opcional: mapear lesões, quadrantes ou tendões graficamente'
-                      )}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            'Deseja remover o esquema anatômico deste laudo e suas marcas?',
-                          )
-                        ) {
-                          setBodyMarks({ schemeId: 'none', points: [] })
-                          setHasUnsavedChanges(true)
-                        }
-                      }}
-                      className="text-xs text-[#DC2626] hover:bg-red-50 h-8"
-                      title="Remover esquema deste laudo"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 mr-1" />
-                      Remover
-                    </Button>
-                  )}
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setBodyMarkModalOpen(true)}
-                    className={`text-xs h-8 font-semibold transition ${
-                      bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
-                        ? 'border-[#0C6B58] bg-[#E8F3F0] text-[#0C6B58] hover:bg-[#d8ece6]'
-                        : 'border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]'
-                    }`}
-                  >
-                    <Layers className="w-3.5 h-3.5 mr-1.5" />
-                    {bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
-                      ? 'Editar Body Mark'
-                      : 'Ativar Body Mark'}
-                  </Button>
-                </div>
-              </div>
             </div>
           )}
-
-          {/* Quick Body Mark on free-text mode as well */}
-          {mode === 'freetext' && (
-            <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-[#E5E9E7] shadow-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-[#E8F3F0] flex items-center justify-center text-[#0C6B58]">
-                  <Layers className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-[#1F2A27] block">
-                    Esquema Anatômico / Body Mark
-                  </span>
-                  <span className="text-[11px] text-[#5F6E69]">
-                    {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' ? (
-                      <>
-                        Ativo:{' '}
-                        <strong className="text-[#0C6B58]">
-                          {ANATOMICAL_SCHEMES[bodyMarks.schemeId]?.title}
-                        </strong>{' '}
-                        ({(bodyMarks.points || []).length}{' '}
-                        {(bodyMarks.points || []).length === 1 ? 'marca' : 'marcas'}) — sairá no PDF
-                      </>
-                    ) : (
-                      'Opcional: mapear lesões, quadrantes ou tendões graficamente'
-                    )}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          'Deseja remover o esquema anatômico deste laudo e suas marcas?',
-                        )
-                      ) {
-                        setBodyMarks({ schemeId: 'none', points: [] })
-                        setHasUnsavedChanges(true)
-                      }
-                    }}
-                    className="text-xs text-[#DC2626] hover:bg-red-50 h-8"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-1" />
-                    Remover
-                  </Button>
-                )}
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setBodyMarkModalOpen(true)}
-                  className={`text-xs h-8 font-semibold transition ${
-                    bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
-                      ? 'border-[#0C6B58] bg-[#E8F3F0] text-[#0C6B58] hover:bg-[#d8ece6]'
-                      : 'border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]'
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5 mr-1.5" />
-                  {bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
-                    ? 'Editar Body Mark'
-                    : 'Ativar Body Mark'}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* MULTIPLE IMAGES SECTION */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-base text-[#1F2A27] flex items-center gap-2">
-                <ImageIcon className="w-5 h-5 text-[#0C6B58]" />
-                Documentação Fotográfica e Anexos de Imagens
-              </h2>
-
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-[#5F6E69]">Layout por página de impressão:</span>
-                <Select
-                  value={String(imagesPerPage)}
-                  onValueChange={(val) => {
-                    setImagesPerPage(Number(val) as any)
-                    setHasUnsavedChanges(true)
-                  }}
-                >
-                  <SelectTrigger className="h-7 w-28 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2">2 por página</SelectItem>
-                    <SelectItem value="4">4 por página</SelectItem>
-                    <SelectItem value="6">6 por página</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <ExamImagesManager
-              images={images}
-              onImagesChange={(newImgs) => {
-                setImages(newImgs)
-                setHasUnsavedChanges(true)
-              }}
-              reportId={currentReportId}
-              examId={examId}
-              patientName={patients.find((p) => p.id === patientId)?.name || ''}
-              patientId={patientId || ''}
-            />
-          </div>
         </div>
 
         {/* Right Column: AI Assistant Panel & Quick Actions (25%) */}
@@ -2172,6 +1988,155 @@ export default function UltrasoundReportEditor() {
               Identificação profissional emitida automaticamente no rodapé do laudo (sem menção a
               assinatura digital certificada).
             </p>
+          </div>
+
+          {/* CARD BODY MARK — Acesso direto e indicador na coluna lateral */}
+          <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-[#E8F3F0] flex items-center justify-center text-[#0C6B58]">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-bold text-xs text-[#1F2A27] block">
+                    Esquema Anatômico / Body Mark
+                  </span>
+                  <span className="text-[10px] text-[#5F6E69]">Mapeamento gráfico de lesões</span>
+                </div>
+              </div>
+
+              {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' ? (
+                <span className="text-[10px] text-[#0C6B58] bg-[#E8F3F0] px-1.5 py-0.5 rounded font-semibold">
+                  Ativo no laudo
+                </span>
+              ) : (
+                <span className="text-[10px] text-[#8A9691] bg-gray-100 px-1.5 py-0.5 rounded">
+                  Opcional
+                </span>
+              )}
+            </div>
+
+            {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' ? (
+              <div className="p-2.5 rounded-lg bg-[#FAFBFB] border border-[#E5E9E7] space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[#5F6E69]">Esquema ativo:</span>
+                  <strong className="text-[#0C6B58]">
+                    {ANATOMICAL_SCHEMES[bodyMarks.schemeId]?.title || bodyMarks.schemeId}
+                  </strong>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-[#5F6E69]">
+                  <span>Marcas anotadas:</span>
+                  <span className="font-semibold text-[#1F2A27]">
+                    {(bodyMarks.points || []).length}{' '}
+                    {(bodyMarks.points || []).length === 1 ? 'marca' : 'marcas'}
+                  </span>
+                </div>
+                <p className="text-[10px] text-[#0C6B58] pt-1 border-t border-[#E5E9E7]">
+                  ✓ O esquema com as marcações sairá impresso no laudo principal.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-[#5F6E69] leading-relaxed">
+                Mapeie lesões, quadrantes (mama), posicionamento de DIU ou tendões
+                (ombro/joelho/tornozelo) graficamente para sair no laudo impresso.
+              </p>
+            )}
+
+            <div className="flex items-center gap-2 pt-1">
+              {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        'Deseja remover o esquema anatômico deste laudo e suas marcas?',
+                      )
+                    ) {
+                      setBodyMarks({ schemeId: 'none', points: [] })
+                      setHasUnsavedChanges(true)
+                    }
+                  }}
+                  className="text-xs text-[#DC2626] hover:bg-red-50 h-8 flex-1"
+                  title="Remover esquema deste laudo"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  Remover
+                </Button>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setBodyMarkModalOpen(true)}
+                className={`text-xs h-8 font-semibold transition flex-1 ${
+                  bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
+                    ? 'border-[#0C6B58] bg-[#E8F3F0] text-[#0C6B58] hover:bg-[#d8ece6]'
+                    : 'border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 mr-1.5" />
+                {bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
+                  ? 'Editar Body Mark'
+                  : 'Ativar Body Mark'}
+              </Button>
+            </div>
+          </div>
+
+          {/* CARD DOCUMENTAÇÃO FOTOGRÁFICA / IMAGENS DO EXAME NA COLUNA LATERAL */}
+          <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-[#E5E9E7]">
+              <div>
+                <span className="font-bold text-xs text-[#1F2A27] flex items-center gap-1.5">
+                  <ImageIcon className="w-4 h-4 text-[#0C6B58]" />
+                  Documentação Fotográfica
+                </span>
+                <span className="text-[10px] text-[#5F6E69] block mt-0.5">
+                  Anexos de imagens do exame (JPG, PNG e DICOM)
+                </span>
+              </div>
+              <span className="text-[10px] text-[#0C6B58] bg-[#E8F3F0] px-1.5 py-0.5 rounded font-semibold shrink-0">
+                {images.length} {images.length === 1 ? 'imagem' : 'imagens'}
+              </span>
+            </div>
+
+            {/* Configuração de layout por página do anexo */}
+            <div className="flex items-center justify-between gap-2 p-2 bg-[#FAFBFB] rounded-lg border border-[#E5E9E7] text-xs">
+              <span className="text-[#5F6E69] text-[11px] leading-tight">
+                Imagens por página de impressão:
+              </span>
+              <Select
+                value={String(imagesPerPage)}
+                onValueChange={(val) => {
+                  setImagesPerPage(Number(val) as any)
+                  setHasUnsavedChanges(true)
+                }}
+              >
+                <SelectTrigger className="h-7 w-28 text-xs shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2">2 por página</SelectItem>
+                  <SelectItem value="4">4 por página</SelectItem>
+                  <SelectItem value="6">6 por página</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Gerenciador completo de imagens */}
+            <ExamImagesManager
+              images={images}
+              onImagesChange={(newImgs) => {
+                setImages(newImgs)
+                setHasUnsavedChanges(true)
+              }}
+              reportId={currentReportId}
+              examId={examId}
+              patientName={patients.find((p) => p.id === patientId)?.name || ''}
+              patientId={patientId || ''}
+            />
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.48** (Fechada — Ingestão de Imagens Médicas por DICOM Local e PACS Orthanc no Editor de Laudo com Frames Reais no PDF)  
+> **Versão do Projeto**: **v0.0.50** (Fechada — Otimização do Layout do Editor de Ultrassom: Body Mark e Documentação Fotográfica na Coluna Lateral Direita)  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,22 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.50 — Otimização do Layout do Editor de Ultrassom: Body Mark e Documentação Fotográfica na Coluna Lateral Direita**:
+  - **Atendimento à Solicitação do Usuário/Proprietário**:
+    - _"ESSA PARTE DO SEGUNDO PRINT É UMA GRANDE ESPAÇO PERDIDO. QUERO APROVEITAR MELHOR. VAMOS TRAZER O BOTÃO DO BODY MARK PARA AQUI. E TAMBEM PODEMOS POR AS IMAGENS DO EXAME AQUI"_
+  - **1. Reaproveitamento do Espaço Vazio da Coluna Lateral Direita**:
+    - A coluna lateral direita do editor de ultrassonografia (`/laudos/ultrassom`), abaixo do card de identificação do responsável técnico, agora abriga de forma ergonômica:
+      - **Card do Esquema Anatômico / Body Mark**: botão de ativação/edição do modal com todas as figuras anatômicas SVG (mama, DIU, tendões, etc.), contador de marcas anotadas e opção de remoção quando ativo. O botão sob demanda do cabeçalho também continua sincronizado.
+      - **Card da Documentação Fotográfica**: gerenciador completo de imagens com seletor direto de arquivos, suporte a DICOM (.dcm/.dicom nativo), busca e importação no PACS Orthanc, drag & drop de capturas ecográficas, alternância de seleção para impressão e edição de legendas/ordem, com rolagem vertical suave para muitas imagens.
+  - **2. Fluxo Central Enxuto**:
+    - A coluna principal central do editor agora flui de forma limpa e direta pelos órgãos avaliados (Fígado, Vias Biliares, Vesícula, Pâncreas, Baço, Rins etc.) terminando na Conclusão Diagnóstica Separada, sem a antiga barra compacta nem a listagem pesada de imagens no rodapé central.
+  - **3. Preservação Integral de Regras e Saídas Clínicas**:
+    - Geração de PDF e impressão 100% idênticas: o Body Mark é impresso no laudo principal quando ativo; as imagens são impressas no Anexo de Documentação Fotográfica com paginação própria (`Anexo — Página X de Y`) e nota ética preservada.
+    - Nenhum dado clínico, fluxo de salvamento automático ou salvamento de rascunho foi modificado.
+    - Em telas móveis/estreitas, a coluna lateral empilha naturalmente abaixo do fluxo central.
+  - **4. Integridade de Dados no Banco**:
+    - O rascunho oficial de laudo do Dr. Lucas (`muvdbwmrw3hagrr`, status `Rascunho`, owner `kxhlkfxh0yddn64`) permanece 100% intacto no banco de dados.
 
 - **v0.0.48 — Ingestão de Imagens Médicas por DICOM Local (.dcm) e PACS Orthanc no Editor de Laudo com Suporte a Frames Reais no PDF**:
   - **Atendimento à Solicitação do Médico Radiologista / Proprietário**:

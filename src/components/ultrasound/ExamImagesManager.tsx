@@ -468,10 +468,10 @@ export default function ExamImagesManager({
         </span>
       </div>
 
-      {/* Images Grid */}
+      {/* Images Grid — na coluna lateral fica com rolagem suave caso haja muitas imagens */}
       {images.length === 0 ? (
-        <div className="p-8 text-center rounded-xl bg-white border border-[#E5E9E7] space-y-2">
-          <ImageIcon className="w-8 h-8 text-[#8A9691] mx-auto stroke-1" />
+        <div className="p-6 text-center rounded-xl bg-[#FAFBFB] border border-[#E5E9E7] space-y-2">
+          <ImageIcon className="w-7 h-7 text-[#8A9691] mx-auto stroke-1" />
           <p className="text-xs font-semibold text-[#1F2A27]">
             Nenhuma imagem anexada a este exame ainda
           </p>
@@ -481,7 +481,7 @@ export default function ExamImagesManager({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-3 max-h-[640px] overflow-y-auto pr-1">
           {images.map((img, index) => {
             const isSelected = img.selected_for_print !== false
             const url = examImagesService.getImageUrl(img)
