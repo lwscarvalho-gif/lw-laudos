@@ -574,8 +574,10 @@ export default function Agenda() {
       // Convert civil Cuiaba date + time to ISO UTC
       const startIso = combineCuiabaDateTimeToISO(formDate, formTime)
 
+      let savedRecord: Appointment | null = null
+
       if (editingAppointment) {
-        await appointmentsService.update(editingAppointment.id, {
+        savedRecord = await appointmentsService.update(editingAppointment.id, {
           patient_id: finalPatientId,
           start_time: startIso,
           duration_minutes: formDuration,
@@ -591,7 +593,7 @@ export default function Agenda() {
           description: 'Os dados da consulta e solicitações foram salvos com sucesso.',
         })
       } else {
-        await appointmentsService.create(
+        savedRecord = await appointmentsService.create(
           {
             patient_id: finalPatientId,
             start_time: startIso,
@@ -609,19 +611,27 @@ export default function Agenda() {
           title: 'Agendamento criado',
           description: 'Paciente agendado com fotos da solicitação e MWL DICOM preparados.',
         })
-        // Abre automaticamente o comprovante de agendamento para impressão/visualização
-        try {
-          const latestList = await appointmentsService.getAll()
-          const justCreated = latestList.find(
-            (a) => a.patient_id === finalPatientId && a.start_time === startIso,
-          )
-          if (justCreated) {
-            setVoucherAppointment(justCreated)
-            setVoucherModalOpen(true)
+      }
+
+      // Conforme solicitação do proprietário: ao concluir o agendamento, fechar o modal
+      // e abrir imediatamente o comprovante A4 com preparo, orientações e dados completos
+      if (savedRecord) {
+        // Garantir que expand de paciente venha preenchido ou objeto paciente esteja acessível
+        const resolvedPatientForVoucher =
+          savedRecord.expand?.patient_id ||
+          finalPatientObj ||
+          patients.find((p) => p.id === finalPatientId)
+        if (resolvedPatientForVoucher && !savedRecord.expand?.patient_id) {
+          savedRecord = {
+            ...savedRecord,
+            expand: {
+              ...(savedRecord.expand || {}),
+              patient_id: resolvedPatientForVoucher,
+            },
           }
-        } catch {
-          /* intentionally ignored */
         }
+        setVoucherAppointment(savedRecord)
+        setVoucherModalOpen(true)
       }
 
       setModalOpen(false)
@@ -758,18 +768,46 @@ export default function Agenda() {
     return [...list].sort((a, b) => a.start_time.localeCompare(b.start_time))
   }, [appointmentsByDate, selectedDate])
 
-  // Dynamic day time slots according to user's default duration (from 07:00 to 19:00)
+  // Dynamic slot duration according to user's default duration
   const slotIntervalMinutes = useMemo(() => {
     const dur = user?.default_appointment_duration
     if (dur && [10, 15, 20, 30, 40, 45, 60].includes(dur)) return dur
     return 30
   }, [user?.default_appointment_duration])
 
+  // Dynamic day time slots: starts at 07:00 (or earlier if there are earlier appointments)
+  // and ends at 19:00 (or later if there are later appointments, ex.: 20h, 21h, 22h).
+  // Ensures that NO appointment ever remains hidden outside the grid.
   const scheduleSlots = useMemo(() => {
     const slots: { startMinutes: number; endMinutes: number; timeStr: string }[] = []
-    const startM = 7 * 60 // 07:00
-    const endM = 19 * 60 // 19:00
-    for (let cur = startM; cur < endM; cur += slotIntervalMinutes) {
+    let minMinutes = 7 * 60 // default 07:00
+    let maxMinutes = 19 * 60 // default 19:00
+
+    dayAppointments.forEach((appt) => {
+      const t = formatCuiabaTime(appt.start_time)
+      const [hStr, mStr] = t.split(':')
+      const apptStart = parseInt(hStr, 10) * 60 + parseInt(mStr || '0', 10)
+      const dur = appt.duration_minutes || slotIntervalMinutes
+      const apptEnd = apptStart + dur
+
+      if (apptStart < minMinutes) {
+        // Floor to slotIntervalMinutes or whole hour
+        const flooredStart = Math.floor(apptStart / slotIntervalMinutes) * slotIntervalMinutes
+        if (flooredStart < minMinutes) {
+          minMinutes = Math.max(0, flooredStart)
+        }
+      }
+
+      if (apptEnd > maxMinutes) {
+        // Ceil to slotIntervalMinutes
+        const ceiledEnd = Math.ceil(apptEnd / slotIntervalMinutes) * slotIntervalMinutes
+        if (ceiledEnd > maxMinutes) {
+          maxMinutes = Math.min(24 * 60, ceiledEnd)
+        }
+      }
+    })
+
+    for (let cur = minMinutes; cur < maxMinutes; cur += slotIntervalMinutes) {
       slots.push({
         startMinutes: cur,
         endMinutes: cur + slotIntervalMinutes,
@@ -777,7 +815,7 @@ export default function Agenda() {
       })
     }
     return slots
-  }, [slotIntervalMinutes])
+  }, [dayAppointments, slotIntervalMinutes])
 
   const getStatusBadge = (status: AppointmentStatus) => {
     switch (status) {

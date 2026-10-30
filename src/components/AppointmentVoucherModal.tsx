@@ -239,7 +239,8 @@ export const AppointmentVoucherModal: React.FC<AppointmentVoucherModalProps> = (
               ) : (
                 <span className="text-[#71827C] italic">
                   Comparecer 15 minutos antes do horário agendado munido de documentos pessoais,
-                  cartão SUS e exames anteriores.
+                  cartão SUS e exames anteriores. Nenhum preparo alimentar especial obrigatório além
+                  da pontualidade e hidratação regular.
                 </span>
               )}
             </div>
@@ -250,6 +251,51 @@ export const AppointmentVoucherModal: React.FC<AppointmentVoucherModalProps> = (
               seu diagnóstico. Em caso de dúvidas ou necessidade de reagendamento, avise com
               antecedência.
             </div>
+          </div>
+
+          {/* RECOMENDAÇÕES DE DOCUMENTOS A LEVAR PARA O EXAME */}
+          <div className="p-4 rounded-xl border border-[#D5DED9] bg-white space-y-2">
+            <div className="flex items-center gap-2 text-[#1F2A27]">
+              <FileText className="w-4 h-4 shrink-0 text-[#0C6B58]" />
+              <h3 className="font-bold text-xs uppercase tracking-wide text-[#0C6B58]">
+                Recomendações de Documentos Obrigatórios a Levar
+              </h3>
+            </div>
+            <ul className="text-xs text-[#33423E] space-y-1.5 list-disc list-inside">
+              <li>
+                <span className="font-semibold text-[#1F2A27]">Documento oficial com foto:</span> RG
+                ou CNH original (do paciente ou responsável legal em caso de menor).
+              </li>
+              <li>
+                <span className="font-semibold text-[#1F2A27]">
+                  Cartão SUS (CNS) e/ou Convênio:
+                </span>{' '}
+                obrigatório para atendimento pelo SUS no HM Samuel Marques dos Santos ou
+                identificação.
+              </li>
+              <li>
+                <span className="font-semibold text-[#1F2A27]">
+                  Pedido / Solicitação médica original:
+                </span>{' '}
+                com carimbo e assinatura do médico solicitante.
+              </li>
+              <li>
+                <span className="font-semibold text-[#1F2A27]">
+                  Exames anteriores da mesma região:
+                </span>{' '}
+                ultrassonografias, tomografias, mamografias ou biópsias anteriores para estudo
+                comparativo fundamental.
+              </li>
+              {appointment.exam_type?.toLowerCase().includes('obstétric') ||
+              appointment.exam_type?.toLowerCase().includes('morfológic') ||
+              appointment.exam_type?.toLowerCase().includes('gesta') ? (
+                <li className="text-[#0C6B58] font-medium">
+                  <span className="font-bold">Caderneta da Gestante / Pré-natal:</span>{' '}
+                  indispensável trazer a caderneta e exames prévios de ultrassom obstétrico da
+                  gestação atual.
+                </li>
+              ) : null}
+            </ul>
           </div>
 
           {/* Rodapé institucional com versão preliminar */}
