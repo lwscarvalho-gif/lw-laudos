@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.43** (Fechada — TypeScript e QA 100% verde; commit v0.0.44)  
+> **Versão do Projeto**: **v0.0.45** (Fechada — Correção do Comprovante de Agendamento em Branco / Impressão A4 Completa e QA 100% verde)  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,23 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.45 — Correção Definitiva da Impressão do Comprovante de Agendamento (Folha em Branco/Sem Texto)**:
+  - **Diagnóstico da Causa Raiz do Comprovante em Branco**:
+    - O comprovante de agendamento do paciente (`AppointmentVoucherModal`) estava sendo renderizado dentro do portal flutuante do Radix Dialog (`[data-radix-portal]`) com a regra `@media print` tentando capturar `#appointment-printable-voucher` no DOM raiz através do seletor `body:has(#appointment-printable-voucher) * { visibility: hidden }`.
+    - Ao invocar `window.print()` a partir do contexto da SPA, o motor de renderização de impressão dos navegadores (Chromium / Firefox / WebKit) calculava a caixa de layout e as coordenadas do portal flutuante com altura/scroll virtual do modal pai, resultando em corte de viewport ou impressão de páginas em branco (exatamente a folha vazia com cabeçalho de URL enviada pelo usuário).
+  - **Implementação do Motor Dedicado de Impressão de Comprovante (`src/lib/appointmentVoucherPrinter.ts`)**:
+    - Criação de gerador de documento HTML 100% autocontido (`buildAppointmentVoucherHTML`), seguindo a mesma arquitetura de sucesso já utilizada com solidez na emissão de laudos (`buildReportHTML`).
+    - Estilos isolados com `@page { size: A4 portrait; margin: 10mm 12mm; }`, tipografia Inter, preservação de cores via `-webkit-print-color-adjust: exact !important` e enquadramento total em 1 página sem quebras de linha espúrias.
+    - Função `printAppointmentVoucher` com estratégia em 2 etapas:
+      1. Abre uma janela/popup limpa e dedicada com o HTML autocontido renderizado e dispara a impressão com foco garantido.
+      2. Fallback resiliente via `iframe` oculto no documento, garantindo impressão impecável mesmo se popups estiverem bloqueadas.
+  - **Blindagem do CSS de Mídia de Impressão (`src/main.css`)**:
+    - Substituição das regras conflitantes de `body:has(#appointment-printable-voucher)` por manipulação estruturada do portal do Radix Dialog, garantindo que mesmo se o usuário acionar o atalho `Ctrl+P` do navegador com o modal aberto, o conteúdo do comprovante seja visível, formatado e sem páginas adicionais em branco.
+  - **Validação E2E com Perfil Convidado (`SimulationVoucherAppointmentE2E`)**:
+    - Adicionado componente de teste de fluxo em `/diagnostico` que autentica com a conta de teste (`convidado@lwlaudos.local`, senha `Convidado123`), cria agendamento para o horário das 20:00, verifica a extração de todos os dados clínicos (nome, data, horário, clínica, preparo clínico e documentos a levar), comprova a formatação em 1 página A4 e limpa o registro de teste.
+  - **Integridade Garantida**:
+    - O rascunho oficial de laudo do Dr. Lucas (`muvdbwmrw3hagrr`, owner `kxhlkfxh0yddn64`, status `Rascunho`) segue 100% intacto no banco de dados.
 
 - **v0.0.43 — Fechamento de Tipagem TypeScript e Homologação de QA Verde**:
   - **Correção Estrita de Tipagem no Módulo de Assinatura Real (`backendRealSignature.ts`)**:

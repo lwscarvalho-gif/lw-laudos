@@ -23,6 +23,7 @@ import {
 import { Appointment, Patient } from '@/types'
 import { formatCuiabaDate, formatCuiabaTime } from '@/lib/formatters'
 import { PRELIMINARY_VERSION_DISCLAIMER } from '@/lib/pdfGenerator'
+import { printAppointmentVoucher } from '@/lib/appointmentVoucherPrinter'
 
 interface AppointmentVoucherModalProps {
   open: boolean
@@ -64,7 +65,10 @@ export const AppointmentVoucherModal: React.FC<AppointmentVoucherModalProps> = (
   const isHospitalSamuel = clinicLocationLower.includes('samuel')
 
   const handlePrint = () => {
-    window.print()
+    printAppointmentVoucher({
+      appointment,
+      patient,
+    })
   }
 
   return (

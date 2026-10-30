@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom'
 import { runSyntheticArchitectureTests, SyntheticTestResult } from '@/lib/syntheticSignatureTests'
 import { SimulationE2EV34 } from '@/components/SimulationE2EV34'
 import { SimulationReportFinalizeE2E } from '@/components/SimulationReportFinalizeE2E'
+import { SimulationVoucherAppointmentE2E } from '@/components/SimulationVoucherAppointmentE2E'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
@@ -59,6 +60,9 @@ export default function DiagnosticoDesenvolvimento() {
           Área Restrita de Diagnóstico Técnico
         </Badge>
       </div>
+
+      {/* Simulation E2E Voucher Appointment Panel (v0.0.45) */}
+      <SimulationVoucherAppointmentE2E />
 
       {/* Simulation E2E Finalize Report Panel */}
       <SimulationReportFinalizeE2E />
