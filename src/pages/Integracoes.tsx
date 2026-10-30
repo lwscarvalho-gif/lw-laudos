@@ -625,43 +625,49 @@ export default function Integracoes() {
 
           {/* SEÇÃO 3: DICOM & EQUIPAMENTOS (MANTIDOS NÃO CONECTADOS / NÃO CONFIGURADOS) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Card 1: DICOM Imagens */}
+            {/* Card 1: DICOM Imagens & PACS Orthanc */}
             <div className="bg-white p-6 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4 flex flex-col justify-between">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <HardDrive className="w-5 h-5 text-[#0C6B58]" />
                     <h2 className="font-bold text-base text-[#1F2A27]">
-                      DICOM Imagens (Store SCP)
+                      PACS Orthanc & DICOM Local (.dcm)
                     </h2>
                   </div>
                   <Badge
                     variant="outline"
-                    className="text-amber-800 border-amber-300 bg-amber-50 text-[10px]"
+                    className="text-[#0C6B58] border-[#0C6B58]/30 bg-[#E8F3F0] text-[10px]"
                   >
-                    Não configurado
+                    Ativo no Editor
                   </Badge>
                 </div>
 
                 <p className="text-xs text-[#5F6E69] leading-relaxed">
-                  Estrutura preparada para receber capturas diretamente do console de ultrassom via
-                  protocolo DICOM C-STORE.
+                  Ingestão direta de arquivos DICOM (.dcm) pelo navegador com extração de frames
+                  reais e integração com servidor PACS Orthanc local ou nuvem via API segura.
                 </p>
 
                 <div className="p-3 bg-[#F7F9F8] rounded-lg border border-[#E5E9E7] text-xs space-y-1">
                   <span className="font-semibold text-[#1F2A27] block">
-                    Capacidade Técnica Mapeada:
+                    Recursos Implementados:
                   </span>
                   <ul className="list-disc pl-4 text-[#5F6E69] space-y-1">
-                    <li>Recepção de fotogramas congelados do exame</li>
-                    <li>Conversão de frames para JPG/PNG de alta resolução</li>
-                    <li>Armazenamento de imagens atrelado ao laudo</li>
+                    <li>
+                      Upload direto de arquivos DICOM (.dcm/.dicom) com extração de multi-frames
+                    </li>
+                    <li>Busca de estudos no Orthanc por Paciente, CPF, Data ou Accession Number</li>
+                    <li>Importação com 1 clique direto para o anexo fotográfico do laudo</li>
+                    <li>Omissão automática da nota ilustrativa para frames DICOM reais no PDF</li>
                   </ul>
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-[#E5E9E7] text-[11px] text-[#8A9691]">
-                Não conectado neste ambiente. Depende de receptor configurado na rede local.
+              <div className="pt-3 border-t border-[#E5E9E7] text-[11px] text-[#0C6B58] font-medium flex items-center justify-between">
+                <span>Disponível no editor (/laudos/ultrassom)</span>
+                <span className="font-mono text-[10px] text-[#5F6E69]">
+                  Padrão: http://localhost:8042
+                </span>
               </div>
             </div>
 

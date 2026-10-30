@@ -11,20 +11,27 @@ import {
   FileText,
   AlertCircle,
   Eye,
+  Server,
+  FileCode,
 } from 'lucide-react'
 import { examImagesService } from '@/services/examImages'
 import type { ExamImage } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
+import { extractDicomFrames } from '@/lib/dicomParser'
+import { OrthancPacsSearchModal } from '@/components/ultrasound/OrthancPacsSearchModal'
 
 interface ExamImagesManagerProps {
   images: ExamImage[]
   onImagesChange: (imgs: ExamImage[]) => void
   reportId?: string
   examId?: string
+  patientName?: string
+  patientId?: string
 }
 
 export default function ExamImagesManager({
@@ -36,61 +43,129 @@ export default function ExamImagesManager({
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgressText, setUploadProgressText] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
   const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null)
+  const [pacsModalOpen, setPacsModalOpen] = useState(false)
 
   const processAndUploadFiles = async (fileList: FileList | File[]) => {
     if (!fileList || fileList.length === 0) return
 
-    const validFiles: File[] = []
     const filesArray = Array.from(fileList)
+    setUploading(true)
+    setUploadProgressText('Processando arquivos selecionados...')
+
+    const itemsToUpload: Array<{
+      blob: Blob | File
+      fileName: string
+      caption: string
+      isRealDicom?: boolean
+    }> = []
 
     for (const file of filesArray) {
-      // Validate type: JPG/PNG
+      const lowerName = file.name.toLowerCase()
+      const isDicom =
+        lowerName.endsWith('.dcm') ||
+        lowerName.endsWith('.dicom') ||
+        file.type === 'application/dicom'
+
+      if (isDicom) {
+        setUploadProgressText(`Decodificando frames DICOM de ${file.name}...`)
+        try {
+          const frames = await extractDicomFrames(file)
+          if (frames.length === 0) {
+            toast({
+              title: 'Arquivo DICOM sem frames',
+              description: `Não foram encontrados frames visuais em "${file.name}".`,
+              variant: 'destructive',
+            })
+            continue
+          }
+
+          frames.forEach((frame, idx) => {
+            const frameLabel = frames.length > 1 ? ` (Frame ${idx + 1}/${frames.length})` : ''
+            const desc =
+              frame.metadata.studyDescription || frame.metadata.seriesDescription || 'Frame DICOM'
+            itemsToUpload.push({
+              blob: frame.blob,
+              fileName: `${file.name.replace(/\.[^/.]+$/, '')}_frame_${idx + 1}.jpg`,
+              caption: `DICOM: ${desc}${frameLabel}`,
+              isRealDicom: true,
+            })
+          })
+        } catch (dicomErr: unknown) {
+          const msg = dicomErr instanceof Error ? dicomErr.message : 'Falha na decodificação'
+          toast({
+            title: 'Erro ao processar DICOM',
+            description: `Não foi possível ler o arquivo DICOM "${file.name}": ${msg}`,
+            variant: 'destructive',
+          })
+        }
+        continue
+      }
+
+      // Check standard JPG / PNG
       if (!file.type.match(/^image\/(jpeg|png)$/)) {
         toast({
           title: 'Arquivo não suportado',
-          description: `O arquivo "${file.name}" (${file.type || 'tipo desconhecido'}) não é JPG ou PNG. Selecione apenas imagens JPG ou PNG.`,
+          description: `O arquivo "${file.name}" não é JPG, PNG nem DICOM (.dcm).`,
           variant: 'destructive',
         })
         continue
       }
-      // Validate size: 15MB max
+
       if (file.size > 15 * 1024 * 1024) {
         const sizeMb = (file.size / (1024 * 1024)).toFixed(1)
         toast({
           title: 'Tamanho excedido (limite 15 MB)',
-          description: `A imagem "${file.name}" possui ${sizeMb} MB e ultrapassa o limite máximo permitido de 15 MB por arquivo.`,
+          description: `A imagem "${file.name}" possui ${sizeMb} MB e ultrapassa o limite de 15 MB.`,
           variant: 'destructive',
         })
         continue
       }
-      validFiles.push(file)
+
+      itemsToUpload.push({
+        blob: file,
+        fileName: file.name,
+        caption: '',
+        isRealDicom: false,
+      })
     }
 
-    if (validFiles.length === 0) {
+    if (itemsToUpload.length === 0) {
+      setUploading(false)
+      setUploadProgressText('')
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
 
-    setUploading(true)
+    setUploadProgressText(`Salvando ${itemsToUpload.length} imagem(ns) no laudo...`)
     const uploadedResults: ExamImage[] = []
     const errors: string[] = []
     let startOrder = images.length
 
-    for (const file of validFiles) {
+    for (let i = 0; i < itemsToUpload.length; i++) {
+      const item = itemsToUpload[i]
+      setUploadProgressText(`Enviando frame ${i + 1} de ${itemsToUpload.length}...`)
       try {
-        const created = await examImagesService.upload(file, {
+        const created = await examImagesService.upload(item.blob, {
           report_id: reportId || undefined,
           exam_id: examId || undefined,
           sort_order: startOrder++,
           selected_for_print: true, // Default checked
-          caption: '',
+          caption: item.caption,
+          fileName: item.fileName,
         })
+
+        // Flag in memory whether this is real DICOM
+        if (item.isRealDicom) {
+          created.is_real_dicom = true
+        }
+
         uploadedResults.push(created)
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Falha na requisição'
-        errors.push(`"${file.name}": ${msg}`)
+        errors.push(`"${item.fileName}": ${msg}`)
       }
     }
 
@@ -98,20 +173,55 @@ export default function ExamImagesManager({
       onImagesChange([...images, ...uploadedResults])
       toast({
         title: 'Imagens anexadas',
-        description: `${uploadedResults.length} imagem(ns) enviada(s) e vinculada(s) ao exame com sucesso.`,
+        description: `${uploadedResults.length} imagem(ns) vinculada(s) ao exame com sucesso.`,
       })
     }
 
     if (errors.length > 0) {
       toast({
         title: 'Falha no envio de arquivo(s)',
-        description: `Não foi possível enviar: ${errors.join(', ')}. Verifique o servidor e tente novamente.`,
+        description: `Não foi possível enviar: ${errors.join(', ')}.`,
         variant: 'destructive',
       })
     }
 
     setUploading(false)
+    setUploadProgressText('')
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  // Handler for direct PACS Orthanc frames import
+  const handleImportPacsFrames = async (
+    frames: { blob: Blob; fileName: string; caption: string }[],
+  ) => {
+    setUploading(true)
+    setUploadProgressText(`Vinculando ${frames.length} frame(s) do PACS Orthanc...`)
+    const uploadedResults: ExamImage[] = []
+    let startOrder = images.length
+
+    for (let i = 0; i < frames.length; i++) {
+      const f = frames[i]
+      try {
+        const created = await examImagesService.upload(f.blob, {
+          report_id: reportId || undefined,
+          exam_id: examId || undefined,
+          sort_order: startOrder++,
+          selected_for_print: true,
+          caption: f.caption,
+          fileName: f.fileName,
+        })
+        created.is_real_dicom = true
+        uploadedResults.push(created)
+      } catch (err) {
+        console.error('Erro ao enviar imagem importada do PACS:', err)
+      }
+    }
+
+    if (uploadedResults.length > 0) {
+      onImagesChange([...images, ...uploadedResults])
+    }
+    setUploading(false)
+    setUploadProgressText('')
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -258,33 +368,57 @@ export default function ExamImagesManager({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* PACS Orthanc Import Action Button */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPacsModalOpen(true)}
+              className="h-8 border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0] text-xs font-semibold gap-1.5"
+            >
+              <Server className="w-3.5 h-3.5" />
+              Buscar no PACS Orthanc
+            </Button>
+
             {uploading && (
-              <span className="flex items-center gap-1.5 text-xs text-[#0C6B58] font-medium">
+              <span className="flex items-center gap-1.5 text-xs text-[#0C6B58] font-medium bg-[#E8F3F0] px-2.5 py-1 rounded-md">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Enviando imagens...
+                {uploadProgressText || 'Enviando imagens...'}
               </span>
             )}
           </div>
         </div>
 
-        {/* Option: Visible Native File Input */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-[#E5E9E7]">
-          <Label
-            htmlFor="native-file-input"
-            className="text-xs font-semibold text-[#1F2A27] shrink-0"
-          >
-            Seletor direto de arquivo:
-          </Label>
-          <input
-            id="native-file-input"
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            accept="image/jpeg,image/png"
-            multiple
-            disabled={uploading}
-            className="text-xs text-[#1F2A27] file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#0C6B58] file:text-white hover:file:bg-[#0A5949] cursor-pointer"
-          />
+        {/* Option: Visible Native File Input with DICOM support */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[#E5E9E7]">
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="native-file-input"
+              className="text-xs font-semibold text-[#1F2A27] shrink-0"
+            >
+              Seletor direto de arquivo:
+            </Label>
+            <input
+              id="native-file-input"
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept="image/jpeg,image/png,.dcm,.dicom,application/dicom"
+              multiple
+              disabled={uploading}
+              className="text-xs text-[#1F2A27] file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#0C6B58] file:text-white hover:file:bg-[#0A5949] cursor-pointer"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className="text-[10px] text-[#0C6B58] border-[#0C6B58]/40 bg-[#E8F3F0]/50 flex items-center gap-1"
+            >
+              <FileCode className="w-3 h-3" />
+              DICOM (.dcm) nativo suportado
+            </Badge>
+          </div>
         </div>
       </div>
 
@@ -315,10 +449,10 @@ export default function ExamImagesManager({
             <p className="text-xs font-semibold text-[#1F2A27]">
               {isDragOver
                 ? 'Solte as imagens aqui para iniciar o envio'
-                : 'Arraste e solte imagens JPG / PNG aqui'}
+                : 'Arraste e solte arquivos DICOM (.dcm), JPG ou PNG aqui'}
             </p>
             <p className="text-[11px] text-[#5F6E69] mt-0.5">
-              ou clique para abrir a janela de seleção (suporta seleção múltipla, máx. 15 MB cada)
+              Frames DICOM (incluindo multi-frame) são extraídos e convertidos automaticamente
             </p>
           </div>
         </div>
@@ -404,6 +538,15 @@ export default function ExamImagesManager({
                   <span className="absolute bottom-2 left-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
                     #{index + 1}
                   </span>
+
+                  {/* DICOM Real Tag */}
+                  {(img.is_real_dicom ||
+                    img.caption?.includes('DICOM') ||
+                    img.caption?.includes('PACS')) && (
+                    <span className="absolute bottom-2 right-2 bg-[#0C6B58]/90 text-white text-[9px] px-1.5 py-0.5 rounded font-semibold tracking-wider">
+                      FRAME REAL DICOM
+                    </span>
+                  )}
                 </div>
 
                 {/* Bottom Controls: Caption & reorder */}
@@ -463,6 +606,15 @@ export default function ExamImagesManager({
           })}
         </div>
       )}
+
+      {/* PACS Orthanc Search Modal */}
+      <OrthancPacsSearchModal
+        open={pacsModalOpen}
+        onOpenChange={setPacsModalOpen}
+        onImportFrames={handleImportPacsFrames}
+        defaultPatientName=""
+        defaultPatientId=""
+      />
 
       {/* Preview Dialog */}
       <Dialog open={!!previewModalUrl} onOpenChange={(open) => !open && setPreviewModalUrl(null)}>

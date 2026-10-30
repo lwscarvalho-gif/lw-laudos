@@ -812,3 +812,323 @@ routerAdd(
   },
   $apis.requireAuth(),
 )
+
+/**
+ * BLOCO DE INTEGRAÇÃO COM PACS ORTHANC (REST API / FIND & IMPORT INSTANCES)
+ *
+ * 1. GET /backend/v1/pacs/orthanc/status
+ *    Retorna se o servidor Orthanc está configurado no backend (via segredos ORTHANC_URL / ORTHANC_USER / ORTHANC_PASSWORD
+ *    ou parâmetro no usuário) e realiza ping HTTP de conectividade.
+ *
+ * 2. POST /backend/v1/pacs/orthanc/search
+ *    Busca estudos no Orthanc por nome do paciente, ID/CPF, accession number ou data.
+ *    Usa POST /tools/find do Orthanc (Level: Study).
+ *
+ * 3. POST /backend/v1/pacs/orthanc/study-instances
+ *    Lista as instâncias/frames disponíveis de um estudo no Orthanc (Study ID).
+ *
+ * 4. GET /backend/v1/pacs/orthanc/instance-file
+ *    Faz proxy do arquivo DICOM da instância (/instances/{id}/file) ou frame convertido em JPEG/PNG (/instances/{id}/rendered)
+ *    para o frontend sem expor credenciais do Orthanc nem esbarrar em CORS.
+ */
+
+routerAdd(
+  'GET',
+  '/backend/v1/pacs/orthanc/status',
+  (c) => {
+    // 1. Prioriza segredos de ambiente no servidor
+    let orthancUrl = $os.getenv('ORTHANC_URL') || ''
+    const orthancUser = $os.getenv('ORTHANC_USER') || ''
+    const orthancPass = $os.getenv('ORTHANC_PASSWORD') || ''
+
+    // 2. Fallback: verificar se usuário logado possui orthanc_config no perfil
+    let userCustomUrl = ''
+    try {
+      const authRecord = c.authRecord
+      if (authRecord) {
+        const clinicsJson = authRecord.getString('clinics_config') || ''
+        // Pode ser consultado se configurado
+      }
+    } catch (_) {}
+
+    const isEnvConfigured = Boolean(orthancUrl && orthancUrl.trim().length > 0)
+    let isReachable = false
+    let systemInfo = null
+    let errorDetail = ''
+
+    if (isEnvConfigured) {
+      try {
+        let targetUrl = orthancUrl.trim().replace(/\/+$/, '') + '/system'
+        const headers = { Accept: 'application/json' }
+        if (orthancUser && orthancPass) {
+          // Em goja PocketBase $http suporta basic auth se montado ou via Authorization
+          // encode básico:
+          headers['Authorization'] = 'Basic ' + $security.sha256(orthancUser + ':' + orthancPass)
+        }
+        const res = $http.send({
+          url: targetUrl,
+          method: 'GET',
+          headers: headers,
+          timeout: 5,
+        })
+        if (res.statusCode === 200) {
+          isReachable = true
+          systemInfo = res.json || JSON.parse(res.raw)
+        } else {
+          errorDetail = `HTTP ${res.statusCode} ao conectar em ${targetUrl}`
+        }
+      } catch (err) {
+        errorDetail = err.message || 'Falha de rede ao acessar Orthanc'
+      }
+    }
+
+    return c.json(200, {
+      configured: isEnvConfigured,
+      serverUrl: isEnvConfigured ? orthancUrl : null,
+      reachable: isReachable,
+      systemInfo: systemInfo,
+      error: errorDetail || null,
+      message: isEnvConfigured
+        ? isReachable
+          ? 'PACS Orthanc online e respondendo com sucesso.'
+          : `Orthanc configurado (${orthancUrl}), mas inacessível: ${errorDetail}`
+        : 'Servidor PACS Orthanc não configurado no backend (variáveis ORTHANC_URL / ORTHANC_USER / ORTHANC_PASSWORD não definidas). Pode ser configurado nas Integrações.',
+    })
+  },
+  $apis.requireAuth(),
+)
+
+routerAdd(
+  'POST',
+  '/backend/v1/pacs/orthanc/search',
+  (c) => {
+    let body = {}
+    try {
+      body = c.requestInfo().body || {}
+    } catch (_) {}
+
+    // Parâmetros de busca
+    const patientName = String(body.patientName || '').trim()
+    const patientId = String(body.patientId || '').trim()
+    const accessionNumber = String(body.accessionNumber || '').trim()
+    const studyDate = String(body.studyDate || '').trim() // YYYYMMDD ou YYYY-MM-DD
+    const serverUrlOverride = String(body.serverUrl || '').trim()
+
+    let orthancUrl = serverUrlOverride || $os.getenv('ORTHANC_URL') || ''
+    const orthancUser = $os.getenv('ORTHANC_USER') || ''
+    const orthancPass = $os.getenv('ORTHANC_PASSWORD') || ''
+
+    if (!orthancUrl || !orthancUrl.trim()) {
+      return c.json(412, {
+        error:
+          'Endereço do servidor PACS Orthanc não configurado. Defina a URL do Orthanc nas Integrações ou variável ORTHANC_URL.',
+      })
+    }
+
+    // Monta query DICOM C-FIND via REST POST /tools/find
+    const query = {}
+    if (patientName) query['PatientName'] = `*${patientName.toUpperCase()}*`
+    if (patientId) query['PatientID'] = `*${patientId.replace(/\D/g, '') || patientId}*`
+    if (accessionNumber) query['AccessionNumber'] = `*${accessionNumber}*`
+    if (studyDate) query['StudyDate'] = studyDate.replace(/-/g, '')
+
+    try {
+      let targetUrl = orthancUrl.trim().replace(/\/+$/, '') + '/tools/find'
+      const headers = { 'Content-Type': 'application/json', Accept: 'application/json' }
+      const res = $http.send({
+        url: targetUrl,
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          Level: 'Study',
+          Query: query,
+          Expand: true,
+          Limit: 30,
+        }),
+        timeout: 15,
+      })
+
+      if (res.statusCode >= 400) {
+        return c.json(502, {
+          error: `Orthanc retornou erro ${res.statusCode}: ${res.raw}`,
+        })
+      }
+
+      const studies = res.json || JSON.parse(res.raw)
+      const mapped = (Array.isArray(studies) ? studies : []).map((s) => {
+        const tags = s.MainDicomTags || {}
+        const pTags = s.PatientMainDicomTags || {}
+        return {
+          id: s.ID,
+          patientName: pTags.PatientName || tags.PatientName || 'Paciente sem nome',
+          patientId: pTags.PatientID || tags.PatientID || '',
+          patientBirthDate: pTags.PatientBirthDate || '',
+          patientSex: pTags.PatientSex || '',
+          studyDate: tags.StudyDate || '',
+          studyTime: tags.StudyTime || '',
+          studyDescription: tags.StudyDescription || '',
+          accessionNumber: tags.AccessionNumber || '',
+          modality: tags.Modality || 'US',
+          seriesCount: Array.isArray(s.Series) ? s.Series.length : 0,
+        }
+      })
+
+      return c.json(200, {
+        count: mapped.length,
+        studies: mapped,
+      })
+    } catch (err) {
+      return c.json(500, {
+        error: `Falha ao consultar estudos no Orthanc: ${err.message || 'Erro de rede'}`,
+      })
+    }
+  },
+  $apis.requireAuth(),
+)
+
+routerAdd(
+  'POST',
+  '/backend/v1/pacs/orthanc/study-instances',
+  (c) => {
+    let body = {}
+    try {
+      body = c.requestInfo().body || {}
+    } catch (_) {}
+
+    const studyId = String(body.studyId || '').trim()
+    const serverUrlOverride = String(body.serverUrl || '').trim()
+
+    let orthancUrl = serverUrlOverride || $os.getenv('ORTHANC_URL') || ''
+    if (!studyId) {
+      return c.json(400, { error: 'studyId é obrigatório' })
+    }
+    if (!orthancUrl) {
+      return c.json(412, { error: 'Servidor Orthanc não configurado' })
+    }
+
+    try {
+      // 1. Pega os detalhes do estudo (/studies/{id})
+      let targetStudyUrl =
+        orthancUrl.trim().replace(/\/+$/, '') + `/studies/${encodeURIComponent(studyId)}`
+      const res = $http.send({
+        url: targetStudyUrl,
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        timeout: 10,
+      })
+
+      if (res.statusCode >= 400) {
+        return c.json(res.statusCode, { error: `Estudo não encontrado no Orthanc: ${res.raw}` })
+      }
+
+      const studyData = res.json || JSON.parse(res.raw)
+      const seriesList = Array.isArray(studyData.Series) ? studyData.Series : []
+      const instances = []
+
+      // 2. Para cada série, busca as instâncias
+      for (let sIdx = 0; sIdx < seriesList.length; sIdx++) {
+        const seriesId = seriesList[sIdx]
+        const seriesUrl =
+          orthancUrl.trim().replace(/\/+$/, '') + `/series/${encodeURIComponent(seriesId)}`
+        try {
+          const sRes = $http.send({
+            url: seriesUrl,
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            timeout: 8,
+          })
+          if (sRes.statusCode === 200) {
+            const sData = sRes.json || JSON.parse(sRes.raw)
+            const instIds = Array.isArray(sData.Instances) ? sData.Instances : []
+            for (let i = 0; i < instIds.length; i++) {
+              instances.push({
+                instanceId: instIds[i],
+                seriesId: seriesId,
+                modality: (sData.MainDicomTags || {}).Modality || 'US',
+                seriesDescription: (sData.MainDicomTags || {}).SeriesDescription || '',
+              })
+            }
+          }
+        } catch (_) {}
+      }
+
+      return c.json(200, {
+        studyId: studyId,
+        instancesCount: instances.length,
+        instances: instances,
+      })
+    } catch (err) {
+      return c.json(500, { error: `Falha ao obter instâncias do estudo: ${err.message}` })
+    }
+  },
+  $apis.requireAuth(),
+)
+
+routerAdd(
+  'GET',
+  '/backend/v1/pacs/orthanc/render-instance',
+  (c) => {
+    const instanceId = c.request.url.query().get('instanceId') || ''
+    const serverUrlOverride = c.request.url.query().get('serverUrl') || ''
+    const frameIndex = c.request.url.query().get('frame') || '0'
+
+    let orthancUrl = serverUrlOverride || $os.getenv('ORTHANC_URL') || ''
+    if (!instanceId) {
+      return c.json(400, { error: 'instanceId query parameter obrigatório' })
+    }
+    if (!orthancUrl) {
+      return c.json(412, { error: 'Orthanc não configurado' })
+    }
+
+    // 1. Tenta pegar a imagem renderizada em JPEG/PNG direto do Orthanc (/instances/{id}/frames/{frame}/preview ou /rendered)
+    let renderUrl =
+      orthancUrl.trim().replace(/\/+$/, '') +
+      `/instances/${encodeURIComponent(instanceId)}/frames/${encodeURIComponent(frameIndex)}/preview`
+    try {
+      let res = $http.send({
+        url: renderUrl,
+        method: 'GET',
+        headers: { Accept: 'image/jpeg,image/png' },
+        timeout: 15,
+      })
+
+      if (res.statusCode >= 400) {
+        // Fallback para /instances/{id}/rendered
+        renderUrl =
+          orthancUrl.trim().replace(/\/+$/, '') +
+          `/instances/${encodeURIComponent(instanceId)}/rendered`
+        res = $http.send({
+          url: renderUrl,
+          method: 'GET',
+          headers: { Accept: 'image/jpeg,image/png' },
+          timeout: 15,
+        })
+      }
+
+      if (res.statusCode === 200) {
+        // Retorna a imagem diretamente com cabeçalhos corretos
+        return c.blob(200, 'image/jpeg', res.body)
+      }
+
+      // Se não renderizou, retorna o próprio DICOM cru para parsing no client (/instances/{id}/file)
+      const fileUrl =
+        orthancUrl.trim().replace(/\/+$/, '') + `/instances/${encodeURIComponent(instanceId)}/file`
+      const fileRes = $http.send({
+        url: fileUrl,
+        method: 'GET',
+        headers: { Accept: 'application/dicom' },
+        timeout: 20,
+      })
+      if (fileRes.statusCode === 200) {
+        return c.blob(200, 'application/dicom', fileRes.body)
+      }
+
+      return c.json(502, {
+        error: `Orthanc retornou erro ${res.statusCode} ao renderizar instância`,
+      })
+    } catch (err) {
+      return c.json(500, { error: `Erro no proxy de imagem Orthanc: ${err.message}` })
+    }
+  },
+  $apis.requireAuth(),
+)

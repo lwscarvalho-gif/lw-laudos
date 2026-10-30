@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.47** (Fechada — Máscaras de Texto no Editor de Laudos de Ultrassom com Modelos Pré-Prontos e Personalização Isolada por Médico)  
+> **Versão do Projeto**: **v0.0.48** (Fechada — Ingestão de Imagens Médicas por DICOM Local e PACS Orthanc no Editor de Laudo com Frames Reais no PDF)  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,30 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.48 — Ingestão de Imagens Médicas por DICOM Local (.dcm) e PACS Orthanc no Editor de Laudo com Suporte a Frames Reais no PDF**:
+  - **Atendimento à Solicitação do Médico Radiologista / Proprietário**:
+    - _"ESSAS IMAGENS... PRECISAMOS ANEXAR DIRETO DA MAQUINA ATRAVEZ DO DICOM E PACS (O QUE VOCE COLOCOU NO ARQUIVO QUE SALVASTE NO GITHUB)"_
+  - **1. Upload e Decodificação DICOM Local (.dcm / .dicom) no Navegador**:
+    - Criação do módulo nativo em TypeScript puro `src/lib/dicomParser.ts`, sem dependências externas pesadas ou instáveis, que decodifica Part 10 DICOM no cliente.
+    - Suporte a dados monocromáticos (Monochrome 1 e 2 com Window Leveling automático) e coloridos (RGB/YBR), incluindo arquivos multi-frame ecográficos.
+    - Seletor nativo visível e zona de arrastar e soltar (`ExamImagesManager.tsx`) aceitam agora simultaneamente `.dcm`, `.dicom`, `application/dicom` junto aos tradicionais JPG e PNG (que continuam funcionando normalmente).
+  - **2. Integração com Servidor PACS Orthanc (Ponte Local / Nuvem)**:
+    - Implementação de rotas seguras no backend (`pocketbase/hooks/mwl_bridge.pb.js`):
+      - `GET /backend/v1/pacs/orthanc/status`: consulta status e conectividade do Orthanc.
+      - `POST /backend/v1/pacs/orthanc/search`: busca estudos via C-FIND por Nome do Paciente, CPF, Data do Exame ou Accession Number.
+      - `POST /backend/v1/pacs/orthanc/study-instances`: lista as instâncias e séries do exame selecionado.
+      - `GET /backend/v1/pacs/orthanc/render-instance`: proxy seguro para download das imagens sem expor credenciais nem sofrer bloqueio de CORS no navegador.
+    - Criação do modal `OrthancPacsSearchModal.tsx` acionado pelo botão **"Buscar no PACS Orthanc"** diretamente na seção de anexos do editor de laudo.
+    - Serviço `orthancPacsService.ts` com gerenciamento de endereço local padrão (`http://localhost:8042`) e integração fluida.
+  - **3. Tratamento Ético e Omissão da Nota Ilustrativa para Frames Reais no PDF**:
+    - No gerador de PDF (`pdfGenerator.ts`) e na visualização HTML (`buildReportHTML`), os anexos provenientes de DICOM/PACS são marcados como frames reais (`isRealDicom = true`).
+    - Para frames DICOM reais, a anotação `(Imagem ilustrativa)` em cada figura e a nota de rodapé `Nota: Imagens ilustrativas — substituir pelos frames capturados do exame.` são automaticamente omitidas e substituídas pela declaração clínica autêntica: `Documentação fotográfica: Frames ecográficos reais capturados do exame.`.
+    - Placeholders e imagens ilustrativas comuns mantêm a nota ética conforme diretrizes anteriores.
+  - **4. Atualização da Matriz em Integrações (`/integracoes`)**:
+    - O cartão de DICOM Imagens agora destaca o módulo de PACS Orthanc e DICOM Local ativo e pronto para uso no editor.
+  - **5. Preservação de Dados e Integridade do Banco**:
+    - O rascunho de laudo oficial do Dr. Lucas (`muvdbwmrw3hagrr`, owner `kxhlkfxh0yddn64`, status `Rascunho`) permanece 100% intacto no banco de dados.
 
 - **v0.0.47 — Máscaras de Texto no Editor de Laudo (Modo Texto Livre) com Modelos Prontos e Gestão Pessoal por Médico**:
   - **Atendimento à Solicitação do Usuário/Proprietário**:

@@ -894,6 +894,14 @@ export default function UltrasoundReportEditor() {
         url: examImagesService.getImageUrl(img),
         caption: img.caption || '',
         sortOrder: img.sort_order ?? idx,
+        isRealDicom:
+          Boolean(img.is_real_dicom) ||
+          Boolean(
+            img.caption &&
+            (img.caption.includes('DICOM') ||
+              img.caption.includes('PACS') ||
+              img.caption.includes('Frame')),
+          ),
       }))
 
     const authorCrmStr = user?.crm
@@ -1854,6 +1862,8 @@ export default function UltrasoundReportEditor() {
               }}
               reportId={currentReportId}
               examId={examId}
+              patientName={patients.find((p) => p.id === patientId)?.name || ''}
+              patientId={patientId || ''}
             />
           </div>
         </div>

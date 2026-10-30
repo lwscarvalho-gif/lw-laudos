@@ -5,6 +5,7 @@ export interface PrintReportImageItem {
   url: string
   caption?: string
   sortOrder?: number
+  isRealDicom?: boolean
 }
 
 import type { BodyMarksState } from '@/types'
@@ -457,17 +458,28 @@ function drawAnnexRunningFooter(
     color: COLOR_TEXT_MAIN,
   })
 
-  // Linha 2 do rodapé: Nota explícita e discreta de que as imagens são ilustrativas
-  page.drawText(
-    'Nota: Imagens ilustrativas — substituir pelos frames capturados do exame.',
-    marginX,
-    bottomY,
-    {
-      fontSize: 6.5,
-      italic: true,
-      color: COLOR_MUTED,
-    },
-  )
+  // Linha 2 do rodapé: Se houver imagens ilustrativas, exibe a nota; se forem frames reais do exame DICOM/PACS, omite/declara frames reais
+  const hasOnlyRealFrames =
+    props.images &&
+    props.images.length > 0 &&
+    props.images.every(
+      (img) =>
+        img.isRealDicom ||
+        (img.caption &&
+          (img.caption.includes('DICOM') ||
+            img.caption.includes('PACS') ||
+            img.caption.includes('Frame'))),
+    )
+
+  const annexNoteText = hasOnlyRealFrames
+    ? 'Documentação fotográfica: Frames ecográficos reais capturados do exame.'
+    : 'Nota: Imagens ilustrativas — substituir pelos frames capturados do exame.'
+
+  page.drawText(annexNoteText, marginX, bottomY, {
+    fontSize: 6.5,
+    italic: true,
+    color: COLOR_MUTED,
+  })
 
   // Paginação independente do anexo (sem "Página X de Y" do laudo)
   page.drawText(`Anexo — Página ${pageNum} de ${totalPages}`, rightX, bottomY, {
@@ -1267,12 +1279,23 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
       color: COLOR_TEXT_MAIN,
     })
 
-    page.drawText('(Imagem ilustrativa)', cardX + cardW / 2, cardY + 3, {
-      fontSize: 6.5,
-      italic: true,
-      align: 'center',
-      color: COLOR_MUTED,
-    })
+    const isRealFrame =
+      Boolean(meta.item.isRealDicom) ||
+      Boolean(
+        meta.item.caption &&
+        (meta.item.caption.includes('DICOM') ||
+          meta.item.caption.includes('PACS') ||
+          meta.item.caption.includes('Frame')),
+      )
+
+    if (!isRealFrame) {
+      page.drawText('(Imagem ilustrativa)', cardX + cardW / 2, cardY + 3, {
+        fontSize: 6.5,
+        italic: true,
+        align: 'center',
+        color: COLOR_MUTED,
+      })
+    }
   }
 
   // 5. Apply Footers:
@@ -1890,7 +1913,15 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
                 <div class="image-caption">
                   <span class="image-counter">Fig. ${overallNumber}:</span>
                   ${mainCap}
-                  <div style="font-size: 6.5pt; font-style: italic; color: #8A9691; margin-top: 2px;">(Imagem ilustrativa)</div>
+                  ${
+                    img.isRealDicom ||
+                    (img.caption &&
+                      (img.caption.includes('DICOM') ||
+                        img.caption.includes('PACS') ||
+                        img.caption.includes('Frame')))
+                      ? ''
+                      : '<div style="font-size: 6.5pt; font-style: italic; color: #8A9691; margin-top: 2px;">(Imagem ilustrativa)</div>'
+                  }
                 </div>
               </div>
             `
@@ -1901,7 +1932,22 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
       <div style="margin-top: 20px; padding-top: 6px; border-top: 1px solid #E5E9E7; font-family: -apple-system, sans-serif; display: flex; justify-content: space-between; align-items: flex-end; font-size: 7.5pt; color: #5F6E69;">
         <div>
           <div>${formatReportValidityStatement(props.issueDate || props.signatureDate, typeof props.validityDays === 'number' && props.validityDays > 0 ? props.validityDays : 90).statementText}</div>
-          <div style="font-style: italic; color: #8A9691; margin-top: 2px;">Nota: Imagens ilustrativas — substituir pelos frames capturados do exame.</div>
+          <div style="font-style: italic; color: #8A9691; margin-top: 2px;">
+            ${
+              props.images &&
+              props.images.length > 0 &&
+              props.images.every(
+                (im) =>
+                  im.isRealDicom ||
+                  (im.caption &&
+                    (im.caption.includes('DICOM') ||
+                      im.caption.includes('PACS') ||
+                      im.caption.includes('Frame'))),
+              )
+                ? 'Documentação fotográfica: Frames ecográficos reais capturados do exame.'
+                : 'Nota: Imagens ilustrativas — substituir pelos frames capturados do exame.'
+            }
+          </div>
         </div>
         <div style="font-weight: 700; color: #0C6B58; white-space: nowrap; margin-left: 12px;">
           Anexo — Página ${pageIndex + 1} de ${imagePages.length}

@@ -294,6 +294,8 @@ export interface ExamImage extends RecordModel {
   caption?: string
   sort_order?: number
   selected_for_print?: boolean
+  is_real_dicom?: boolean
+  dicom_metadata?: Record<string, unknown> | null
   created?: string
   updated?: string
 }

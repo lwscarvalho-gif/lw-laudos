@@ -17,18 +17,23 @@ export const examImagesService = {
   },
 
   async upload(
-    file: File,
+    file: File | Blob,
     data: {
       report_id?: string
       exam_id?: string
       caption?: string
       sort_order?: number
       selected_for_print?: boolean
+      fileName?: string
     },
   ): Promise<ExamImage> {
     const owner_id = pb.authStore.record?.id
     const formData = new FormData()
-    formData.append('file', file)
+    if (data.fileName && file instanceof Blob && !(file instanceof File)) {
+      formData.append('file', file, data.fileName)
+    } else {
+      formData.append('file', file)
+    }
     if (owner_id) formData.append('owner_id', owner_id)
     if (data.report_id) formData.append('report_id', data.report_id)
     if (data.exam_id) formData.append('exam_id', data.exam_id)
