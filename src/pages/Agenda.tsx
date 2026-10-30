@@ -198,6 +198,17 @@ export default function Agenda() {
 
   // Doctor's configured clinics (normalized to array of strings for names)
   const doctorClinics = useMemo<string[]>(() => {
+    // If current user is Operator, strictly return only allowed clinics assigned to them
+    if (user?.role === 'Operador' && user?.allowed_clinics) {
+      if (Array.isArray(user.allowed_clinics)) return user.allowed_clinics
+      try {
+        const parsed = JSON.parse(user.allowed_clinics)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      } catch {
+        /* ignore */
+      }
+    }
+
     const defaultClinics = ['HM Samuel Marques dos Santos', 'Gastroimagem']
     if (!user?.clinics_config) {
       return defaultClinics
@@ -607,6 +618,19 @@ export default function Agenda() {
           },
           finalPatientObj,
         )
+
+        // Log LGPD action for appointment creation
+        import('@/services/accessLogs').then(({ accessLogsService }) => {
+          accessLogsService.log({
+            action: 'Criação de agendamento',
+            resource_type: 'appointment',
+            resource_id: savedRecord?.id,
+            clinic_location: formClinic,
+            patient_id: finalPatientId,
+            patient_name: finalPatientObj?.name,
+            details: `Exame: ${finalExamType} | Horário: ${formDate} ${formTime}`,
+          })
+        })
         toast({
           title: 'Agendamento criado',
           description: 'Paciente agendado com fotos da solicitação e MWL DICOM preparados.',

@@ -7,13 +7,25 @@ export const patientsService = {
     perPage = 20,
     search = '',
   ): Promise<{ items: Patient[]; totalItems: number; totalPages: number }> {
-    let filter = ''
+    const user = pb.authStore.record
+    const isOperator = (user as any)?.role === 'Operador'
+    const assignedDoctor = (user as any)?.assigned_doctor
+
+    const filters: string[] = []
+
+    if (isOperator && assignedDoctor) {
+      filters.push(`owner_id = '${assignedDoctor}'`)
+    }
+
     if (search.trim()) {
       const term = search.trim().replace(/['"]/g, '')
-      filter = `name ~ '${term}' || document ~ '${term}'`
+      filters.push(`(name ~ '${term}' || document ~ '${term}')`)
     }
+
+    const filter = filters.length > 0 ? filters.join(' && ') : ''
+
     const res = await pb.collection('patients').getList<Patient>(page, perPage, {
-      filter,
+      filter: filter || undefined,
       sort: '-created',
     })
     return {
@@ -24,7 +36,17 @@ export const patientsService = {
   },
 
   async getAll(): Promise<Patient[]> {
+    const user = pb.authStore.record
+    const isOperator = (user as any)?.role === 'Operador'
+    const assignedDoctor = (user as any)?.assigned_doctor
+
+    let filter: string | undefined = undefined
+    if (isOperator && assignedDoctor) {
+      filter = `owner_id = '${assignedDoctor}'`
+    }
+
     return pb.collection('patients').getFullList<Patient>({
+      filter,
       sort: 'name',
     })
   },
@@ -34,7 +56,12 @@ export const patientsService = {
   },
 
   async create(data: Partial<Patient>): Promise<Patient> {
-    const owner_id = pb.authStore.record?.id
+    const user = pb.authStore.record
+    const isOperator = (user as any)?.role === 'Operador'
+    const assignedDoctor = (user as any)?.assigned_doctor
+
+    // For operator, owner_id of patient must be assigned_doctor so doctor and operator share the patient
+    const owner_id = isOperator && assignedDoctor ? assignedDoctor : user?.id
     return pb.collection('patients').create<Patient>({
       ...data,
       owner_id,

@@ -66,16 +66,18 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
+import { AuditLogViewerModal } from '@/components/AuditLogViewerModal'
+import { ShieldCheck } from 'lucide-react'
 
 export default function PacienteDetalhes() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { isSecretary, isManager, isAccounting } = useAuth()
+  const { isSecretary, isManager, isAccounting, isOperator } = useAuth()
 
   // Clinical access control:
-  // Non-clinical roles (Secretaria, Gestor, Contabilidade) do not see report details or exams, only cadastral and appointments
-  const canAccessClinical = !isSecretary && !isManager && !isAccounting
+  // Non-clinical roles (Secretaria, Gestor, Contabilidade, Operador) do not see report details or exams, only cadastral and appointments
+  const canAccessClinical = !isSecretary && !isManager && !isAccounting && !isOperator
 
   const [patient, setPatient] = useState<Patient | null>(null)
   const [exams, setExams] = useState<Exam[]>([])
@@ -104,6 +106,7 @@ export default function PacienteDetalhes() {
   // Delete modal
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [auditModalOpen, setAuditModalOpen] = useState(false)
 
   const loadData = useCallback(async () => {
     if (!id) return
@@ -122,6 +125,18 @@ export default function PacienteDetalhes() {
       setAppointments(appts)
       setExams(ex)
       setReports(rep)
+
+      // LGPD audit log: log operator/user accessing patient file
+      import('@/services/accessLogs').then(({ accessLogsService }) => {
+        accessLogsService.log({
+          action: 'Visualização da ficha cadastral do paciente',
+          resource_type: 'patient',
+          resource_id: p.id,
+          patient_id: p.id,
+          patient_name: p.name,
+          details: `Acesso realizado na tela de detalhes`,
+        })
+      })
 
       setFormData({
         name: p.name || '',
@@ -251,6 +266,12 @@ export default function PacienteDetalhes() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      <AuditLogViewerModal
+        open={auditModalOpen}
+        onOpenChange={setAuditModalOpen}
+        patientId={patient?.id}
+        patientName={patient?.name}
+      />
       {/* HEADER: Identification and Top Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-[#E5E9E7] shadow-xs">
         <div className="flex items-start gap-4">
@@ -313,6 +334,17 @@ export default function PacienteDetalhes() {
 
         {/* Quick action buttons: New Appointment + New Report + Delete */}
         <div className="flex flex-wrap items-center gap-2 pt-2 sm:pt-0">
+          {!isOperator && (
+            <Button
+              onClick={() => setAuditModalOpen(true)}
+              variant="outline"
+              className="border-[#0C6B58]/30 text-[#0C6B58] hover:bg-[#E8F3F0] text-xs font-semibold"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />
+              Auditoria LGPD
+            </Button>
+          )}
+
           <Button
             onClick={() => navigate(`/agenda?paciente=${patient.id}`)}
             variant="outline"

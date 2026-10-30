@@ -39,13 +39,18 @@ const NAV_ITEMS = [
 ]
 
 export default function Layout() {
-  const { user, isAdmin, isDoctor, isSecretary, isManager, isAccounting, logout } = useAuth()
+  const { user, isAdmin, isDoctor, isSecretary, isManager, isAccounting, isOperator, logout } =
+    useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
 
   // Filter menu items by conservative permissions matrix
   const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (isOperator) {
+      // Operador: estritamente Agenda e Pacientes (somente agendamentos e cadastro para agendamento)
+      return item.path === '/agenda' || item.path === '/pacientes'
+    }
     if (isSecretary) {
       // Secretaria: agenda + pacientes + configuracoes basicas
       return item.path === '/agenda' || item.path === '/pacientes' || item.path === '/configuracoes'

@@ -11,6 +11,8 @@ interface AuthContextType {
   isSecretary: boolean
   isManager: boolean
   isAccounting: boolean
+  isOperator: boolean
+  operatorAllowedClinics: string[]
   login: (email: string, password: string) => Promise<User>
   logout: () => void
   refreshUser: () => Promise<User | null>
@@ -148,6 +150,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isSecretary = user?.role === 'Secretaria'
   const isManager = user?.role === 'Gestor'
   const isAccounting = user?.role === 'Contabilidade'
+  const isOperator = user?.role === 'Operador'
+
+  const operatorAllowedClinics: string[] = React.useMemo(() => {
+    if (!isOperator || !user?.allowed_clinics) return []
+    if (Array.isArray(user.allowed_clinics)) return user.allowed_clinics
+    try {
+      const parsed = JSON.parse(user.allowed_clinics)
+      if (Array.isArray(parsed)) return parsed
+    } catch {
+      /* ignore */
+    }
+    return []
+  }, [isOperator, user?.allowed_clinics])
 
   return (
     <AuthContext.Provider
@@ -160,6 +175,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isSecretary,
         isManager,
         isAccounting,
+        isOperator,
+        operatorAllowedClinics,
         login,
         logout,
         refreshUser,

@@ -13,6 +13,8 @@ export const adminService = {
     email: string
     name: string
     role: UserRole
+    assigned_doctor?: string
+    allowed_clinics?: string[]
   }): Promise<Invitation> {
     const token =
       Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
@@ -28,6 +30,8 @@ export const adminService = {
       status: 'Pendente',
       expires_at: expiresAt.toISOString(),
       created_by: pb.authStore.record?.id,
+      assigned_doctor: data.assigned_doctor || undefined,
+      allowed_clinics: data.allowed_clinics || undefined,
     })
   },
 

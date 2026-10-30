@@ -101,6 +101,8 @@ export default function AceitarConvite() {
         role: invitation.role,
         crm: crm.trim(),
         crm_uf: crmUf,
+        assigned_doctor: invitation.assigned_doctor || undefined,
+        allowed_clinics: invitation.allowed_clinics || undefined,
         active: true,
       })
 

@@ -63,6 +63,8 @@ export default function Administracao() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
   const [inviteRole, setInviteRole] = useState<UserRole>('Médico')
+  const [inviteAssignedDoctor, setInviteAssignedDoctor] = useState('')
+  const [inviteAllowedClinics, setInviteAllowedClinics] = useState<string[]>([])
   const [sendingInvite, setSendingInvite] = useState(false)
   const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({})
 
@@ -123,7 +125,15 @@ export default function Administracao() {
       errs.email = 'Informe um e-mail válido.'
     }
     if (!inviteName.trim()) {
-      errs.name = 'Nome do médico é obrigatório.'
+      errs.name = 'Nome do usuário é obrigatório.'
+    }
+    if (inviteRole === 'Operador') {
+      if (!inviteAssignedDoctor) {
+        errs.assignedDoctor = 'Selecione o médico responsável a quem o operador servirá.'
+      }
+      if (inviteAllowedClinics.length === 0) {
+        errs.allowedClinics = 'Selecione pelo menos um local de atendimento permitido.'
+      }
     }
     setInviteErrors(errs)
     if (Object.keys(errs).length > 0) return
@@ -134,6 +144,8 @@ export default function Administracao() {
         email: inviteEmail.trim(),
         name: inviteName.trim(),
         role: inviteRole,
+        assigned_doctor: inviteRole === 'Operador' ? inviteAssignedDoctor : undefined,
+        allowed_clinics: inviteRole === 'Operador' ? inviteAllowedClinics : undefined,
       })
       toast({
         title: 'Convite criado',
@@ -143,6 +155,8 @@ export default function Administracao() {
       setInviteEmail('')
       setInviteName('')
       setInviteRole('Médico')
+      setInviteAssignedDoctor('')
+      setInviteAllowedClinics([])
       loadInvitations()
     } catch (err: unknown) {
       toast({
@@ -154,6 +168,47 @@ export default function Administracao() {
       setSendingInvite(false)
     }
   }
+
+  // Doctors list for operator assignment
+  const doctorUsers = React.useMemo(() => {
+    return team.filter((u) => u.role === 'Médico' || !u.role)
+  }, [team])
+
+  // Clinics list for the selected doctor
+  const availableClinicsForDoctor = React.useMemo(() => {
+    if (!inviteAssignedDoctor) return ['HM Samuel Marques dos Santos', 'Gastroimagem']
+    const doc = team.find((u) => u.id === inviteAssignedDoctor)
+    if (!doc?.clinics_config) return ['HM Samuel Marques dos Santos', 'Gastroimagem']
+
+    let rawList: unknown[] = []
+    if (Array.isArray(doc.clinics_config)) {
+      rawList = doc.clinics_config
+    } else {
+      try {
+        const parsed = JSON.parse(doc.clinics_config)
+        if (Array.isArray(parsed)) rawList = parsed
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const names = rawList
+      .map((item: any) => {
+        if (typeof item === 'string') {
+          return item === 'Clínica Principal' || item === 'Principal'
+            ? 'HM Samuel Marques dos Santos'
+            : item
+        }
+        if (typeof item === 'object' && item?.name) {
+          const n = String(item.name).trim()
+          return n === 'Clínica Principal' || n === 'Principal' ? 'HM Samuel Marques dos Santos' : n
+        }
+        return ''
+      })
+      .filter((n): n is string => Boolean(n && n.trim()))
+
+    return names.length > 0 ? names : ['HM Samuel Marques dos Santos', 'Gastroimagem']
+  }, [inviteAssignedDoctor, team])
 
   // Resend invite
   const handleResendInvite = async (inv: Invitation) => {
@@ -621,6 +676,9 @@ export default function Administracao() {
                   <SelectItem value="Médico">
                     Médico (agenda individual e laudos clínicos)
                   </SelectItem>
+                  <SelectItem value="Operador">
+                    Operador (agendamento restrito por clínica e sem dados clínicos)
+                  </SelectItem>
                   <SelectItem value="Secretaria">
                     Secretaria (agenda, pacientes e anexos)
                   </SelectItem>
@@ -635,6 +693,77 @@ export default function Administracao() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Conditional fields for Operator */}
+            {inviteRole === 'Operador' && (
+              <div className="p-3 bg-[#F0FDF4] border border-[#BBF7D0] rounded-lg space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-[#166534]">
+                    Médico a quem serve *
+                  </Label>
+                  <Select
+                    value={inviteAssignedDoctor}
+                    onValueChange={(val) => {
+                      setInviteAssignedDoctor(val)
+                      setInviteAllowedClinics([])
+                    }}
+                  >
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Selecione o médico titular" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {doctorUsers.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.professional_name || d.name} ({d.crm ? `CRM ${d.crm}` : d.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {inviteErrors.assignedDoctor && (
+                    <p className="text-xs text-[#DC2626]">{inviteErrors.assignedDoctor}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#166534]">
+                    Locais de Atendimento Permitidos * (Isolamento rígido)
+                  </Label>
+                  <p className="text-[11px] text-[#15803D]">
+                    O operador só verá a agenda e os agendamentos das clínicas selecionadas.
+                  </p>
+                  <div className="space-y-1.5 bg-white p-2.5 rounded border border-[#DCFCE7]">
+                    {availableClinicsForDoctor.map((clinicName) => {
+                      const checked = inviteAllowedClinics.includes(clinicName)
+                      return (
+                        <label
+                          key={clinicName}
+                          className="flex items-center gap-2 text-xs font-medium text-[#1F2A27] cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setInviteAllowedClinics([...inviteAllowedClinics, clinicName])
+                              } else {
+                                setInviteAllowedClinics(
+                                  inviteAllowedClinics.filter((c) => c !== clinicName),
+                                )
+                              }
+                            }}
+                            className="rounded text-[#0C6B58] focus:ring-[#0C6B58]"
+                          />
+                          <span>{clinicName}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                  {inviteErrors.allowedClinics && (
+                    <p className="text-xs text-[#DC2626]">{inviteErrors.allowedClinics}</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <DialogFooter className="pt-3">
               <Button
@@ -702,6 +831,7 @@ export default function Administracao() {
                     <SelectItem value="Médico">Médico</SelectItem>
                     <SelectItem value="Secretaria">Secretaria</SelectItem>
                     <SelectItem value="Gestor">Gestor</SelectItem>
+                    <SelectItem value="Operador">Operador</SelectItem>
                     <SelectItem value="Contabilidade">Contabilidade</SelectItem>
                     <SelectItem value="Administrador Geral">Administrador Geral</SelectItem>
                     <SelectItem value="Administrador">Administrador</SelectItem>

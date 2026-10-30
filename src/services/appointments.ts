@@ -71,6 +71,8 @@ export const appointmentsService = {
    */
   async getAll(filter?: string, sort = 'start_time'): Promise<Appointment[]> {
     const user = pb.authStore.model
+    const isOperator = (user as any)?.role === 'Operador'
+    const assignedDoctor = (user as any)?.assigned_doctor
     const isMultiClinicUser =
       user?.role === 'Secretaria' ||
       user?.role === 'Gestor' ||
@@ -78,11 +80,41 @@ export const appointmentsService = {
       user?.role === 'Administrador' ||
       user?.role === 'Administrador Geral'
 
-    let fullFilter = filter || ''
-    if (!isMultiClinicUser && user?.id) {
-      const ownerFilter = `owner_id = '${user.id}'`
-      fullFilter = filter ? `${ownerFilter} && (${filter})` : ownerFilter
+    const filterParts: string[] = []
+
+    if (isOperator && assignedDoctor) {
+      // Operator is strictly restricted to assigned_doctor
+      filterParts.push(`owner_id = '${assignedDoctor}'`)
+
+      // Parse allowed_clinics
+      let allowed: string[] = []
+      const rawClinics = (user as any)?.allowed_clinics
+      if (Array.isArray(rawClinics)) {
+        allowed = rawClinics
+      } else if (rawClinics) {
+        try {
+          const parsed = JSON.parse(rawClinics)
+          if (Array.isArray(parsed)) allowed = parsed
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (allowed.length > 0) {
+        const clinicClause = allowed
+          .map((c) => `clinic_location = '${c.replace(/'/g, '')}'`)
+          .join(' || ')
+        filterParts.push(`(${clinicClause})`)
+      }
+    } else if (!isMultiClinicUser && user?.id) {
+      filterParts.push(`owner_id = '${user.id}'`)
     }
+
+    if (filter) {
+      filterParts.push(`(${filter})`)
+    }
+
+    const fullFilter = filterParts.length > 0 ? filterParts.join(' && ') : ''
 
     const records = await pb.collection('appointments').getFullList<Appointment>({
       filter: fullFilter || undefined,
@@ -126,8 +158,11 @@ export const appointmentsService = {
     const currentUser = pb.authStore.model
     if (!currentUser?.id) throw new Error('Usuário não autenticado.')
 
-    // If an owner_id (assigned doctor) was provided use it; otherwise default to currentUser
-    const ownerId = data.owner_id || currentUser.id
+    // If an owner_id (assigned doctor) was provided use it; otherwise for Operador use assigned_doctor, or default to currentUser
+    const isOperator = (currentUser as any)?.role === 'Operador'
+    const assignedDoctor = (currentUser as any)?.assigned_doctor
+    const ownerId =
+      data.owner_id || (isOperator && assignedDoctor ? assignedDoctor : currentUser.id)
 
     // Prepare DICOM fields from patient data
     let patientNameDicom = ''

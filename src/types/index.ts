@@ -5,6 +5,7 @@ export type UserRole =
   | 'Secretaria'
   | 'Gestor'
   | 'Contabilidade'
+  | 'Operador'
 
 export interface UserClinicItem {
   id?: string
@@ -29,6 +30,8 @@ export interface User {
   clinics_config?: (string | UserClinicItem)[] | string
   default_appointment_duration?: number
   exam_durations_config?: Record<string, number> | string
+  assigned_doctor?: string
+  allowed_clinics?: string[] | string
   created?: string
   updated?: string
 }
@@ -286,6 +289,8 @@ export interface Invitation {
   status: InvitationStatus
   expires_at?: string
   created_by?: string
+  assigned_doctor?: string
+  allowed_clinics?: string[] | string
   created?: string
   updated?: string
 }

@@ -43,13 +43,21 @@ export const AuthGuard: React.FC<RouteGuardProps> = ({
   }
 
   // Clinical routes (laudos, exames) require Doctor or Admin
-  if (requireClinical && !isDoctor && !isAdmin) {
+  if (requireClinical && (!isDoctor || user.role === 'Operador') && !isAdmin) {
     toast({
       title: 'Acesso restrito',
       description: 'Acesso a laudos e exames restrito ao médico responsável.',
       variant: 'destructive',
     })
     return <Navigate to="/agenda" replace />
+  }
+
+  // Operator cannot access configuracoes, painel, etc. Only agenda and pacientes
+  if (user.role === 'Operador') {
+    const p = location.pathname
+    if (p !== '/agenda' && p !== '/pacientes' && !p.startsWith('/pacientes/')) {
+      return <Navigate to="/agenda" replace />
+    }
   }
 
   return <>{children}</>

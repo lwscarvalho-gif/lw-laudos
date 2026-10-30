@@ -96,6 +96,17 @@ export default function Pacientes() {
     loadPatients()
   }, [loadPatients])
 
+  // Log LGPD view for patient list when operator or secretary views it
+  useEffect(() => {
+    import('@/services/accessLogs').then(({ accessLogsService }) => {
+      accessLogsService.log({
+        action: 'Visualização da lista de pacientes',
+        resource_type: 'patients_list',
+        details: search ? `Filtro de busca: ${search}` : 'Listagem geral',
+      })
+    })
+  }, [search])
+
   // Real-time subscription
   useRealtime<Patient>('patients', () => {
     loadPatients()
