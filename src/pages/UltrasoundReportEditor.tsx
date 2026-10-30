@@ -85,6 +85,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import FindingsLibraryModal from '@/components/ultrasound/FindingsLibraryModal'
 import ExamImagesManager from '@/components/ultrasound/ExamImagesManager'
 import AiAssistantPanel from '@/components/ultrasound/AiAssistantPanel'
@@ -772,16 +773,31 @@ export default function UltrasoundReportEditor() {
       images: selectedImgs,
       imagesPerPage,
       bodyMarks: bodyMarks.schemeId !== 'none' ? bodyMarks : undefined,
-      digitalSignature:
-        user?.digital_signature_enabled && doctorCert
-          ? {
-              enabled: true,
-              commonName: doctorCert.commonName,
-              issuer: doctorCert.issuer,
-              serialNumber: doctorCert.serialNumber,
-              signedAt: new Date().toISOString(),
-            }
-          : undefined,
+      digitalSignature: (() => {
+        // 1. Nuvem (Bird ID / VIDaaS) ativa
+        const cloudEval = cloudSignatureService.evaluateSession(user)
+        if (user?.digital_signature_enabled && cloudEval.hasActiveSession && cloudEval.session) {
+          return {
+            enabled: true,
+            providerName: cloudEval.session.providerLabel,
+            commonName: user?.professional_name || user?.name || 'Médico Responsável Técnico',
+            issuer: `Certificação em Nuvem (${cloudEval.session.providerLabel})`,
+            signedAt: new Date().toISOString(),
+          }
+        }
+        // 2. Certificado A1 local
+        if (user?.digital_signature_enabled && doctorCert) {
+          return {
+            enabled: true,
+            providerName: 'Certificado A1',
+            commonName: doctorCert.commonName,
+            issuer: doctorCert.issuer,
+            serialNumber: doctorCert.serialNumber,
+            signedAt: new Date().toISOString(),
+          }
+        }
+        return undefined
+      })(),
     }
   }, [
     patients,
@@ -947,10 +963,15 @@ export default function UltrasoundReportEditor() {
 
       setFinalizeDialogOpen(false)
       navigate(`/laudos/${finalizedReport.id}`)
-    } catch {
+    } catch (err: unknown) {
+      console.error('Erro ao finalizar laudo:', err)
+      const detailMsg = getErrorMessage(err)
       toast({
         title: 'Erro ao finalizar',
-        description: 'Falha ao concluir o laudo no servidor.',
+        description:
+          detailMsg && detailMsg !== 'An unexpected error occurred.'
+            ? `Falha ao concluir o laudo no servidor: ${detailMsg}`
+            : 'Falha ao concluir o laudo no servidor.',
         variant: 'destructive',
       })
     } finally {
