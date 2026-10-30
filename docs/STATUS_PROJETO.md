@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.45** (Fechada — Correção do Comprovante de Agendamento em Branco / Impressão A4 Completa e QA 100% verde)  
+> **Versão do Projeto**: **v0.0.46** (Fechada — Desacoplamento da Documentação Fotográfica em Anexo Independente com Paginação Própria e QA 100% verde)  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,26 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.46 — Desacoplamento da Documentação Fotográfica em Anexo Independente com Paginação Própria**:
+  - **Atendimento à Solicitação do Proprietário**:
+    - Ajustada a estrutura de páginas do PDF de laudo de imagem para que as imagens sejam apresentadas em anexo separado e independente do laudo propriamente dito.
+  - **1. Laudo Termina no Bloco de Assinatura + Validade**:
+    - O documento do laudo compreende exclusivamente o cabeçalho, corpo estruturado dos órgãos, conclusão diagnóstica, bloco de assinatura (digital ou manual) e rodapé de validade.
+    - A numeração de páginas do laudo (`Página X de Y`) conta apenas as páginas do laudo em si (a última página numerada do laudo é a que contém a assinatura). Nenhuma figura aparece numerada como sequência do laudo.
+  - **2. Anexo Fotográfico Independente**:
+    - As figuras do exame iniciam em página nova (`page-break-before`), com cabeçalho próprio identificado (`ANEXO — DOCUMENTAÇÃO FOTOGRÁFICA DO EXAME`).
+    - Bloco de referência completo ao documento principal (Nome do paciente, documento/CPF, título do exame e data/emissão) para que o anexo nunca se desvincule do laudo.
+    - Numeração independente e exclusiva do anexo (`Anexo — Página 1 de 2`, `Anexo — Página 2 de 2`), tanto no cabeçalho quanto no rodapé, sem misturar com a numeração do laudo.
+  - **3. Transparência Ética sobre Imagens Ilustrativas**:
+    - Indicador discreto sob cada figura (`(Imagem ilustrativa)`).
+    - Nota clara no rodapé do anexo: `Nota: Imagens ilustrativas — substituir pelos frames capturados do exame.`, garantindo honestidade e evitando confusão com frames reais do paciente.
+  - **4. Ajuste dos Rodapés e Preservação de Identidade**:
+    - O rodapé de validade legal de 90 dias continua ativo em todas as páginas do laudo e do anexo.
+    - O aviso de versão preliminar não homologada e o "Página X de Y" do laudo não são exibidos no rodapé do anexo.
+    - Preservados na íntegra: cabeçalho da clínica, via do paciente, estilo visual acolhedor, carimbo Bird ID e rodapé configurável.
+  - **5. Integridade do Banco**:
+    - O rascunho de demonstração do Dr. Lucas (`muvdbwmrw3hagrr`, owner `kxhlkfxh0yddn64`, status `Rascunho`) permanece 100% intacto no banco de dados.
 
 - **v0.0.45 — Correção Definitiva da Impressão do Comprovante de Agendamento (Folha em Branco/Sem Texto)**:
   - **Diagnóstico da Causa Raiz do Comprovante em Branco**:

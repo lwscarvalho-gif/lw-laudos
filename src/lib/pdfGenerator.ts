@@ -430,6 +430,54 @@ function drawRunningFooter(
   })
 }
 
+// Renders the independent annex running footer (numeração própria 'Anexo — Página X de Y', sem aviso preliminar, nota ilustrativa explícita e validade)
+function drawAnnexRunningFooter(
+  page: PdfPage,
+  pageNum: number,
+  totalPages: number,
+  props: PrintReportProps,
+) {
+  const marginX = 40
+  const rightX = 555
+  const bottomY = 18
+
+  // Top line separator do rodapé
+  page.drawLine(marginX, bottomY + 22, rightX, bottomY + 22, COLOR_BORDER, 0.5)
+
+  // Linha 1 do rodapé: Declaração de validade do documento
+  const validityDays =
+    typeof props.validityDays === 'number' && props.validityDays > 0 ? props.validityDays : 90
+  const { statementText } = formatReportValidityStatement(
+    props.issueDate || props.signatureDate,
+    validityDays,
+  )
+
+  page.drawText(statementText, marginX, bottomY + 11, {
+    fontSize: 7,
+    color: COLOR_TEXT_MAIN,
+  })
+
+  // Linha 2 do rodapé: Nota explícita e discreta de que as imagens são ilustrativas
+  page.drawText(
+    'Nota: Imagens ilustrativas — substituir pelos frames capturados do exame.',
+    marginX,
+    bottomY,
+    {
+      fontSize: 6.5,
+      italic: true,
+      color: COLOR_MUTED,
+    },
+  )
+
+  // Paginação independente do anexo (sem "Página X de Y" do laudo)
+  page.drawText(`Anexo — Página ${pageNum} de ${totalPages}`, rightX, bottomY, {
+    fontSize: 7.5,
+    bold: true,
+    align: 'right',
+    color: COLOR_PRIMARY,
+  })
+}
+
 // Patient Box
 function drawPatientBox(page: PdfPage, props: PrintReportProps, topY: number): number {
   const marginX = 40
@@ -1055,24 +1103,67 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
       const imgPage = doc.addPage()
       imagePages.push(imgPage)
 
+      // Cabeçalho da clínica no topo
       drawRunningHeader(imgPage, props, logoResId, logoAspect, clinicLogoResId, clinicLogoAspect)
 
-      // Section title
-      imgPage.drawText('DOCUMENTAÇÃO FOTOGRÁFICA DO EXAME', marginX, 755, {
-        fontSize: 11,
+      // Cabeçalho próprio identificado como anexo + numeração própria no anexo
+      imgPage.drawText('ANEXO — DOCUMENTAÇÃO FOTOGRÁFICA DO EXAME', marginX, 755, {
+        fontSize: 10.5,
         bold: true,
         color: COLOR_PRIMARY,
       })
-      imgPage.drawText(`Anexo de Imagens • Página ${pIdx + 1} de ${chunked.length}`, rightX, 755, {
+      imgPage.drawText(`Anexo • Página ${pIdx + 1} de ${chunked.length}`, rightX, 755, {
         fontSize: 8.5,
+        align: 'right',
+        bold: true,
+        color: COLOR_PRIMARY,
+      })
+      imgPage.drawLine(marginX, 746, rightX, 746, COLOR_PRIMARY, 1)
+
+      // Bloco de referência ao laudo (paciente, documento, exame/título, data) para nunca se separar do laudo
+      imgPage.drawRect(marginX, 706, contentWidth, 34, {
+        fillColor: COLOR_BG_BOX,
+        strokeColor: COLOR_BORDER,
+        lineWidth: 0.5,
+      })
+
+      // Linha 1 do box de referência: Paciente e Data
+      const pDocStr = props.patientDocument ? ` • CPF: ${props.patientDocument}` : ''
+      const patRefText = `Paciente: ${props.patientName || 'Não informado'}${pDocStr}`
+      imgPage.drawText(patRefText.slice(0, 52), marginX + 8, 727, {
+        fontSize: 8,
+        bold: true,
+        color: COLOR_TEXT_MAIN,
+      })
+      const examDateRef =
+        props.examDate ||
+        (props.signatureDate ? new Date(props.signatureDate).toLocaleDateString('pt-BR') : '')
+      if (examDateRef) {
+        imgPage.drawText(`Data do Exame: ${examDateRef}`, rightX - 8, 727, {
+          fontSize: 8,
+          align: 'right',
+          color: COLOR_TEXT_MAIN,
+        })
+      }
+
+      // Linha 2 do box de referência: Exame de Referência e Emissão
+      const examTitleRef = `Exame: ${props.title || 'Laudo de Ultrassonografia'}`
+      imgPage.drawText(examTitleRef.slice(0, 56), marginX + 8, 714, {
+        fontSize: 7.5,
+        color: COLOR_MUTED,
+      })
+      const sigDateStr = props.signatureDate
+        ? new Date(props.signatureDate).toLocaleDateString('pt-BR')
+        : new Date().toLocaleDateString('pt-BR')
+      imgPage.drawText(`Emissão: ${sigDateStr}`, rightX - 8, 714, {
+        fontSize: 7.5,
         align: 'right',
         color: COLOR_MUTED,
       })
-      imgPage.drawLine(marginX, 746, rightX, 746, COLOR_BORDER, 0.5)
 
       // Grid layouts: 2, 4, 6 per page
-      // Available area: X: 40..555 (width 515), Y: 60..735 (height 675)
-      const gridTopY = 730
+      // Available area: X: 40..555 (width 515), Y: 50..695 (height 645)
+      const gridTopY = 696
 
       if (imagesPerPage === 2) {
         // 1 column x 2 rows (large views)
@@ -1162,25 +1253,42 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
     const imgY = frameY + (frameH - imgH) / 2
     page.drawImage(meta.resId, imgX, imgY, imgW, imgH)
 
-    // Figure number & Caption text
-    const captionText = meta.item.caption
+    // Figure number & Caption text + Indicador discreto ilustrativo
+    const isCustomCaption = Boolean(meta.item.caption && meta.item.caption.trim())
+    const mainCaption = isCustomCaption
       ? `Fig. ${num}: ${meta.item.caption}`
       : `Fig. ${num}: Registro ecográfico padrão`
-    const wrapped = wrapText(captionText, Math.floor(cardW / 5.5))[0] || captionText
-    page.drawText(wrapped, cardX + cardW / 2, cardY + 8, {
-      fontSize: 8,
+    const wrapped = wrapText(mainCaption, Math.floor(cardW / 5.5))[0] || mainCaption
+
+    page.drawText(wrapped, cardX + cardW / 2, cardY + 11, {
+      fontSize: 7.5,
       bold: true,
       align: 'center',
       color: COLOR_TEXT_MAIN,
     })
+
+    page.drawText('(Imagem ilustrativa)', cardX + cardW / 2, cardY + 3, {
+      fontSize: 6.5,
+      italic: true,
+      align: 'center',
+      color: COLOR_MUTED,
+    })
   }
 
-  // 5. Apply Footers with full page count to ALL pages
-  const allPages = doc.getPages()
-  const totalPages = allPages.length
-  allPages.forEach((p, idx) => {
-    drawRunningFooter(p, idx + 1, totalPages, props)
+  // 5. Apply Footers:
+  // - textPages: Laudo propriamente dito ("Página X de Y" onde total = textPages.length, com aviso preliminar e validade)
+  // - imagePages: Documentação fotográfica em anexo independente ("Anexo — Página X de Y", sem aviso preliminar, com validade e nota ilustrativa)
+  const reportTotalPages = textPages.length
+  textPages.forEach((p, idx) => {
+    drawRunningFooter(p, idx + 1, reportTotalPages, props)
   })
+
+  if (imagePages.length > 0) {
+    const annexTotalPages = imagePages.length
+    imagePages.forEach((p, idx) => {
+      drawAnnexRunningFooter(p, idx + 1, annexTotalPages, props)
+    })
+  }
 
   // 6. Build PDF Binary
   const pdfBytes = doc.buildPdfBytes()
@@ -1738,7 +1846,7 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
       : ''
   }
 
-  <!-- IMAGES SECTION -->
+  <!-- IMAGES SECTION (ANEXO INDEPENDENTE) -->
   ${imagePages
     .map(
       (pageImgs, pageIndex) => `
@@ -1748,24 +1856,32 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
           ${clinicBrand}
         </div>
         <div class="header-meta">
-          <div>DOCUMENTAÇÃO FOTOGRÁFICA</div>
-          <div>Página de Imagens ${pageIndex + 1} de ${imagePages.length}</div>
+          <div style="font-weight: 700; color: #0C6B58;">ANEXO DE IMAGENS</div>
+          <div>Anexo • Página ${pageIndex + 1} de ${imagePages.length}</div>
         </div>
       </div>
 
       <div class="patient-box">
-        <div>Paciente: <strong>${props.patientName}</strong></div>
-        <div style="text-align: right;">${props.examDate ? `Data: <strong>${props.examDate}</strong>` : ''}</div>
+        <div>
+          <span>Paciente: <strong>${props.patientName || 'Não informado'}</strong></span>
+          ${props.patientDocument ? `<br/><span style="color:#5F6E69;">CPF: <strong>${props.patientDocument}</strong></span>` : ''}
+          <br/><span style="color:#5F6E69;">Exame: <strong>${props.title || 'Laudo de Ultrassonografia'}</strong></span>
+        </div>
+        <div style="text-align: right;">
+          ${props.examDate ? `<span>Data do Exame: <strong>${props.examDate}</strong></span><br/>` : ''}
+          <span style="color:#5F6E69;">Emissão: ${sigDateFormatted}</span>
+        </div>
       </div>
 
       <div class="images-page-title">
-        Registro Ultrassonográfico - Anexo de Imagens
+        ANEXO — DOCUMENTAÇÃO FOTOGRÁFICA DO EXAME
       </div>
 
       <div class="${gridClass}">
         ${pageImgs
           .map((img, idx) => {
             const overallNumber = pageIndex * imagesPerPage + idx + 1
+            const mainCap = img.caption ? img.caption : 'Registro ecográfico padrão'
             return `
               <div class="image-card">
                 <div class="image-frame">
@@ -1773,12 +1889,23 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
                 </div>
                 <div class="image-caption">
                   <span class="image-counter">Fig. ${overallNumber}:</span>
-                  ${img.caption ? img.caption : 'Registro ecográfico padrão'}
+                  ${mainCap}
+                  <div style="font-size: 6.5pt; font-style: italic; color: #8A9691; margin-top: 2px;">(Imagem ilustrativa)</div>
                 </div>
               </div>
             `
           })
           .join('')}
+      </div>
+
+      <div style="margin-top: 20px; padding-top: 6px; border-top: 1px solid #E5E9E7; font-family: -apple-system, sans-serif; display: flex; justify-content: space-between; align-items: flex-end; font-size: 7.5pt; color: #5F6E69;">
+        <div>
+          <div>${formatReportValidityStatement(props.issueDate || props.signatureDate, typeof props.validityDays === 'number' && props.validityDays > 0 ? props.validityDays : 90).statementText}</div>
+          <div style="font-style: italic; color: #8A9691; margin-top: 2px;">Nota: Imagens ilustrativas — substituir pelos frames capturados do exame.</div>
+        </div>
+        <div style="font-weight: 700; color: #0C6B58; white-space: nowrap; margin-left: 12px;">
+          Anexo — Página ${pageIndex + 1} de ${imagePages.length}
+        </div>
       </div>
     </div>
   `,
