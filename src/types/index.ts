@@ -372,6 +372,18 @@ export interface UserPermissions {
 
 export type GeriatricInstrumentId = 'katz' | 'lawton' | 'g8' | 'fried' | 'fall_risk'
 
+export interface TextMask extends RecordModel {
+  id: string
+  owner_id: string
+  name: string
+  description?: string
+  exam_type?: string
+  body: string
+  is_system?: boolean
+  created?: string
+  updated?: string
+}
+
 export interface GeriatricAssessment extends RecordModel {
   id: string
   owner_id: string

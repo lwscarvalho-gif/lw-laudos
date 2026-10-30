@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.46** (Fechada — Desacoplamento da Documentação Fotográfica em Anexo Independente com Paginação Própria e QA 100% verde)  
+> **Versão do Projeto**: **v0.0.47** (Fechada — Máscaras de Texto no Editor de Laudos de Ultrassom com Modelos Pré-Prontos e Personalização Isolada por Médico)  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,36 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.47 — Máscaras de Texto no Editor de Laudo (Modo Texto Livre) com Modelos Prontos e Gestão Pessoal por Médico**:
+  - **Atendimento à Solicitação do Usuário/Proprietário**:
+    - _"nessa parte de texto livre quero deixar a opção do medico cadastrar suas mascaras (texto pre prontos que ele apenas edita) inclusive podemos deixar as mascaras prontas para serem personalizadas e salvas a criterio do medico."_
+  - **1. Botão e Acesso a Máscaras de Laudo**:
+    - No `UltrasoundReportEditor.tsx`, a área _"Corpo do Laudo (Texto Livre)"_ recebeu o botão verde proeminente **"Máscaras de Laudo"** (com ícone de livro/modelo).
+    - O botão abre o modal dedicado `TextMasksModal` (`src/components/ultrasound/TextMasksModal.tsx`) para seleção rápida, pré-visualização completa e aplicação no editor.
+    - Também disponibilizado no editor geral de novos laudos (`LaudoNovo.tsx`).
+  - **2. Máscaras Pré-Prontas do Sistema**:
+    - Migração `0021_create_text_masks.js` com seed inicial de modelos clínicos padronizados de ultrassonografia de abdome total:
+      1. _"Abdome total — Normal completo"_ (descrição completa de todos os órgãos em prosa clínica padronizada e conclusão normal).
+      2. _"Abdome total — Litíase biliar (Colelitíase)"_ (cálculo móvel com sombra acústica posterior, vesícula sem sinais de colecistite aguda).
+      3. _"Abdome total — Esteatose hepática moderada (Grau II)"_ (infiltração gordurosa difusa com atenuação acústica).
+      4. _"Abdome total — Nefrolitíase (Cálculo renal)"_ (cálculo em grupo calicinal com sombra acústica, sem hidronefrose).
+      5. _"Abdome total — Ascite / Líquido livre na cavidade"_ (líquido livre nos recessos peritoneais e escavação pélvica).
+  - **3. Diálogo de Inserção Inteligente (Substituir vs Adicionar ao Final)**:
+    - Se o corpo do laudo já tiver texto digitado, um diálogo objetivo pergunta ao médico se ele deseja:
+      - **"Substituir todo o conteúdo atual"** (recomendado ao iniciar novo documento com o modelo) OU
+      - **"Adicionar ao final do texto atual"** (preservando o que já foi digitado e anexando o modelo com quebra dupla).
+  - **4. Máscaras Pessoais do Médico e Personalização Sem Alterar o Original**:
+    - O médico pode salvar o texto digitado atual como uma nova máscara pessoal através do botão _"Salvar Texto Atual como Máscara"_.
+    - Na lista de modelos do sistema, o médico pode clicar em _"Personalizar Cópia"_ para gerar uma versão particular editável sem alterar a máscara do sistema original (que permanece protegida e imutável no banco).
+    - Máscaras particulares podem ser renomeadas, editadas e excluídas pelo próprio dono através da UI.
+  - **5. Persistência e Segurança RLS (Coleção `text_masks`)**:
+    - Coleção `text_masks` com regras de isolamento:
+      - `listRule` e `viewRule`: médicos leem as máscaras do sistema (`is_system = true`) e as suas próprias (`owner_id = @request.auth.id`). Operadores não têm acesso (`@request.auth.role != 'Operador'`).
+      - `createRule`, `updateRule`, `deleteRule`: exclusivas para o dono (`owner_id = @request.auth.id`) sobre suas máscaras particulares (`is_system = false`).
+  - **6. Integridade de Dados e QA**:
+    - O rascunho oficial de laudo do Dr. Lucas (`muvdbwmrw3hagrr`, status `Rascunho`, owner `kxhlkfxh0yddn64`) permanece 100% intacto no banco.
+    - Pipeline de QA (`oxlint`, `tsc -p tsconfig.app.json`, `vite build`) 100% verde com zero erros.
 
 - **v0.0.46 — Desacoplamento da Documentação Fotográfica em Anexo Independente com Paginação Própria**:
   - **Atendimento à Solicitação do Proprietário**:

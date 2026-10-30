@@ -11,7 +11,9 @@ import {
   AlertCircle,
   Tag,
   Search,
+  BookOpen,
 } from 'lucide-react'
+import { TextMasksModal } from '@/components/ultrasound/TextMasksModal'
 import { reportsService } from '@/services/reports'
 import { examsService } from '@/services/exams'
 import { patientsService } from '@/services/patients'
@@ -252,6 +254,7 @@ export default function LaudoNovo() {
   }
 
   const [downloadingRealPdf, setDownloadingRealPdf] = useState(false)
+  const [textMasksOpen, setTextMasksOpen] = useState(false)
 
   const handleDownloadDraft = async () => {
     const selectedPatient = patients.find((p) => p.id === patientId)
@@ -448,13 +451,25 @@ export default function LaudoNovo() {
 
             {/* Rich text body */}
             <div className="space-y-1.5 pt-2">
-              <Label className="text-xs font-semibold text-[#1F2A27]">
-                Conteúdo Clínico do Laudo *
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-[#1F2A27]">
+                  Conteúdo Clínico do Laudo *
+                </Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTextMasksOpen(true)}
+                  className="h-7 text-xs border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0] font-medium"
+                >
+                  <BookOpen className="w-3 h-3 mr-1" />
+                  Máscaras de Texto
+                </Button>
+              </div>
               <RichTextEditor
                 value={body}
                 onChange={setBody}
-                placeholder="Digite a análise descritiva e a conclusão diagnóstica..."
+                placeholder="Digite a análise descritiva e a conclusão diagnóstica ou utilize uma máscara de texto..."
                 minHeight="420px"
               />
               {fieldErrors.body && <p className="text-xs text-[#DC2626]">{fieldErrors.body}</p>}
@@ -630,6 +645,26 @@ export default function LaudoNovo() {
           </div>
         </div>
       </div>
+
+      {/* Text Masks Modal */}
+      <TextMasksModal
+        open={textMasksOpen}
+        onOpenChange={setTextMasksOpen}
+        currentEditorText={body}
+        currentUserId={user?.id}
+        onApplyMask={(newText, applyMode) => {
+          // Convert plain text to basic HTML paragraphs if needed or keep format
+          const formatted = newText
+            .split('\n\n')
+            .map((p) => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+            .join('')
+          if (applyMode === 'replace') {
+            setBody(formatted)
+          } else {
+            setBody((prev) => (prev.trim() ? `${prev}<br/><br/>${formatted}` : formatted))
+          }
+        }}
+      />
 
       {/* Template Apply Confirmation */}
       <AlertDialog open={showApplyConfirm} onOpenChange={setShowApplyConfirm}>

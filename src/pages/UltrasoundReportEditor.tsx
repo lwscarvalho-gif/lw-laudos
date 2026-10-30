@@ -94,6 +94,7 @@ import FindingsLibraryModal from '@/components/ultrasound/FindingsLibraryModal'
 import ExamImagesManager from '@/components/ultrasound/ExamImagesManager'
 import AiAssistantPanel from '@/components/ultrasound/AiAssistantPanel'
 import BodyMarkEditor from '@/components/ultrasound/BodyMarkEditor'
+import { TextMasksModal } from '@/components/ultrasound/TextMasksModal'
 import type { BodyMarksState } from '@/types'
 
 // Default structured sections for Abdome Total
@@ -197,6 +198,9 @@ export default function UltrasoundReportEditor() {
   // Add custom section modal
   const [addSectionOpen, setAddSectionOpen] = useState(false)
   const [newSectionLabel, setNewSectionLabel] = useState('')
+
+  // Text Masks Modal state (for free text mode & general rapid models)
+  const [textMasksModalOpen, setTextMasksModalOpen] = useState(false)
 
   // Autosave tracking
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>(
@@ -1479,12 +1483,48 @@ export default function UltrasoundReportEditor() {
           {mode === 'freetext' ? (
             /* LEGACY FREE TEXT MODE */
             <div className="bg-white p-6 rounded-xl border border-[#E5E9E7] shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-sm text-[#1F2A27]">Corpo do Laudo (Texto Livre)</h3>
-                <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded">
-                  Modo texto livre legado preservado
-                </span>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-sm text-[#1F2A27]">Corpo do Laudo (Texto Livre)</h3>
+                  <span className="text-[11px] text-[#0C6B58] bg-[#E8F3F0] px-2 py-0.5 rounded font-medium border border-[#D0E6E1]">
+                    Editor de texto livre
+                  </span>
+                </div>
+
+                {/* Toolbar de Máscaras de Texto */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => setTextMasksModalOpen(true)}
+                    className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs h-8 font-semibold shadow-sm px-3"
+                    title="Abrir biblioteca de máscaras de laudo pré-prontas do sistema ou pessoais"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 mr-1.5" />
+                    Máscaras de Laudo
+                  </Button>
+                </div>
               </div>
+
+              {/* Informative banner on free-text mode */}
+              <div className="p-2.5 bg-[#FAFBFB] rounded-lg border border-[#E5E9E7] flex items-center justify-between text-xs text-[#5F6E69]">
+                <span className="text-[11px]">
+                  💡 <strong>Dica clínica:</strong> Clique em <strong>Máscaras de Laudo</strong>{' '}
+                  para carregar modelos pré-prontos (normal, litíase, esteatose, etc.) ou salvar seu
+                  texto como máscara particular.
+                </span>
+                {freeTextBody.trim() && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setTextMasksModalOpen(true)}
+                    className="h-6 text-[11px] text-[#0C6B58] hover:bg-[#E8F3F0] font-medium px-2 shrink-0"
+                  >
+                    Salvar este texto como máscara
+                  </Button>
+                )}
+              </div>
+
               <Textarea
                 rows={16}
                 value={freeTextBody}
@@ -1493,7 +1533,7 @@ export default function UltrasoundReportEditor() {
                   setHasUnsavedChanges(true)
                 }}
                 className="font-serif-report text-sm leading-relaxed"
-                placeholder="Digite livremente o conteúdo descritivo..."
+                placeholder="Digite livremente o conteúdo descritivo ou clique no botão Máscaras de Laudo para inserir um modelo pronto..."
               />
             </div>
           ) : (
@@ -2458,6 +2498,27 @@ export default function UltrasoundReportEditor() {
 
       {/* Modal de ativação de assinatura digital quando expirada */}
       <DigitalSignatureActivationModal open={sigModalOpen} onOpenChange={setSigModalOpen} />
+
+      {/* MODAL: MÁSCARAS DE TEXTO / MODELOS PRÉ-PRONTOS */}
+      <TextMasksModal
+        open={textMasksModalOpen}
+        onOpenChange={setTextMasksModalOpen}
+        currentEditorText={freeTextBody}
+        currentUserId={user?.id}
+        onApplyMask={(newText, applyMode) => {
+          if (applyMode === 'replace') {
+            setFreeTextBody(newText)
+          } else {
+            // append ao final com quebra dupla
+            setFreeTextBody((prev) => {
+              const trimmed = prev.trim()
+              if (!trimmed) return newText
+              return `${trimmed}\n\n${newText}`
+            })
+          }
+          setHasUnsavedChanges(true)
+        }}
+      />
     </div>
   )
 }
