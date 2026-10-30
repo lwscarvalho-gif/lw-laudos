@@ -54,6 +54,7 @@ import {
   buildReportHTML,
   downloadReportRealPdf,
   downloadReportHTML,
+  generateReportPdfBlob,
 } from '@/lib/pdfGenerator'
 import { formatDateBR } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
@@ -87,6 +88,8 @@ import {
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
+import { backendRealSignatureService } from '@/services/backendRealSignature'
+import { computeSha256Hex } from '@/lib/cryptoDigest'
 import FindingsLibraryModal from '@/components/ultrasound/FindingsLibraryModal'
 import ExamImagesManager from '@/components/ultrasound/ExamImagesManager'
 import AiAssistantPanel from '@/components/ultrasound/AiAssistantPanel'
@@ -213,6 +216,17 @@ export default function UltrasoundReportEditor() {
   const [finalizeDialogOpen, setFinalizeDialogOpen] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
   const [sigModalOpen, setSigModalOpen] = useState(false)
+  // Estado do diálogo de falha de assinatura (escopo do fluxo de finalização)
+  const [, setSignatureFailureDialog] = useState<{
+    open: boolean
+    errorMessage: string
+    pendingData?: {
+      safeTitle: string
+      safeBodyHtml: string
+      structuredData: ReportStructuredData
+      imagesConfig: { imagesPerPage: number }
+    }
+  }>({ open: false, errorMessage: '' })
 
   // Ref tracking for textarea elements
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
