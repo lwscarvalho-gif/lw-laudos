@@ -31,9 +31,15 @@ interface BodyMarkEditorProps {
   value?: BodyMarksState | null
   onChange: (value: BodyMarksState) => void
   disabled?: boolean
+  hideHeaderCard?: boolean
 }
 
-export default function BodyMarkEditor({ value, onChange, disabled = false }: BodyMarkEditorProps) {
+export default function BodyMarkEditor({
+  value,
+  onChange,
+  disabled = false,
+  hideHeaderCard = false,
+}: BodyMarkEditorProps) {
   const schemeId: BodyMarkSchemeId = value?.schemeId || 'none'
   const points: BodyMarkPoint[] = useMemo(() => value?.points || [], [value?.points])
 
@@ -239,17 +245,33 @@ export default function BodyMarkEditor({ value, onChange, disabled = false }: Bo
   }, [schemeId, points, activePointId])
 
   return (
-    <div className="bg-white rounded-xl border border-[#E5E9E7] p-5 shadow-sm space-y-4">
-      {/* Header bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E5E9E7] pb-3">
+    <div
+      className={
+        hideHeaderCard
+          ? 'space-y-4'
+          : 'bg-white rounded-xl border border-[#E5E9E7] p-5 shadow-sm space-y-4'
+      }
+    >
+      {/* Header bar / Scheme Selector */}
+      <div
+        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+          hideHeaderCard
+            ? 'p-3 bg-[#F8FAF9] rounded-lg border border-[#E5E9E7]'
+            : 'border-b border-[#E5E9E7] pb-3'
+        }`}
+      >
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-[#E8F3F0] flex items-center justify-center text-[#0C6B58]">
             <Layers className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-[#1F2A27]">Esquema Anatômico / Body Mark</h3>
+            <h3 className="font-bold text-sm text-[#1F2A27]">
+              {hideHeaderCard ? 'Figura Anatômica do Esquema' : 'Esquema Anatômico / Body Mark'}
+            </h3>
             <p className="text-xs text-[#5F6E69]">
-              Mapeamento visual de lesões, quadrantes, tendões e dispositivos
+              {hideHeaderCard
+                ? 'Selecione a região para registrar marcações no desenho'
+                : 'Mapeamento visual de lesões, quadrantes, tendões e dispositivos'}
             </p>
           </div>
         </div>
@@ -261,7 +283,7 @@ export default function BodyMarkEditor({ value, onChange, disabled = false }: Bo
             onValueChange={(val) => handleSchemeChange(val as BodyMarkSchemeId)}
             disabled={disabled}
           >
-            <SelectTrigger className="text-xs font-semibold h-8 w-56 border-[#0C6B58] text-[#0C6B58] bg-[#F7FAF9]">
+            <SelectTrigger className="text-xs font-semibold h-8 w-56 border-[#0C6B58] text-[#0C6B58] bg-white">
               <SelectValue placeholder="Selecione o esquema..." />
             </SelectTrigger>
             <SelectContent>
@@ -285,7 +307,7 @@ export default function BodyMarkEditor({ value, onChange, disabled = false }: Bo
               title="Limpar todas as marcas"
             >
               <Trash2 className="w-3.5 h-3.5 mr-1" />
-              Limpar
+              Limpar marcas
             </Button>
           )}
         </div>

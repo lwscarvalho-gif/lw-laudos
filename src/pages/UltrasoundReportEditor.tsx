@@ -94,6 +94,8 @@ import FindingsLibraryModal from '@/components/ultrasound/FindingsLibraryModal'
 import ExamImagesManager from '@/components/ultrasound/ExamImagesManager'
 import AiAssistantPanel from '@/components/ultrasound/AiAssistantPanel'
 import BodyMarkEditor from '@/components/ultrasound/BodyMarkEditor'
+import BodyMarkModal from '@/components/ultrasound/BodyMarkModal'
+import { ANATOMICAL_SCHEMES } from '@/lib/bodyMarks/schemes'
 import { TextMasksModal } from '@/components/ultrasound/TextMasksModal'
 import type { BodyMarksState } from '@/types'
 
@@ -198,6 +200,9 @@ export default function UltrasoundReportEditor() {
   // Add custom section modal
   const [addSectionOpen, setAddSectionOpen] = useState(false)
   const [newSectionLabel, setNewSectionLabel] = useState('')
+
+  // Body Mark Modal state (on-demand anatomical schema)
+  const [bodyMarkModalOpen, setBodyMarkModalOpen] = useState(false)
 
   // Text Masks Modal state (for free text mode & general rapid models)
   const [textMasksModalOpen, setTextMasksModalOpen] = useState(false)
@@ -1326,6 +1331,39 @@ export default function UltrasoundReportEditor() {
 
         {/* Action buttons */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Botão sob demanda Body Mark no cabeçalho */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setBodyMarkModalOpen(true)}
+            className={`text-xs h-9 font-medium transition ${
+              bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
+                ? 'border-[#0C6B58] bg-[#E8F3F0] text-[#0C6B58] hover:bg-[#d8ece6]'
+                : 'border-[#E5E9E7] text-[#5F6E69] hover:text-[#1F2A27] hover:border-[#0C6B58]/40'
+            }`}
+            title="Abrir mapeamento de lesões em esquema anatômico (Body Mark)"
+          >
+            <Layers className="w-3.5 h-3.5 mr-1.5 text-[#0C6B58]" />
+            {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' ? (
+              <span className="flex items-center gap-1.5">
+                <span>
+                  Body Mark ·{' '}
+                  <strong className="font-semibold">
+                    {ANATOMICAL_SCHEMES[bodyMarks.schemeId]?.title.split(' ')[0] || 'Ativo'}
+                  </strong>
+                </span>
+                {(bodyMarks.points || []).length > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-[#0C6B58] text-white text-[10px] font-bold flex items-center justify-center">
+                    {(bodyMarks.points || []).length}
+                  </span>
+                )}
+              </span>
+            ) : (
+              'Body Mark'
+            )}
+          </Button>
+
           <Button
             type="button"
             variant="outline"
@@ -1803,26 +1841,148 @@ export default function UltrasoundReportEditor() {
                 />
               </div>
 
-              {/* Clinical Body Mark (Esquema Anatômico) */}
-              <BodyMarkEditor
-                value={bodyMarks}
-                onChange={(newMarks) => {
-                  setBodyMarks(newMarks)
-                  setHasUnsavedChanges(true)
-                }}
-              />
+              {/* Botão de acesso ao Body Mark entre Conclusão e Fotos */}
+              <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-[#E5E9E7] shadow-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#E8F3F0] flex items-center justify-center text-[#0C6B58]">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-[#1F2A27] block">
+                      Esquema Anatômico / Body Mark
+                    </span>
+                    <span className="text-[11px] text-[#5F6E69]">
+                      {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' ? (
+                        <>
+                          Ativo:{' '}
+                          <strong className="text-[#0C6B58]">
+                            {ANATOMICAL_SCHEMES[bodyMarks.schemeId]?.title}
+                          </strong>{' '}
+                          ({(bodyMarks.points || []).length}{' '}
+                          {(bodyMarks.points || []).length === 1 ? 'marca' : 'marcas'}) — sairá no
+                          PDF
+                        </>
+                      ) : (
+                        'Opcional: mapear lesões, quadrantes ou tendões graficamente'
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            'Deseja remover o esquema anatômico deste laudo e suas marcas?',
+                          )
+                        ) {
+                          setBodyMarks({ schemeId: 'none', points: [] })
+                          setHasUnsavedChanges(true)
+                        }
+                      }}
+                      className="text-xs text-[#DC2626] hover:bg-red-50 h-8"
+                      title="Remover esquema deste laudo"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1" />
+                      Remover
+                    </Button>
+                  )}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBodyMarkModalOpen(true)}
+                    className={`text-xs h-8 font-semibold transition ${
+                      bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
+                        ? 'border-[#0C6B58] bg-[#E8F3F0] text-[#0C6B58] hover:bg-[#d8ece6]'
+                        : 'border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5 mr-1.5" />
+                    {bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
+                      ? 'Editar Body Mark'
+                      : 'Ativar Body Mark'}
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Clinical Body Mark for FreeText mode as well */}
+          {/* Quick Body Mark on free-text mode as well */}
           {mode === 'freetext' && (
-            <BodyMarkEditor
-              value={bodyMarks}
-              onChange={(newMarks) => {
-                setBodyMarks(newMarks)
-                setHasUnsavedChanges(true)
-              }}
-            />
+            <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-[#E5E9E7] shadow-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-[#E8F3F0] flex items-center justify-center text-[#0C6B58]">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-[#1F2A27] block">
+                    Esquema Anatômico / Body Mark
+                  </span>
+                  <span className="text-[11px] text-[#5F6E69]">
+                    {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' ? (
+                      <>
+                        Ativo:{' '}
+                        <strong className="text-[#0C6B58]">
+                          {ANATOMICAL_SCHEMES[bodyMarks.schemeId]?.title}
+                        </strong>{' '}
+                        ({(bodyMarks.points || []).length}{' '}
+                        {(bodyMarks.points || []).length === 1 ? 'marca' : 'marcas'}) — sairá no PDF
+                      </>
+                    ) : (
+                      'Opcional: mapear lesões, quadrantes ou tendões graficamente'
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {bodyMarks.schemeId && bodyMarks.schemeId !== 'none' && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          'Deseja remover o esquema anatômico deste laudo e suas marcas?',
+                        )
+                      ) {
+                        setBodyMarks({ schemeId: 'none', points: [] })
+                        setHasUnsavedChanges(true)
+                      }
+                    }}
+                    className="text-xs text-[#DC2626] hover:bg-red-50 h-8"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+                    Remover
+                  </Button>
+                )}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBodyMarkModalOpen(true)}
+                  className={`text-xs h-8 font-semibold transition ${
+                    bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
+                      ? 'border-[#0C6B58] bg-[#E8F3F0] text-[#0C6B58] hover:bg-[#d8ece6]'
+                      : 'border-[#0C6B58] text-[#0C6B58] hover:bg-[#E8F3F0]'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5 mr-1.5" />
+                  {bodyMarks.schemeId && bodyMarks.schemeId !== 'none'
+                    ? 'Editar Body Mark'
+                    : 'Ativar Body Mark'}
+                </Button>
+              </div>
+            </div>
           )}
 
           {/* MULTIPLE IMAGES SECTION */}
@@ -2505,6 +2665,17 @@ export default function UltrasoundReportEditor() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* MODAL: ESQUEMA ANATÔMICO / BODY MARK (SOB DEMANDA) */}
+      <BodyMarkModal
+        open={bodyMarkModalOpen}
+        onOpenChange={setBodyMarkModalOpen}
+        value={bodyMarks}
+        onChange={(newMarks) => {
+          setBodyMarks(newMarks)
+          setHasUnsavedChanges(true)
+        }}
+      />
 
       {/* Modal de ativação de assinatura digital quando expirada */}
       <DigitalSignatureActivationModal open={sigModalOpen} onOpenChange={setSigModalOpen} />
