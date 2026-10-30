@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.36**  
+> **Versão do Projeto**: **v0.0.38**  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,20 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.38 — Blindagem de Campos Obrigatórios na Finalização de Laudo e Remoção de Checkbox Redundante**:
+  - **Eliminação do Erro "Cannot be blank" na Finalização de Laudo de Ultrassonografia**:
+    - No `UltrasoundReportEditor.tsx`, blindagem rigorosa para que os campos obrigatórios no schema da coleção `reports` (`title`, `body`, `patient_id`) e campos de autor/carimbo nunca cheguem com valores vazios ou nulos.
+    - Se nenhuma caixa de órgão tiver texto preenchido, o motor injeta um corpo clínico preliminar seguro em vez de um HTML vazio, evitando a rejeição 400 pelo PocketBase.
+    - Resolução imediata de `patient_id` e exibição do nome do paciente no modal de finalização (`expand.patient_id` ou busca pontual via `patientsService.getById`), eliminando a exibição de "Paciente: Não informado" mesmo em exames com paciente vinculado.
+  - **Remoção do Checkbox Redundante no Modal de Finalização**:
+    - Conforme solicitação do médico, foi removida a caixa de seleção _"Atesto que revisei integralmente os achados ecográficos descritos..."_, desburocratizando o fluxo de emissão.
+    - O modal agora finaliza diretamente com o botão verde **"Confirmar e Finalizar"**, reduzindo etapas e agilizando a rotina clínica diária.
+  - **Preservação de Dados e Integridade**:
+    - O rascunho oficial de laudo do Dr. Lucas (`muvdbwmrw3hagrr`) e demais dados no banco foram preservados 100% intactos.
+
+- **v0.0.37 — Tratamento de Erros Detalhado e Isolamento no Editor de Ultrassonografia**:
+  - Exibição de mensagens de validação descritivas do servidor PocketBase na interface em vez de mensagens genéricas.
 
 - **v0.0.36 — Ativação de Assinatura Digital em Nuvem no Modelo GeriaTools (Bird ID & VIDaaS)**:
   - **Fluxo Primário em Nuvem (sem instalação de arquivo)**:

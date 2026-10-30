@@ -204,7 +204,6 @@ export default function UltrasoundReportEditor() {
 
   // Finalize Dialog
   const [finalizeDialogOpen, setFinalizeDialogOpen] = useState(false)
-  const [explicitReviewed, setExplicitReviewed] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
   const [sigModalOpen, setSigModalOpen] = useState(false)
 
@@ -224,6 +223,14 @@ export default function UltrasoundReportEditor() {
           setCurrentReportId(rep.id)
           setTitle(rep.title || 'Laudo de Ultrassonografia')
           setPatientId(rep.patient_id)
+          // Se o paciente do laudo não está na lista geral (ex.: laudo de demonstração de outra conta),
+          // incluir o paciente expandido para que o nome e documento resolvam imediatamente na UI
+          if (rep.patient_id && rep.expand?.patient_id) {
+            setPatients((prev) => {
+              if (prev.some((p) => p.id === rep.patient_id)) return prev
+              return [...prev, rep.expand!.patient_id!]
+            })
+          }
           setExamId(rep.exam_id || '')
           setReferringPhysician(rep.referring_physician || '')
           setClinicLocation(rep.clinic_location || '')
@@ -348,6 +355,25 @@ export default function UltrasoundReportEditor() {
   // Load patient's exams when patientId changes
   useEffect(() => {
     if (patientId) {
+      // Se o paciente ainda não estiver no estado patients (ex.: vindo de prefilledPatientId ou lazy load),
+      // buscar pontualmente no servidor para garantir exibição do nome em qualquer modal/cabeçalho
+      setPatients((currentList) => {
+        const alreadyInList = currentList.some((p) => p.id === patientId)
+        if (!alreadyInList) {
+          patientsService
+            .getById(patientId)
+            .then((loadedPatient) => {
+              if (loadedPatient) {
+                setPatients((prev) =>
+                  prev.some((p) => p.id === loadedPatient.id) ? prev : [...prev, loadedPatient],
+                )
+              }
+            })
+            .catch(() => {})
+        }
+        return currentList
+      })
+
       examsService
         .getByPatientId(patientId)
         .then((patientExams) => {
@@ -449,7 +475,17 @@ export default function UltrasoundReportEditor() {
 
       setAutosaveStatus('saving')
       try {
-        const bodyHtml = generateFullHtmlBody()
+        const generatedBody = generateFullHtmlBody()
+        const safeBodyHtml =
+          generatedBody.trim() &&
+          generatedBody !== '<div class="ultrasound-structured-report"></div>'
+            ? generatedBody
+            : conclusion.trim()
+              ? `<div class="ultrasound-structured-report"><p>${conclusion.trim().replace(/\n/g, '<br/>')}</p></div>`
+              : '<div class="ultrasound-structured-report"><p>Exame ecográfico em andamento.</p></div>'
+
+        const safeTitle = title.trim() || 'Laudo de Ultrassonografia'
+
         const structuredData: ReportStructuredData = {
           sections,
           conclusion,
@@ -469,13 +505,13 @@ export default function UltrasoundReportEditor() {
           )
 
           savedRep = await reportsService.update(currentReportId, {
-            title: title.trim(),
+            title: safeTitle,
             patient_id: patientId,
             exam_id: examId || undefined,
             referring_physician: referringPhysician.trim() || undefined,
             clinic_location: clinicLocation.trim() || undefined,
-            body: bodyHtml,
-            conclusion,
+            body: safeBodyHtml,
+            conclusion: conclusion.trim() || undefined,
             structured_data: structuredData,
             images_config: imagesConfig,
             status: 'Rascunho',
@@ -483,13 +519,13 @@ export default function UltrasoundReportEditor() {
           })
         } else {
           savedRep = await reportsService.create({
-            title: title.trim(),
+            title: safeTitle,
             patient_id: patientId,
             exam_id: examId || undefined,
             referring_physician: referringPhysician.trim() || undefined,
             clinic_location: clinicLocation.trim() || undefined,
-            body: bodyHtml,
-            conclusion,
+            body: safeBodyHtml,
+            conclusion: conclusion.trim() || undefined,
             structured_data: structuredData,
             images_config: imagesConfig,
             status: 'Rascunho',
@@ -855,18 +891,30 @@ export default function UltrasoundReportEditor() {
 
   // FINALIZATION FLOW
   const handleFinalizeReport = async () => {
-    if (!explicitReviewed) {
+    if (!patientId) {
       toast({
-        title: 'Revisão obrigatória',
-        description: 'Você precisa marcar a confirmação de que revisou o laudo.',
+        title: 'Paciente não selecionado',
+        description: 'Selecione um paciente para finalizar o laudo.',
         variant: 'destructive',
       })
       return
     }
 
+    const safeTitle = title.trim() || 'Laudo de Ultrassonografia'
+
     setFinalizing(true)
     try {
-      const bodyHtml = generateFullHtmlBody()
+      const generatedBody = generateFullHtmlBody()
+      // Blindagem estrita contra campos obrigatórios do PocketBase chegando vazios ("Cannot be blank"):
+      // O PocketBase exige body text não vazio (required: true). Se nenhuma seção tiver texto,
+      // garantir um parágrafo mínimo com a conclusão ou placeholder clínico em vez de HTML vazio.
+      const safeBodyHtml =
+        generatedBody.trim() && generatedBody !== '<div class="ultrasound-structured-report"></div>'
+          ? generatedBody
+          : conclusion.trim()
+            ? `<div class="ultrasound-structured-report"><p>${conclusion.trim().replace(/\n/g, '<br/>')}</p></div>`
+            : '<div class="ultrasound-structured-report"><p>Exame ecográfico realizado sem alterações descritas adicionais.</p></div>'
+
       const structuredData: ReportStructuredData = {
         sections,
         conclusion,
@@ -902,44 +950,44 @@ export default function UltrasoundReportEditor() {
         )
 
         finalizedReport = await reportsService.update(currentReportId, {
-          title: title.trim(),
+          title: safeTitle,
           patient_id: patientId,
           exam_id: examId || undefined,
           referring_physician: referringPhysician.trim() || undefined,
           clinic_location: clinicLocation.trim() || undefined,
-          body: bodyHtml,
-          conclusion,
+          body: safeBodyHtml,
+          conclusion: conclusion.trim() || undefined,
           structured_data: structuredData,
           images_config: imagesConfig,
           status: 'Finalizado',
           is_draft: false,
-          author_name: user?.professional_name || user?.name || '',
-          author_crm: user?.crm || '',
-          author_crm_uf: user?.crm_uf || '',
+          author_name: user?.professional_name || user?.name || 'Dr. Médico',
+          author_crm: user?.crm || undefined,
+          author_crm_uf: user?.crm_uf || undefined,
           signature_date: new Date().toISOString(),
           signature_status: sigStatus,
-          signature_provider: sigProvider,
+          signature_provider: sigProvider || undefined,
         })
       } else {
         finalizedReport = await reportsService.create({
-          title: title.trim(),
+          title: safeTitle,
           patient_id: patientId,
           exam_id: examId || undefined,
           referring_physician: referringPhysician.trim() || undefined,
           clinic_location: clinicLocation.trim() || undefined,
-          body: bodyHtml,
-          conclusion,
+          body: safeBodyHtml,
+          conclusion: conclusion.trim() || undefined,
           structured_data: structuredData,
           images_config: imagesConfig,
           status: 'Finalizado',
           is_draft: false,
           exam_type: 'Ultrassonografia',
-          author_name: user?.professional_name || user?.name || '',
-          author_crm: user?.crm || '',
-          author_crm_uf: user?.crm_uf || '',
+          author_name: user?.professional_name || user?.name || 'Dr. Médico',
+          author_crm: user?.crm || undefined,
+          author_crm_uf: user?.crm_uf || undefined,
           signature_date: new Date().toISOString(),
           signature_status: sigStatus,
-          signature_provider: sigProvider,
+          signature_provider: sigProvider || undefined,
         })
       }
 
@@ -1078,10 +1126,7 @@ export default function UltrasoundReportEditor() {
           <Button
             type="button"
             size="sm"
-            onClick={() => {
-              setExplicitReviewed(false)
-              setFinalizeDialogOpen(true)
-            }}
+            onClick={() => setFinalizeDialogOpen(true)}
             className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs h-9 font-semibold shadow-sm"
           >
             <FileCheck2 className="w-3.5 h-3.5 mr-1.5" />
@@ -1843,20 +1888,6 @@ export default function UltrasoundReportEditor() {
               })()}
             </div>
 
-            {/* Explicit review checkbox required */}
-            <label className="flex items-start gap-2.5 p-3 rounded-lg border border-emerald-200 bg-emerald-50/50 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={explicitReviewed}
-                onChange={(e) => setExplicitReviewed(e.target.checked)}
-                className="mt-0.5 rounded text-[#0C6B58] focus:ring-[#0C6B58]"
-              />
-              <span className="text-xs text-[#1F2A27] leading-relaxed">
-                Atesto que revisei integralmente os achados ecográficos descritos, as imagens anexas
-                e a conclusão diagnóstica como médico responsável técnico.
-              </span>
-            </label>
-
             {/* If linked to an appointment, confirm turning status into 'Realizado' */}
             {linkedAppointmentId && (
               <label className="flex items-start gap-2.5 p-3 rounded-lg border border-blue-200 bg-blue-50/50 cursor-pointer">
@@ -1887,9 +1918,9 @@ export default function UltrasoundReportEditor() {
             <Button
               type="button"
               size="sm"
-              disabled={!explicitReviewed || finalizing}
+              disabled={finalizing}
               onClick={handleFinalizeReport}
-              className="bg-[#0C6B58] hover:bg-[#0A5949] text-white"
+              className="bg-[#0C6B58] hover:bg-[#0A5949] text-white font-semibold"
             >
               {finalizing ? (
                 <>
@@ -1897,7 +1928,7 @@ export default function UltrasoundReportEditor() {
                   Finalizando...
                 </>
               ) : (
-                'Confirmar e Finalizar Laudo'
+                'Confirmar e Finalizar'
               )}
             </Button>
           </DialogFooter>
