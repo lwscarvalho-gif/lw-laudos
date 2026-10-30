@@ -7,6 +7,20 @@ export type UserRole =
   | 'Contabilidade'
   | 'Operador'
 
+export type CloudSignatureProviderId = 'birdid' | 'vidaas' | 'a1_local'
+
+export interface CloudSignatureSession {
+  provider: CloudSignatureProviderId
+  providerLabel: string
+  activatedAt: string // ISO string
+  expiresAt: string // ISO string
+  validityDays: number // 7 para Bird ID, 1 para VIDaaS
+  crmSnapshot?: string
+  cpfSnapshot?: string
+  codeHint?: string
+  status: 'active' | 'expired' | 'revoked'
+}
+
 export interface UserClinicItem {
   id?: string
   name: string
@@ -33,6 +47,8 @@ export interface User {
   assigned_doctor?: string
   allowed_clinics?: string[] | string
   digital_signature_enabled?: boolean
+  cpf?: string
+  signature_session?: CloudSignatureSession | null | string
   created?: string
   updated?: string
 }

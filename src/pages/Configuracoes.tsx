@@ -101,6 +101,7 @@ export default function Configuracoes() {
   )
   const [crm, setCrm] = useState(user?.crm || '')
   const [crmUf, setCrmUf] = useState(user?.crm_uf || 'RO')
+  const [cpf, setCpf] = useState(user?.cpf || '')
   const [professionalTitle, setProfessionalTitle] = useState(user?.professional_title || '')
   const [header, setHeader] = useState(user?.header || '')
   const [savingProfile, setSavingProfile] = useState(false)
@@ -441,6 +442,7 @@ export default function Configuracoes() {
         professional_name: professionalName.trim(),
         crm: crm.trim(),
         crm_uf: crmUf,
+        cpf: cpf.trim(),
         professional_title: professionalTitle.trim(),
         header: header.trim(),
       })
@@ -856,6 +858,21 @@ export default function Configuracoes() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cpf_num" className="text-xs font-semibold">
+                CPF do Médico (para Certificado Digital em Nuvem)
+              </Label>
+              <Input
+                id="cpf_num"
+                value={cpf}
+                onChange={(e) => setCpf(e.target.value)}
+                placeholder="Ex.: 025.123.456-78"
+              />
+              <p className="text-[11px] text-[#8A9691]">
+                Utilizado para identificação e validação de sessão Bird ID / VIDaaS.
+              </p>
             </div>
           </div>
 

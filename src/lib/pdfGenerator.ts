@@ -35,6 +35,7 @@ export interface PrintReportProps {
   bodyMarks?: BodyMarksState
   digitalSignature?: {
     enabled: boolean
+    providerName?: string // ex: "Bird ID", "VIDaaS", "Certificado A1"
     commonName?: string
     issuer?: string
     serialNumber?: string
@@ -722,8 +723,11 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
     const authorCrmStr = props.authorCrm
       ? `CRM ${props.authorCrmUf ? `${props.authorCrmUf} ` : ''}${props.authorCrm}`
       : 'CRM não informado'
+    const providerTag = props.digitalSignature?.providerName
+      ? ` via ${props.digitalSignature.providerName}`
+      : ''
     currentPage.drawText(
-      `Assinante: ${certHolder} • ${authorCrmStr}`,
+      `Assinado digitalmente${providerTag} por: ${certHolder}`,
       stampX + 14,
       stampY + stampH - 28,
       {
@@ -733,13 +737,13 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
       },
     )
 
-    // Linha 2: Emissor e Serial do Certificado A1
-    const certIssuer = props.digitalSignature?.issuer || 'Autoridade Certificadora ICP-Brasil'
+    // Linha 2: Emissor / Modalidade e CRM
+    const certIssuer = props.digitalSignature?.issuer || 'Certificação Digital em Nuvem'
     const certSerial = props.digitalSignature?.serialNumber
       ? ` • Serial: ${props.digitalSignature.serialNumber}`
       : ''
     currentPage.drawText(
-      `Certificado A1: ${certIssuer.slice(0, 48)}${certSerial}`,
+      `${authorCrmStr} • Emissor: ${certIssuer.slice(0, 44)}${certSerial}`,
       stampX + 14,
       stampY + stampH - 41,
       {
@@ -1597,10 +1601,10 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
           ✓ Documento Assinado Digitalmente (ICP-Brasil / PAdES)
         </div>
         <div style="font-size: 9pt; font-weight: 700; color: #1F2A27;">
-          Assinante: ${props.digitalSignature.commonName || props.authorName}${crmFormatted ? ` • ${crmFormatted}` : ''}
+          Assinado digitalmente${props.digitalSignature.providerName ? ` via ${props.digitalSignature.providerName}` : ''} por: ${props.digitalSignature.commonName || props.authorName}${crmFormatted ? ` • ${crmFormatted}` : ''}
         </div>
         <div style="font-size: 8pt; color: #5F6E69; margin-top: 2px;">
-          Certificado A1: ${props.digitalSignature.issuer || 'Autoridade Certificadora ICP-Brasil'}${props.digitalSignature.serialNumber ? ` • Serial: ${props.digitalSignature.serialNumber}` : ''}
+          Emissor / Provedor: ${props.digitalSignature.issuer || props.digitalSignature.providerName || 'Certificação Digital'}${props.digitalSignature.serialNumber ? ` • Serial: ${props.digitalSignature.serialNumber}` : ''}
         </div>
         <div style="font-size: 7.5pt; color: #5F6E69; margin-top: 2px;">
           Data da assinatura: ${props.digitalSignature.signedAt ? new Date(props.digitalSignature.signedAt).toLocaleString('pt-BR') : sigDateFormatted}${props.digitalSignature.hashSha256 ? ` • SHA-256: ${props.digitalSignature.hashSha256.slice(0, 16)}...` : ''}

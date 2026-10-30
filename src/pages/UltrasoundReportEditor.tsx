@@ -27,6 +27,8 @@ import pb from '@/lib/pocketbase/client'
 import { reportsService } from '@/services/reports'
 import { examsService } from '@/services/exams'
 import { digitalSignatureService } from '@/services/digitalSignature'
+import { cloudSignatureService } from '@/services/cloudSignatureSession'
+import { DigitalSignatureActivationModal } from '@/components/DigitalSignatureActivationModal'
 import {
   doctorA1CertificateService,
   type ActiveA1CertificateInfo,
@@ -203,6 +205,7 @@ export default function UltrasoundReportEditor() {
   const [finalizeDialogOpen, setFinalizeDialogOpen] = useState(false)
   const [explicitReviewed, setExplicitReviewed] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
+  const [sigModalOpen, setSigModalOpen] = useState(false)
 
   // Ref tracking for textarea elements
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
@@ -858,6 +861,22 @@ export default function UltrasoundReportEditor() {
         imagesPerPage,
       }
 
+      // Avaliação de assinatura digital no momento da finalização
+      const cloudEval = cloudSignatureService.evaluateSession(user)
+      const hasCloudSession = user?.digital_signature_enabled && cloudEval.hasActiveSession
+      const hasA1Cert = user?.digital_signature_enabled && Boolean(doctorCert)
+
+      let sigStatus: string = 'Não assinado'
+      let sigProvider: string | undefined = undefined
+
+      if (hasCloudSession && cloudEval.session) {
+        sigStatus = 'Assinado'
+        sigProvider = cloudEval.session.providerLabel
+      } else if (hasA1Cert && doctorCert) {
+        sigStatus = 'Assinado'
+        sigProvider = 'Certificado A1'
+      }
+
       let finalizedReport: Report
       if (currentReportId) {
         // Se o laudo foi alterado e finalizado, invalidar solicitações de assinatura antigas (novo hash gerado)
@@ -882,6 +901,8 @@ export default function UltrasoundReportEditor() {
           author_crm: user?.crm || '',
           author_crm_uf: user?.crm_uf || '',
           signature_date: new Date().toISOString(),
+          signature_status: sigStatus,
+          signature_provider: sigProvider,
         })
       } else {
         finalizedReport = await reportsService.create({
@@ -901,6 +922,8 @@ export default function UltrasoundReportEditor() {
           author_crm: user?.crm || '',
           author_crm_uf: user?.crm_uf || '',
           signature_date: new Date().toISOString(),
+          signature_status: sigStatus,
+          signature_provider: sigProvider,
         })
       }
 
@@ -1734,22 +1757,69 @@ export default function UltrasoundReportEditor() {
                   anexada(s) para impressão
                 </span>
               </div>
-              <div className="pt-1 border-t border-[#E5E9E7] flex items-center justify-between">
-                <span className="text-[#8A9691]">Modalidade de Assinatura:</span>
-                {user?.digital_signature_enabled && doctorCert ? (
-                  <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    ✓ Assinatura Digital A1 ({doctorCert.commonName})
-                  </span>
-                ) : user?.digital_signature_enabled && !doctorCert ? (
-                  <span className="font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                    ⚠ Chave ligada sem certificado no navegador (sairá manual)
-                  </span>
-                ) : (
-                  <span className="font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
-                    Assinatura manual após impressão
-                  </span>
-                )}
-              </div>
+              {/* Modalidade de assinatura no diálogo de finalização */}
+              {(() => {
+                const cloudEval = cloudSignatureService.evaluateSession(user)
+                if (
+                  user?.digital_signature_enabled &&
+                  cloudEval.hasActiveSession &&
+                  cloudEval.session
+                ) {
+                  return (
+                    <div className="pt-2 border-t border-[#E5E9E7] space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#8A9691]">Modalidade de Assinatura:</span>
+                        <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                          ✓ Digital ({cloudEval.session.providerLabel})
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#0C6B58]">
+                        Sessão em nuvem ativa ({cloudEval.remainingTimeFormatted}). O laudo será
+                        emitido com carimbo digital via {cloudEval.session.providerLabel}.
+                      </p>
+                    </div>
+                  )
+                }
+                if (cloudEval.isExpired) {
+                  return (
+                    <div className="pt-2 border-t border-[#E5E9E7] space-y-1.5 bg-amber-50/70 p-2.5 rounded-lg border-amber-200">
+                      <div className="flex items-center justify-between text-amber-900 font-semibold">
+                        <span>⚠ Sessão de assinatura expirada</span>
+                        <button
+                          type="button"
+                          onClick={() => setSigModalOpen(true)}
+                          className="text-xs text-[#0C6B58] underline font-bold"
+                        >
+                          Reativar agora
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-amber-800 leading-relaxed">
+                        Sua sessão de assinatura digital expirou. Você pode{' '}
+                        <strong>reativar agora</strong> com um novo código ou{' '}
+                        <strong>concluir com assinatura manual</strong> (o laudo nunca fica preso).
+                      </p>
+                    </div>
+                  )
+                }
+                if (user?.digital_signature_enabled && doctorCert) {
+                  return (
+                    <div className="pt-2 border-t border-[#E5E9E7] flex items-center justify-between">
+                      <span className="text-[#8A9691]">Modalidade de Assinatura:</span>
+                      <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        ✓ Digital A1 ({doctorCert.commonName})
+                      </span>
+                    </div>
+                  )
+                }
+                return (
+                  <div className="pt-2 border-t border-[#E5E9E7] flex items-center justify-between">
+                    <span className="text-[#8A9691]">Modalidade de Assinatura:</span>
+                    <span className="font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                      Assinatura manual após impressão
+                    </span>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Explicit review checkbox required */}
@@ -1975,6 +2045,9 @@ export default function UltrasoundReportEditor() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de ativação de assinatura digital quando expirada */}
+      <DigitalSignatureActivationModal open={sigModalOpen} onOpenChange={setSigModalOpen} />
     </div>
   )
 }

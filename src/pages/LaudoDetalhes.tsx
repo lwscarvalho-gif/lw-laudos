@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { reportsService } from '@/services/reports'
 import { digitalSignatureService, DigitalSignatureStatus } from '@/services/digitalSignature'
+import { cloudSignatureService } from '@/services/cloudSignatureSession'
 import {
   doctorA1CertificateService,
   type ActiveA1CertificateInfo,
@@ -233,17 +234,47 @@ export default function LaudoDetalhes() {
         report.structured_data.body_marks.schemeId !== 'none'
           ? report.structured_data.body_marks
           : undefined,
-      digitalSignature:
-        user?.digital_signature_enabled && doctorCert
-          ? {
-              enabled: true,
-              commonName: doctorCert.commonName,
-              issuer: doctorCert.issuer,
-              serialNumber: doctorCert.serialNumber,
-              signedAt: report.signature_date || report.created,
-              hashSha256: currentSha256,
-            }
-          : undefined,
+      digitalSignature: (() => {
+        // 1. Nuvem (Bird ID / VIDaaS) ativa ou registrada
+        const cloudEval = cloudSignatureService.evaluateSession(user)
+        const provName = report.signature_provider || cloudEval.session?.providerLabel
+        if (user?.digital_signature_enabled && cloudEval.hasActiveSession) {
+          return {
+            enabled: true,
+            providerName: provName || 'Bird ID / VIDaaS',
+            commonName:
+              report.author_name || user?.professional_name || user?.name || 'Médico Responsável',
+            issuer: `Certificação em Nuvem (${provName || 'ICP-Brasil'})`,
+            signedAt: report.signature_date || report.created,
+            hashSha256: report.signature_hash_sha256 || currentSha256,
+          }
+        }
+        // 2. Se o laudo já foi previamente assinado em nuvem
+        if (report.signature_status === 'Assinado' && report.signature_provider) {
+          return {
+            enabled: true,
+            providerName: report.signature_provider,
+            commonName:
+              report.author_name || user?.professional_name || user?.name || 'Médico Responsável',
+            issuer: `Certificação em Nuvem (${report.signature_provider})`,
+            signedAt: report.signature_date || report.created,
+            hashSha256: report.signature_hash_sha256 || currentSha256,
+          }
+        }
+        // 3. Certificado A1 local
+        if (user?.digital_signature_enabled && doctorCert) {
+          return {
+            enabled: true,
+            providerName: 'Certificado A1',
+            commonName: doctorCert.commonName,
+            issuer: doctorCert.issuer,
+            serialNumber: doctorCert.serialNumber,
+            signedAt: report.signature_date || report.created,
+            hashSha256: currentSha256,
+          }
+        }
+        return undefined
+      })(),
     }
   }
 
@@ -648,9 +679,13 @@ export default function LaudoDetalhes() {
             {user?.professional_title ||
               `Médico / CRM ${report.author_crm_uf || user?.crm_uf ? `${report.author_crm_uf || user?.crm_uf} ` : ''}${report.author_crm || user?.crm || 'Não informado'}`}
           </p>
-          <p className="text-[11px] text-[#8A9691] pt-1 flex items-center gap-1 justify-center">
+          <p className="text-[11px] text-[#0C6B58] font-semibold pt-1 flex items-center gap-1 justify-center">
             <ShieldCheck className="w-3.5 h-3.5 text-[#0C6B58]" />
-            Assinado em {formatDateTimeBR(report.signature_date || report.created)}
+            {report.signature_status === 'Assinado' && report.signature_provider
+              ? `Assinado digitalmente via ${report.signature_provider} em ${formatDateTimeBR(report.signature_date || report.created)}`
+              : user?.digital_signature_enabled && doctorCert
+                ? `Assinado digitalmente via Certificado A1 em ${formatDateTimeBR(report.signature_date || report.created)}`
+                : `Assinado em ${formatDateTimeBR(report.signature_date || report.created)}`}
           </p>
           <p className="text-[10px] text-[#8A9691] pt-1 italic">{PRELIMINARY_VERSION_DISCLAIMER}</p>
         </div>

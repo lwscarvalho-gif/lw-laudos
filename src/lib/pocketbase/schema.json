@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-30T02:04:59.285Z",
+  "generatedAt": "2026-10-30T02:20:29.411Z",
   "collections": [
     {
       "name": "users",
@@ -135,6 +135,18 @@
         {
           "name": "digital_signature_enabled",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cpf",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "signature_session",
+          "type": "json",
           "required": false,
           "system": false
         }

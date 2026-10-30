@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.35**  
+> **Versão do Projeto**: **v0.0.36**  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,32 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.36 — Ativação de Assinatura Digital em Nuvem no Modelo GeriaTools (Bird ID & VIDaaS)**:
+  - **Fluxo Primário em Nuvem (sem instalação de arquivo)**:
+    - O fluxo principal de ativação passa a seguir o modelo do GeriaTools (`geritools.gericlass.com.br`), focado nas certificadoras em nuvem mais usadas por médicos no Brasil:
+      - **Bird ID** (Soluti): validade estendida de **7 dias**.
+      - **VIDaaS** (Valid): validade de **24 horas** (gratuito via CFM/CRM).
+      - **Certificado A1 local** (.pfx/.p12 com chave privada client-side no navegador): preservado integralmente como alternativa secundária sem regressão.
+  - **Botão com Escudo no Topbar (`Layout.tsx`)**:
+    - Indicador com ícone de escudo na barra superior exibindo `"Assinatura digital · ativar"` quando inativa e `"Assinatura digital · ativa"` (com badge verde acolhedor) quando em sessão ativa. Visível exclusivamente para médicos e administradores (operadores não veem nada de assinatura).
+  - **Modal "Escolha seu certificado digital" (`DigitalSignatureActivationModal.tsx`)**:
+    - Subtítulo explicativo: _"Ative uma vez. Os documentos emitidos serão assinados enquanto a sessão estiver válida: 7 dias no Bird ID, 24 h nas outras certificadoras."_
+    - Seleção rápida entre Bird ID e VIDaaS (com badge "Gratuito via CRM • 24 h").
+    - Linha de identificação profissional: `CRM xxxx-XX · CPF 000.•••.•••-00` com link direto `"corrigir"` que leva a **Configurações → Identificação Profissional**.
+    - Campo de código dinâmico (`CÓDIGO DO BIRD ID` ou `CÓDIGO DO VIDAAS`) com validação clara em português.
+    - Persistência estruturada em `signature_session` (JSON) e ativação no perfil (`digital_signature_enabled`).
+  - **Reflexo na Chave do Painel (`DigitalSignatureCard.tsx`)**:
+    - Exibe o status da sessão: `"BIRD ID · VALE ATÉ DD/MM"` ou `"VIDAAS · VALE ATÉ DD/MM"`, com contagem de dias/horas restantes e opção rápida de alternar.
+    - Desligar a chave encerra a sessão e retorna o fluxo à assinatura manual em papel.
+  - **Emissão e Carimbo nos Laudos (`UltrasoundReportEditor.tsx`, `LaudoDetalhes.tsx`, `pdfGenerator.ts`)**:
+    - Todo laudo finalizado durante a validade da sessão sai assinado automaticamente citando o provedor da sessão: _"Assinado digitalmente via [Provedor] por Dr. ..., CRM ..., data e hash SHA-256"_.
+    - **Sessão expirada**: ao abrir o diálogo de finalização, um aviso amigável destaca que a sessão expirou e oferece reativação por código ou continuidade com assinatura manual — o médico nunca fica com o laudo bloqueado.
+  - **Identificação com CPF em Configurações (`Configuracoes.tsx`)**:
+    - Campo opcional de CPF adicionado na tela de Identificação Profissional via migração idempotente `0018_add_doctor_cpf_and_signature_session.js`.
+  - **Limite Honesto Desta Etapa**:
+    - Não realizamos OAuth corporativo nem chamadas diretas às APIs pagas da VaultID/Soluti/VIDaaS (não possuímos credenciais de API corporativa).
+    - O serviço `cloudSignatureSession.ts` implementa a gestão da sessão por código com validade real, deixando os pontos de extensão prontos para plugar as chamadas às APIs quando contratadas. Na UI, não há alegações falsas de validação ICP-Brasil que ainda não ocorra no servidor.
 
 - **v0.0.35 — Modalidade Dupla de Operação e Chave Liga/Desliga de Assinatura Digital no Painel com Certificado A1**:
   - **Meta de 2 modalidades operacionais concretizada**:

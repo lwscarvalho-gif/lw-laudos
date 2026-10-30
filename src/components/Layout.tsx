@@ -26,6 +26,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
+import { cloudSignatureService } from '@/services/cloudSignatureSession'
+import { DigitalSignatureActivationModal } from '@/components/DigitalSignatureActivationModal'
 
 const NAV_ITEMS = [
   { path: '/painel', label: 'Painel', icon: LayoutDashboard },
@@ -44,6 +46,12 @@ export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
+  const [sigModalOpen, setSigModalOpen] = useState(false)
+
+  // Avaliação da sessão de assinatura para médicos/admins
+  const sigEval = cloudSignatureService.evaluateSession(user)
+  const isSigActive = Boolean(user?.digital_signature_enabled) && !sigEval.isExpired
+  const canSeeSignature = isDoctor || isAdmin
 
   // Filter menu items by conservative permissions matrix
   const visibleNavItems = NAV_ITEMS.filter((item) => {
@@ -310,7 +318,35 @@ export default function Layout() {
             <h1 className="text-lg font-bold text-[#1F2A27]">{getPageTitle()}</h1>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Botão de Assinatura Digital no Topbar (estilo GeriaTools - apenas para médicos/admins) */}
+            {canSeeSignature && (
+              <button
+                type="button"
+                onClick={() => setSigModalOpen(true)}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold border transition shadow-sm ${
+                  isSigActive
+                    ? 'bg-[#E8F3F0] text-[#0C6B58] border-[#0C6B58]/30 hover:bg-[#D4ECE6]'
+                    : sigEval.isExpired
+                      ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                      : 'bg-white text-[#1F2A27] border-[#D6DDD9] hover:bg-[#F7F9F8]'
+                }`}
+                title="Gerenciar ativação do certificado de assinatura digital"
+              >
+                <Shield
+                  className={`w-3.5 h-3.5 ${
+                    isSigActive
+                      ? 'text-[#0C6B58]'
+                      : sigEval.isExpired
+                        ? 'text-amber-600'
+                        : 'text-[#8A9691]'
+                  }`}
+                />
+                <span className="hidden sm:inline">Assinatura digital ·</span>
+                <span>{isSigActive ? 'ativa' : sigEval.isExpired ? 'expirada' : 'ativar'}</span>
+              </button>
+            )}
+
             {/* Notification bell */}
             <button
               type="button"
@@ -386,6 +422,11 @@ export default function Layout() {
           </span>
         </footer>
       </div>
+
+      {/* Modal de Ativação de Assinatura Digital estilo GeriaTools */}
+      {canSeeSignature && (
+        <DigitalSignatureActivationModal open={sigModalOpen} onOpenChange={setSigModalOpen} />
+      )}
     </div>
   )
 }
