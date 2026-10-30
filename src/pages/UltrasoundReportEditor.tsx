@@ -1011,8 +1011,12 @@ export default function UltrasoundReportEditor() {
     }
   }
 
-  // FINALIZATION FLOW
-  const handleFinalizeReport = async () => {
+  // FINALIZATION FLOW WITH REAL PADÈS SIGNATURE & MANUAL FALLBACK
+  const executeFinalizeReportSave = async (
+    options: {
+      forceManualSignature?: boolean
+    } = {},
+  ) => {
     if (!patientId) {
       toast({
         title: 'Paciente não selecionado',
@@ -1027,9 +1031,6 @@ export default function UltrasoundReportEditor() {
     setFinalizing(true)
     try {
       const generatedBody = generateFullHtmlBody()
-      // Blindagem estrita contra campos obrigatórios do PocketBase chegando vazios ("Cannot be blank"):
-      // O PocketBase exige body text não vazio (required: true). Se nenhuma seção tiver texto,
-      // garantir um parágrafo mínimo com a conclusão ou placeholder clínico em vez de HTML vazio.
       const safeBodyHtml =
         generatedBody.trim() && generatedBody !== '<div class="ultrasound-structured-report"></div>'
           ? generatedBody
@@ -1049,10 +1050,14 @@ export default function UltrasoundReportEditor() {
 
       // Avaliação de assinatura digital no momento da finalização
       const cloudEval = cloudSignatureService.evaluateSession(user)
-      const hasCloudSession = user?.digital_signature_enabled && cloudEval.hasActiveSession
-      const hasA1Cert = user?.digital_signature_enabled && Boolean(doctorCert)
+      const hasCloudSession =
+        !options.forceManualSignature &&
+        user?.digital_signature_enabled &&
+        cloudEval.hasActiveSession
+      const hasA1Cert =
+        !options.forceManualSignature && user?.digital_signature_enabled && Boolean(doctorCert)
 
-      let sigStatus: string = 'Não assinado'
+      let sigStatus: string = options.forceManualSignature ? 'Manual' : 'Não assinado'
       let sigProvider: string | undefined = undefined
 
       if (hasCloudSession && cloudEval.session) {
@@ -1063,56 +1068,41 @@ export default function UltrasoundReportEditor() {
         sigProvider = 'Certificado A1'
       }
 
+      // 1. Criar ou atualizar laudo inicial
       let finalizedReport: Report
+      const payloadBase = {
+        title: safeTitle,
+        patient_id: patientId,
+        exam_id: examId || undefined,
+        referring_physician: referringPhysician.trim() || undefined,
+        clinic_location: clinicLocation.trim() || undefined,
+        body: safeBodyHtml,
+        conclusion: conclusion.trim() || undefined,
+        structured_data: structuredData,
+        images_config: imagesConfig,
+        status: 'Finalizado' as const,
+        is_draft: false,
+        author_name: user?.professional_name || user?.name || 'Dr. Médico',
+        author_crm: user?.crm || undefined,
+        author_crm_uf: user?.crm_uf || undefined,
+        signature_date: new Date().toISOString(),
+        signature_status: sigStatus,
+        signature_provider: sigProvider || undefined,
+        validity_days: reportValidityDays,
+      }
+
       if (currentReportId) {
-        // Se o laudo foi alterado e finalizado, invalidar solicitações de assinatura antigas (novo hash gerado)
         digitalSignatureService.invalidatePendingOnReportEdit(
           currentReportId,
           'Nova versão finalizada do laudo',
         )
-
-        finalizedReport = await reportsService.update(currentReportId, {
-          title: safeTitle,
-          patient_id: patientId,
-          exam_id: examId || undefined,
-          referring_physician: referringPhysician.trim() || undefined,
-          clinic_location: clinicLocation.trim() || undefined,
-          body: safeBodyHtml,
-          conclusion: conclusion.trim() || undefined,
-          structured_data: structuredData,
-          images_config: imagesConfig,
-          status: 'Finalizado',
-          is_draft: false,
-          author_name: user?.professional_name || user?.name || 'Dr. Médico',
-          author_crm: user?.crm || undefined,
-          author_crm_uf: user?.crm_uf || undefined,
-          signature_date: new Date().toISOString(),
-          signature_status: sigStatus,
-          signature_provider: sigProvider || undefined,
-        })
+        finalizedReport = await reportsService.update(currentReportId, payloadBase)
       } else {
         finalizedReport = await reportsService.create({
-          title: safeTitle,
-          patient_id: patientId,
-          exam_id: examId || undefined,
-          referring_physician: referringPhysician.trim() || undefined,
-          clinic_location: clinicLocation.trim() || undefined,
-          body: safeBodyHtml,
-          conclusion: conclusion.trim() || undefined,
-          structured_data: structuredData,
-          images_config: imagesConfig,
-          status: 'Finalizado',
-          is_draft: false,
+          ...payloadBase,
           exam_type: 'Ultrassonografia',
-          author_name: user?.professional_name || user?.name || 'Dr. Médico',
-          author_crm: user?.crm || undefined,
-          author_crm_uf: user?.crm_uf || undefined,
-          signature_date: new Date().toISOString(),
-          signature_status: sigStatus,
-          signature_provider: sigProvider || undefined,
         })
 
-        // Vincular eventuais imagens pendentes ao novo laudo finalizado
         if (images.length > 0) {
           await examImagesService
             .linkImagesToReport(
@@ -1120,6 +1110,90 @@ export default function UltrasoundReportEditor() {
               finalizedReport.id,
             )
             .catch(() => {})
+        }
+      }
+
+      // 2. Se a assinatura em nuvem estiver ativa, verificar se o BACKEND possui segredos reais para PAdES
+      if (hasCloudSession && cloudEval.session && !options.forceManualSignature) {
+        try {
+          const backendStatus = await backendRealSignatureService.getStatus()
+          const providerKey = cloudEval.session.provider === 'vidaas' ? 'vidaas' : 'birdid'
+          const isProviderConfigured = backendStatus.providers[providerKey]?.configured
+
+          if (isProviderConfigured) {
+            // Gerar blob do PDF com os dados consolidados do laudo
+            const reportProps = buildCurrentReportProps()
+            const pdfBlob = await generateReportPdfBlob({
+              ...reportProps,
+              isDraft: false,
+              signatureDate: finalizedReport.signature_date,
+              digitalSignature: {
+                enabled: true,
+                isRealSignature: true,
+                providerName: cloudEval.session.providerLabel,
+                commonName: user?.professional_name || user?.name || 'Médico Responsável Técnico',
+                issuer: `Certificação ICP-Brasil (${cloudEval.session.providerLabel})`,
+                signedAt: finalizedReport.signature_date,
+              },
+            })
+
+            const pdfArrayBuffer = await pdfBlob.arrayBuffer()
+            const hashSha256 = await computeSha256Hex(pdfArrayBuffer)
+
+            // Chamar rota real no backend
+            const signResult = await backendRealSignatureService.signReportPdf({
+              reportId: finalizedReport.id,
+              provider: providerKey,
+              hashSha256,
+              code: cloudEval.session.codeHint,
+            })
+
+            if (!signResult.success) {
+              // Provedor falhou no momento: abrir diálogo de escolha para o médico
+              setSignatureFailureDialog({
+                open: true,
+                errorMessage: signResult.error || 'O provedor de assinatura digital não respondeu.',
+                pendingData: {
+                  safeTitle,
+                  safeBodyHtml,
+                  structuredData,
+                  imagesConfig,
+                },
+              })
+              setFinalizing(false)
+              return
+            }
+
+            // Sucesso na assinatura real: salvar metadados e marcar assinatura homologada
+            await reportsService
+              .update(finalizedReport.id, {
+                signature_status: 'Assinado Digitalmente (ICP-Brasil)',
+                signature_hash_sha256: hashSha256,
+                signature_metadata: {
+                  provider: signResult.provider,
+                  padesStatus: signResult.padesStatus,
+                  signedAt: signResult.signedAt,
+                },
+              })
+              .catch((err) => console.warn('Erro ao atualizar metadados PAdES:', err))
+          } else {
+            // Backend sem segredos configurados: segue normalmente com carimbo visual preliminar (sem travar)
+            const reportProps = buildCurrentReportProps()
+            const pdfBlob = await generateReportPdfBlob(reportProps)
+            const pdfArrayBuffer = await pdfBlob.arrayBuffer()
+            const hashSha256 = await computeSha256Hex(pdfArrayBuffer)
+
+            await reportsService
+              .update(finalizedReport.id, {
+                signature_hash_sha256: hashSha256,
+              })
+              .catch(() => {})
+          }
+        } catch (signErr) {
+          console.warn(
+            '[Assinatura Real] Verificação falhou, mantendo laudo com carimbo preliminar:',
+            signErr,
+          )
         }
       }
 
@@ -1135,13 +1209,15 @@ export default function UltrasoundReportEditor() {
 
       toast({
         title: 'Laudo finalizado com sucesso!',
-        description:
-          linkedAppointmentId && updateAppointmentStatusToRealizado
+        description: options.forceManualSignature
+          ? 'Laudo concluído com modalidade de assinatura manual. O documento está liberado para impressão.'
+          : linkedAppointmentId && updateAppointmentStatusToRealizado
             ? 'Identificação profissional registrada. Exame concluído e agendamento marcado como Realizado.'
             : 'Identificação profissional e responsável técnico registrados. Exame concluído.',
       })
 
       setFinalizeDialogOpen(false)
+      setSignatureFailureDialog({ open: false, errorMessage: '' })
       navigate(`/laudos/${finalizedReport.id}`)
     } catch (err: unknown) {
       console.error('Erro ao finalizar laudo:', err)
@@ -1158,6 +1234,8 @@ export default function UltrasoundReportEditor() {
       setFinalizing(false)
     }
   }
+
+  const handleFinalizeReport = () => executeFinalizeReportSave()
 
   if (loadingInitial) {
     return (

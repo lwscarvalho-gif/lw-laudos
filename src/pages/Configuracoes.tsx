@@ -1181,6 +1181,49 @@ export default function Configuracoes() {
             </p>
           </div>
         </div>
+
+        {/* Status das Chaves de API de Assinatura PAdES em Nuvem (Backend) */}
+        <div className="p-4 rounded-xl bg-[#F7F9F8] border border-[#E5E9E7] space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-[#1F2A27] flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-[#0C6B58]" />
+              Conectividade dos Provedores PAdES em Nuvem (Backend)
+            </span>
+            <span className="text-[11px] font-mono text-[#5F6E69] bg-white px-2 py-0.5 rounded border border-[#E5E9E7]">
+              $os.getenv
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="p-3 bg-white rounded-lg border border-[#E5E9E7] space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-[#1F2A27]">Bird ID (Soluti)</span>
+                <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
+                  Aguardando segredos
+                </span>
+              </div>
+              <p className="text-[11px] text-[#5F6E69]">
+                Requer <code className="text-[10px]">BIRD_ID_CLIENT_ID</code> e{' '}
+                <code className="text-[10px]">BIRD_ID_CLIENT_SECRET</code> no backend.
+              </p>
+            </div>
+            <div className="p-3 bg-white rounded-lg border border-[#E5E9E7] space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-[#1F2A27]">VIDaaS (Valid)</span>
+                <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
+                  Aguardando segredos
+                </span>
+              </div>
+              <p className="text-[11px] text-[#5F6E69]">
+                Requer <code className="text-[10px]">VIDAAS_API_KEY</code> no backend.
+              </p>
+            </div>
+          </div>
+          <p className="text-[11px] text-[#5F6E69]">
+            Enquanto as chaves de API não forem injetadas pelo proprietário no backend, o sistema
+            opera de forma segura com <strong>carimbo visual e hash SHA-256 preliminar</strong>,
+            permitindo finalização normal sem nunca travar o laudo.
+          </p>
+        </div>
       </div>
 
       {/* 3.1 DICOM Modality Worklist (MWL) & Clínicas do Médico */}

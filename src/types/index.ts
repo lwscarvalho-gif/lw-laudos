@@ -256,6 +256,9 @@ export interface Report extends RecordModel {
   signature_provider?: string
   signature_status?: string
   signature_date?: string
+  signed_pdf_file?: string
+  validity_days?: number
+  signature_metadata?: Record<string, unknown> | null
   created?: string
   updated?: string
   // expanded relations

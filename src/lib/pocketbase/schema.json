@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-30T03:12:42.114Z",
+  "generatedAt": "2026-10-30T12:29:12.303Z",
   "collections": [
     {
       "name": "users",
@@ -562,6 +562,24 @@
         {
           "name": "clinic_location",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "signed_pdf_file",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "validity_days",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "signature_metadata",
+          "type": "json",
           "required": false,
           "system": false
         }

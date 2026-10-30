@@ -35,6 +35,7 @@ export interface PrintReportProps {
   bodyMarks?: BodyMarksState
   digitalSignature?: {
     enabled: boolean
+    isRealSignature?: boolean // Indica se a assinatura foi realizada com certificado ICP-Brasil real
     providerName?: string // ex: "Bird ID", "VIDaaS", "Certificado A1"
     commonName?: string
     issuer?: string
@@ -42,9 +43,11 @@ export interface PrintReportProps {
     signedAt?: string
     hashSha256?: string
   }
+  validityDays?: number // Período de validade configurável (padrão 90 dias)
+  issueDate?: string // Data de emissão oficial (ISO string ou YYYY-MM-DD)
 }
 
-// Fixed legal indicator
+// Fixed legal indicator (exibido apenas quando a assinatura real NÃO está ativa)
 export const PRELIMINARY_VERSION_DISCLAIMER =
   'Versão preliminar para avaliação (não homologada para uso real)'
 
@@ -365,21 +368,59 @@ function drawRunningHeader(
   page.drawLine(marginX, 775, rightX, 775, COLOR_PRIMARY, 1.5)
 }
 
+// Helper para calcular e formatar as datas de emissão e validade
+export function formatReportValidityStatement(
+  issueDateStr?: string,
+  validityDays: number = 90,
+): { issueFormatted: string; validUntilFormatted: string; statementText: string } {
+  const baseDate = issueDateStr ? new Date(issueDateStr) : new Date()
+  const validUntilDate = new Date(baseDate.getTime() + validityDays * 24 * 60 * 60 * 1000)
+
+  const issueFormatted = baseDate.toLocaleDateString('pt-BR')
+  const validUntilFormatted = validUntilDate.toLocaleDateString('pt-BR')
+  const statementText = `Este laudo tem validade de ${validityDays} dias a partir da data de emissão (${issueFormatted}), válido até ${validUntilFormatted}.`
+
+  return { issueFormatted, validUntilFormatted, statementText }
+}
+
 // Renders the standard running footer on a page
-function drawRunningFooter(page: PdfPage, pageNum: number, totalPages: number) {
+function drawRunningFooter(
+  page: PdfPage,
+  pageNum: number,
+  totalPages: number,
+  props: PrintReportProps,
+) {
   const marginX = 40
   const rightX = 555
-  const bottomY = 26
+  const bottomY = 18
 
-  // Top line
-  page.drawLine(marginX, bottomY + 12, rightX, bottomY + 12, COLOR_BORDER, 0.5)
+  // Top line separator do rodapé
+  page.drawLine(marginX, bottomY + 22, rightX, bottomY + 22, COLOR_BORDER, 0.5)
 
-  // Version disclaimer
-  page.drawText(PRELIMINARY_VERSION_DISCLAIMER, marginX, bottomY, {
+  // Linha 1 do rodapé: Declaração de validade nos moldes exigidos
+  const validityDays =
+    typeof props.validityDays === 'number' && props.validityDays > 0 ? props.validityDays : 90
+  const { statementText } = formatReportValidityStatement(
+    props.issueDate || props.signatureDate,
+    validityDays,
+  )
+
+  page.drawText(statementText, marginX, bottomY + 11, {
     fontSize: 7,
-    italic: true,
-    color: COLOR_MUTED,
+    color: COLOR_TEXT_MAIN,
   })
+
+  // Linha 2 do rodapé: Aviso preliminar (apenas se assinatura real NÃO estiver ativa) + Paginação
+  const isRealActive = Boolean(
+    props.digitalSignature?.enabled && props.digitalSignature?.isRealSignature,
+  )
+  if (!isRealActive) {
+    page.drawText(PRELIMINARY_VERSION_DISCLAIMER, marginX, bottomY, {
+      fontSize: 6.5,
+      italic: true,
+      color: COLOR_MUTED,
+    })
+  }
 
   // Pagination
   page.drawText(`Página ${pageNum} de ${totalPages}`, rightX, bottomY, {
@@ -674,22 +715,22 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
     cursorY = boxTop - boxHeight - 16
   }
 
-  // Signature Block
+  // Signature Block (posicionado logo acima do rodapé, antes das páginas de anexos)
   const isDigital = Boolean(props.digitalSignature?.enabled)
-  const sigHeight = isDigital ? 120 : 70
-  if (cursorY - sigHeight < pageBottomLimit) {
+  const sigHeight = isDigital ? 105 : 75
+  if (cursorY - sigHeight < pageBottomLimit + 15) {
     currentPage = doc.addPage()
     textPages.push(currentPage)
     drawRunningHeader(currentPage, props, logoResId, logoAspect)
-    cursorY = 750
+    cursorY = 740
   }
 
-  cursorY -= 20
+  cursorY -= 16
   const sigCenterX = marginX + contentWidth / 2
 
   if (isDigital) {
     // Carimbo Visual Oficial de Assinatura Digital (ICP-Brasil PAdES compliant visual representation)
-    const stampW = 340
+    const stampW = 360
     const stampH = 72
     const stampX = sigCenterX - stampW / 2
     const stampY = cursorY - stampH
@@ -1138,7 +1179,7 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
   const allPages = doc.getPages()
   const totalPages = allPages.length
   allPages.forEach((p, idx) => {
-    drawRunningFooter(p, idx + 1, totalPages)
+    drawRunningFooter(p, idx + 1, totalPages, props)
   })
 
   // 6. Build PDF Binary
@@ -1745,7 +1786,14 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
     .join('')}
 
   <div class="footer">
-    ${PRELIMINARY_VERSION_DISCLAIMER}
+    <div style="font-size: 7.5pt; color: #1F2A27; margin-bottom: 2px;">
+      ${formatReportValidityStatement(props.issueDate || props.signatureDate, typeof props.validityDays === 'number' && props.validityDays > 0 ? props.validityDays : 90).statementText}
+    </div>
+    ${
+      !props.digitalSignature?.enabled || !props.digitalSignature?.isRealSignature
+        ? `<div style="font-size: 7pt; font-style: italic; color: #8A9691;">${PRELIMINARY_VERSION_DISCLAIMER}</div>`
+        : ''
+    }
   </div>
 
   ${

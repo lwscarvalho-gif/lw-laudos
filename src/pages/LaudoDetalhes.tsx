@@ -226,6 +226,7 @@ export default function LaudoDetalhes() {
       logoUrl,
       headerText: user?.header,
       signatureDate: report.signature_date || report.created,
+      validityDays: report.validity_days || 90,
       isDraft: report.status === 'Rascunho' || report.is_draft,
       images: printableImages,
       imagesPerPage: (report.images_config?.imagesPerPage || 4) as 2 | 4 | 6,
@@ -250,9 +251,15 @@ export default function LaudoDetalhes() {
           }
         }
         // 2. Se o laudo já foi previamente assinado em nuvem
-        if (report.signature_status === 'Assinado' && report.signature_provider) {
+        if (
+          (report.signature_status === 'Assinado' ||
+            report.signature_status?.includes('Assinado Digitalmente')) &&
+          report.signature_provider
+        ) {
+          const isPadesReal = report.signature_status.includes('ICP-Brasil')
           return {
             enabled: true,
+            isRealSignature: isPadesReal,
             providerName: report.signature_provider,
             commonName:
               report.author_name || user?.professional_name || user?.name || 'Médico Responsável',
@@ -681,13 +688,24 @@ export default function LaudoDetalhes() {
           </p>
           <p className="text-[11px] text-[#0C6B58] font-semibold pt-1 flex items-center gap-1 justify-center">
             <ShieldCheck className="w-3.5 h-3.5 text-[#0C6B58]" />
-            {report.signature_status === 'Assinado' && report.signature_provider
-              ? `Assinado digitalmente via ${report.signature_provider} em ${formatDateTimeBR(report.signature_date || report.created)}`
-              : user?.digital_signature_enabled && doctorCert
-                ? `Assinado digitalmente via Certificado A1 em ${formatDateTimeBR(report.signature_date || report.created)}`
-                : `Assinado em ${formatDateTimeBR(report.signature_date || report.created)}`}
+            {report.signature_status?.includes('ICP-Brasil')
+              ? `Assinado digitalmente com certificado ICP-Brasil em ${formatDateTimeBR(report.signature_date || report.created)}`
+              : report.signature_status === 'Assinado' && report.signature_provider
+                ? `Assinado digitalmente via ${report.signature_provider} em ${formatDateTimeBR(report.signature_date || report.created)}`
+                : user?.digital_signature_enabled && doctorCert
+                  ? `Assinado digitalmente via Certificado A1 em ${formatDateTimeBR(report.signature_date || report.created)}`
+                  : `Assinado em ${formatDateTimeBR(report.signature_date || report.created)}`}
           </p>
-          <p className="text-[10px] text-[#8A9691] pt-1 italic">{PRELIMINARY_VERSION_DISCLAIMER}</p>
+          {/* Rodapé de validade exibido no card do documento */}
+          <div className="pt-2 text-[11px] text-[#40524C]">
+            Este laudo tem validade de {report.validity_days || 90} dias a partir da data de emissão
+            ({formatDateBR(report.signature_date || report.created)}).
+          </div>
+          {!report.signature_status?.includes('ICP-Brasil') && (
+            <p className="text-[10px] text-[#8A9691] pt-1 italic">
+              {PRELIMINARY_VERSION_DISCLAIMER}
+            </p>
+          )}
         </div>
       </div>
 

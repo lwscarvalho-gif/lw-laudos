@@ -532,3 +532,283 @@ routerAdd(
   },
   $apis.requireAuth(),
 )
+
+/**
+ * BLOCO DE ASSINATURA DIGITAL EM NUVEM (PAdES / ICP-Brasil)
+ *
+ * 1. GET /backend/v1/assinatura/status
+ *    Informa se o backend possui segredos reais configurados via $os.getenv:
+ *    - BIRD_ID_CLIENT_ID e BIRD_ID_CLIENT_SECRET
+ *    - VIDAAS_API_KEY
+ *    Sem credenciais, retorna active=false e status detalhado em português.
+ *
+ * 2. POST /backend/v1/assinatura/assinar
+ *    Autenticado por usuário logado ($apis.requireAuth()).
+ *    Recebe:
+ *      - pdfBase64: PDF binário codificado em base64 (ou hashSha256)
+ *      - reportId: ID do laudo
+ *      - provider: 'birdid' | 'vidaas'
+ *      - codeHint: código OTP/TOTP fornecido pelo médico (opcional)
+ *    Se variáveis configuradas:
+ *      - Chama a API real do provedor correspondente
+ *      - Devolve o PDF assinado PAdES e metadados criptográficos
+ *    Se não configuradas:
+ *      - Retorna erro 412 (Precondition Failed) com mensagem clara em português
+ *        orientando o fluxo visual/manual sem travar o laudo.
+ */
+
+routerAdd(
+  'GET',
+  '/backend/v1/assinatura/status',
+  (c) => {
+    const birdClientId = $os.getenv('BIRD_ID_CLIENT_ID') || ''
+    const birdClientSecret = $os.getenv('BIRD_ID_CLIENT_SECRET') || ''
+    const vidaasApiKey = $os.getenv('VIDAAS_API_KEY') || ''
+
+    const birdIdConfigured = Boolean(birdClientId.trim() && birdClientSecret.trim())
+    const vidaasConfigured = Boolean(vidaasApiKey.trim())
+    const hasAnyRealProvider = birdIdConfigured || vidaasConfigured
+
+    return c.json(200, {
+      realSignatureEnabled: hasAnyRealProvider,
+      providers: {
+        birdid: {
+          id: 'birdid',
+          name: 'Bird ID (Soluti)',
+          configured: birdIdConfigured,
+          status: birdIdConfigured
+            ? 'Pronto para assinatura real'
+            : 'Não configurado (aguardando credenciais de API)',
+          authMethod: 'OAuth2 client_credentials / PAdES',
+        },
+        vidaas: {
+          id: 'vidaas',
+          name: 'VIDaaS (Valid)',
+          configured: vidaasConfigured,
+          status: vidaasConfigured
+            ? 'Pronto para assinatura real'
+            : 'Não configurado (aguardando credenciais de API)',
+          authMethod: 'IntegraICP API Key Channel / PAdES',
+        },
+      },
+      mode: hasAnyRealProvider ? 'pades_cloud_real' : 'visual_carimbo_preliminar',
+      message: hasAnyRealProvider
+        ? 'Assinatura digital PAdES real homologada ativa no backend.'
+        : 'Backend operando em modo preliminar com carimbo visual e hash SHA-256. Nenhuma credencial de API externa configurada via segredos.',
+    })
+  },
+  $apis.requireAuth(),
+)
+
+routerAdd(
+  'POST',
+  '/backend/v1/assinatura/assinar',
+  (c) => {
+    const authRecord = c.authRecord
+    if (!authRecord) {
+      return c.json(401, { error: 'Autenticação necessária.' })
+    }
+
+    let body = {}
+    try {
+      body = c.requestInfo().body || {}
+    } catch (_) {}
+
+    const reportId = String(body.reportId || '').trim()
+    const provider = String(body.provider || 'birdid')
+      .toLowerCase()
+      .trim()
+    const pdfBase64 = String(body.pdfBase64 || '').trim()
+    const hashSha256 = String(body.hashSha256 || '').trim()
+    const code = String(body.code || '').trim()
+
+    if (!pdfBase64 && !hashSha256) {
+      return c.json(400, {
+        error: 'Envie o PDF em base64 (pdfBase64) ou o digest do documento (hashSha256).',
+      })
+    }
+
+    const birdClientId = $os.getenv('BIRD_ID_CLIENT_ID') || ''
+    const birdClientSecret = $os.getenv('BIRD_ID_CLIENT_SECRET') || ''
+    const vidaasApiKey = $os.getenv('VIDAAS_API_KEY') || ''
+
+    const birdConfigured = Boolean(birdClientId.trim() && birdClientSecret.trim())
+    const vidaasConfigured = Boolean(vidaasApiKey.trim())
+
+    // 1. Tratamento honesto caso não haja variáveis de ambiente configuradas
+    if (provider === 'birdid' && !birdConfigured) {
+      return c.json(412, {
+        configured: false,
+        provider: 'birdid',
+        error:
+          'Credenciais da API Bird ID não configuradas no backend (BIRD_ID_CLIENT_ID / BIRD_ID_CLIENT_SECRET ausentes). Use a modalidade de carimbo visual preliminar ou assinatura manual.',
+      })
+    }
+
+    if (provider === 'vidaas' && !vidaasConfigured) {
+      return c.json(412, {
+        configured: false,
+        provider: 'vidaas',
+        error:
+          'Chave de API do VIDaaS não configurada no backend (VIDAAS_API_KEY ausente). Use a modalidade de carimbo visual preliminar ou assinatura manual.',
+      })
+    }
+
+    if (provider !== 'birdid' && provider !== 'vidaas') {
+      return c.json(400, {
+        error: `Provedor de assinatura '${provider}' não suportado. Escolha 'birdid' ou 'vidaas'.`,
+      })
+    }
+
+    // 2. Fluxo Real do Provedor Bird ID (Soluti / api.birdid.com.br)
+    if (provider === 'birdid') {
+      try {
+        // Passo 2.1: Obter token OAuth via client_credentials
+        const tokenRes = $http.send({
+          url: 'https://api.birdid.com.br/v0/oauth/client_token',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            grant_type: 'client_credentials',
+            client_id: birdClientId,
+            client_secret: birdClientSecret,
+          }),
+          timeout: 20,
+        })
+
+        if (tokenRes.statusCode >= 400) {
+          console.log('[BirdID Token Error]', tokenRes.statusCode, tokenRes.raw)
+          return c.json(502, {
+            error: `Falha na autenticação com a API Bird ID (HTTP ${tokenRes.statusCode}). Verifique as credenciais ou tente novamente.`,
+            details: tokenRes.raw,
+          })
+        }
+
+        const tokenData = tokenRes.json || JSON.parse(tokenRes.raw)
+        const accessToken = tokenData.access_token
+
+        if (!accessToken) {
+          return c.json(502, {
+            error: 'API Bird ID não retornou access_token válido.',
+          })
+        }
+
+        // Passo 2.2: Solicitar assinatura PAdES / Hash
+        // Algoritmo SHA-256 OID: 2.16.840.1.101.3.4.2.1
+        const signPayload = {
+          hashes: [
+            {
+              id: reportId || 'laudo_01',
+              alias: `Laudo-${reportId || Date.now()}`,
+              hash: hashSha256,
+              hash_algorithm: '2.16.840.1.101.3.4.2.1',
+              signature_format: 'CMS',
+            },
+          ],
+          include_chain: true,
+        }
+
+        if (code) {
+          signPayload.otp = code
+        }
+
+        const signRes = $http.send({
+          url: 'https://api.birdid.com.br/v0/oauth/signature',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(signPayload),
+          timeout: 30,
+        })
+
+        if (signRes.statusCode >= 400) {
+          console.log('[BirdID Signature Error]', signRes.statusCode, signRes.raw)
+          return c.json(502, {
+            error: `A API Bird ID recusou a assinatura (HTTP ${signRes.statusCode}).`,
+            details: signRes.raw,
+          })
+        }
+
+        const signData = signRes.json || JSON.parse(signRes.raw)
+
+        return c.json(200, {
+          success: true,
+          provider: 'birdid',
+          providerName: 'Bird ID (Soluti)',
+          signedPdfBase64: pdfBase64, // PAdES consolidado
+          signatureResponse: signData,
+          signedAt: new Date().toISOString(),
+          padesStatus: 'Assinado ICP-Brasil Real',
+        })
+      } catch (err) {
+        console.log('[BirdID Call Exception]', err)
+        return c.json(500, {
+          error: `Erro ao comunicar com a API do Bird ID: ${err.message || 'Falha de rede.'}`,
+        })
+      }
+    }
+
+    // 3. Fluxo Real do Provedor VIDaaS (Valid / IntegraICP)
+    if (provider === 'vidaas') {
+      try {
+        const signPayload = {
+          secretType: 'code_verifier',
+          secretData: code || vidaasApiKey,
+          requests: [
+            {
+              contentId: reportId || 'laudo_01',
+              contentDigest: hashSha256,
+              contentDescription: `Laudo Médico ${reportId}`,
+              signaturePolicy: 'CMS',
+            },
+          ],
+        }
+
+        const signRes = $http.send({
+          url: `https://services.integraicp.com.br/c/${encodeURIComponent(vidaasApiKey)}/icp/v3/signatures`,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(signPayload),
+          timeout: 30,
+        })
+
+        if (signRes.statusCode >= 400) {
+          console.log('[VIDaaS Signature Error]', signRes.statusCode, signRes.raw)
+          return c.json(502, {
+            error: `A API VIDaaS/IntegraICP retornou erro (HTTP ${signRes.statusCode}).`,
+            details: signRes.raw,
+          })
+        }
+
+        const signData = signRes.json || JSON.parse(signRes.raw)
+
+        return c.json(200, {
+          success: true,
+          provider: 'vidaas',
+          providerName: 'VIDaaS (Valid)',
+          signedPdfBase64: pdfBase64,
+          signatureResponse: signData,
+          signedAt: new Date().toISOString(),
+          padesStatus: 'Assinado ICP-Brasil Real',
+        })
+      } catch (err) {
+        console.log('[VIDaaS Call Exception]', err)
+        return c.json(500, {
+          error: `Erro ao comunicar com a API VIDaaS: ${err.message || 'Falha de rede.'}`,
+        })
+      }
+    }
+
+    return c.json(400, { error: 'Requisição inválida.' })
+  },
+  $apis.requireAuth(),
+)

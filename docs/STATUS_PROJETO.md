@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.41**  
+> **Versão do Projeto**: **v0.0.42**  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,29 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.42 — Backend Preparado para Assinatura PAdES Real via Segredos e PDF nos Moldes do Proprietário**:
+  - **BLOCO 1 — Backend Pronto para Assinatura PAdES Real (Bird ID e VIDaaS)**:
+    - **Rotas Seguras no Backend (`pocketbase/hooks/mwl_bridge.pb.js`)**:
+      - `GET /backend/v1/assinatura/status`: consulta o estado de configuração das chaves de API reais no servidor.
+      - `POST /backend/v1/assinatura/assinar`: rota autenticada para envio do hash SHA-256 e PDF do laudo.
+      - Leitura estrita via `$os.getenv` dos segredos: `BIRD_ID_CLIENT_ID`, `BIRD_ID_CLIENT_SECRET` (Bird ID via `api.birdid.com.br` com OAuth2 `client_credentials`) e `VIDAAS_API_KEY` (VIDaaS via IntegraICP REST Channel).
+      - **Tratamento Honesto e Sem Travamentos**: como confirmado via `list_secrets`, as variáveis ainda não existem no ambiente; o backend responde o estado `"não configurado"` (HTTP 412 estruturado ao tentar assinar sem segredos), orientando o fluxo com carimbo visual e hash SHA-256 preliminar ou assinatura manual, **sem nunca travar a finalização do laudo**.
+    - **Frontend com Diálogo de Escolha e Resiliência**:
+      - Novo serviço `backendRealSignatureService` (`src/services/backendRealSignature.ts`) gerenciando chamadas ao backend com cache e tipagem rigorosa.
+      - No `UltrasoundReportEditor.tsx`, se a assinatura real em nuvem estiver ativa e o provedor falhar momentaneamente na finalização, abre-se o diálogo de escolha: o médico pode **tentar de novo** ou optar imediatamente por **assinatura manual**. O documento nunca fica bloqueado no editor.
+      - **Condicionamento do Aviso Preliminar**: o aviso `"Versão preliminar para avaliação (não homologada para uso real)"` só é exibido nos documentos em que a assinatura digital ICP-Brasil real **NÃO** estiver ativa. Quando assinado com PAdES real, o aviso é suprimido.
+  - **BLOCO 2 — PDF nos Moldes do Modelo do Proprietário**:
+    - **Rodapé com Declaração de Validade Configurável**:
+      - Adicionado rodapé com data de emissão e declaração de validade padronizada:
+        `"Este laudo tem validade de 90 dias a partir da data de emissão (DD/MM/AAAA), válido até DD/MM/AAAA."`
+      - Período padrão configurável por exame (30, 60, 90, 180 ou 365 dias), persistido na coleção `reports` (`validity_days`).
+    - **Bloco de Assinatura Acima do Rodapé**:
+      - Reestruturação da disposição vertical: Cabeçalho → Dados Clínicos → Corpo Descritivo → Conclusão Diagnóstica → Bloco de Assinatura (Nome, CRM, título e carimbo digital/espaço para assinatura manual) → Rodapé com Validade e Paginação em A4.
+    - **Migração Declarativa Idempotente (`0020_add_signed_pdf_and_validity_to_reports.js`)**:
+      - Adição dos campos `signed_pdf_file` (arquivo PDF), `validity_days` (número de dias de validade) e `signature_metadata` (JSON) na coleção `reports`.
+  - **Integridade Garantida**:
+    - O rascunho de demonstração do Dr. Lucas (`muvdbwmrw3hagrr`, owner `kxhlkfxh0yddn64`, status `Rascunho`) segue 100% intacto no banco de dados.
 
 - **v0.0.41 — Elevação do Limite do Campo Body e Textos Longos para Laudos Completos**:
   - **Diagnóstico da Causa Raiz ("body: Must be no more than 5000 character(s).")**:

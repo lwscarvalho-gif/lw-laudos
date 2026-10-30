@@ -234,6 +234,7 @@ export default function LaudoNovo() {
           authorTitle: user?.professional_title,
           headerText: user?.header,
           signatureDate: created.signature_date,
+          validityDays: created.validity_days || 90,
           bodyMarks: bodyMarks.schemeId !== 'none' ? bodyMarks : undefined,
         })
       }
@@ -272,6 +273,7 @@ export default function LaudoNovo() {
         authorTitle: defaultAuthorTitle,
         headerText: user?.header,
         signatureDate: new Date().toISOString(),
+        validityDays: 90,
         isDraft: true,
         bodyMarks: bodyMarks.schemeId !== 'none' ? bodyMarks : undefined,
       })
