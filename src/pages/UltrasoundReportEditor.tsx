@@ -11,6 +11,7 @@ import {
   Image as ImageIcon,
   RotateCcw,
   Check,
+  CheckCheck,
   Plus,
   Trash2,
   HelpCircle,
@@ -173,6 +174,12 @@ export default function UltrasoundReportEditor() {
     targetId: string
     newText: string
   } | null>(null)
+
+  // Dialog state for "Tudo Normal"
+  const [tudoNormalConfirmOpen, setTudoNormalConfirmOpen] = useState(false)
+  const [tudoNormalLoading, setTudoNormalLoading] = useState(false)
+  const [tudoNormalFilledCount, setTudoNormalFilledCount] = useState(0)
+  const [tudoNormalMode, setTudoNormalMode] = useState<'empty_only' | 'overwrite_all'>('empty_only')
 
   // Undo memory map per section: organId -> previousText
   const [historyUndo, setHistoryUndo] = useState<Record<string, string>>({})
@@ -685,6 +692,121 @@ export default function UltrasoundReportEditor() {
         description: 'Falha ao buscar frase normal.',
         variant: 'destructive',
       })
+    }
+  }
+
+  // GLOBAL ACTION: "Tudo Normal"
+  const handleTudoNormalClick = () => {
+    // Count how many sections currently have non-empty text (excluding blank spaces)
+    const filledCount = sections.filter((s) => s.text && s.text.trim().length > 0).length
+
+    if (filledCount > 0) {
+      // Prompt user in dialog: default choice = fill only empty sections, or overwrite all
+      setTudoNormalFilledCount(filledCount)
+      setTudoNormalMode('empty_only')
+      setTudoNormalConfirmOpen(true)
+    } else {
+      // Everything is already empty, proceed directly
+      executeApplyTudoNormal('empty_only')
+    }
+  }
+
+  const executeApplyTudoNormal = async (strategy: 'empty_only' | 'overwrite_all') => {
+    setTudoNormalLoading(true)
+    try {
+      // 1. Fetch all normal phrases in one call for the ABDOME_TOTAL scope (single source of truth)
+      const allFindings = await ultrasoundFindingsService.getAllForScope('ABDOME_TOTAL')
+
+      // Build a map of organ -> default normal text
+      const normalMap: Record<string, string> = {}
+      for (const finding of allFindings) {
+        if (!finding.organ || !finding.text_content) continue
+
+        // If it's explicitly marked as default normal, prioritize it
+        if (finding.is_default_normal) {
+          normalMap[finding.organ] = finding.text_content
+        } else if (finding.finding_type === 'normal' && !normalMap[finding.organ]) {
+          normalMap[finding.organ] = finding.text_content
+        }
+      }
+
+      // Fallback: for any section where normalMap wasn't found in bulk, query individually
+      for (const sec of sections) {
+        if (!normalMap[sec.id]) {
+          const fallbackFinding = await ultrasoundFindingsService.getDefaultNormal(sec.id)
+          if (fallbackFinding?.text_content) {
+            normalMap[sec.id] = fallbackFinding.text_content
+          }
+        }
+      }
+
+      // 2. Prepare new sections and track undo history
+      const newHistory: Record<string, string> = { ...historyUndo }
+      let appliedCount = 0
+
+      const updatedSections = sections.map((sec) => {
+        const hasExisting = Boolean(sec.text && sec.text.trim().length > 0)
+        const normalText = normalMap[sec.id]
+
+        if (!normalText) {
+          return sec
+        }
+
+        if (strategy === 'empty_only') {
+          if (!hasExisting) {
+            newHistory[sec.id] = sec.text
+            appliedCount++
+            return { ...sec, text: normalText }
+          }
+          return sec
+        } else {
+          // overwrite_all
+          if (sec.text !== normalText) {
+            newHistory[sec.id] = sec.text
+            appliedCount++
+            return { ...sec, text: normalText }
+          }
+          return sec
+        }
+      })
+
+      // Also fill conclusion if it's empty, or overwrite if requested
+      const conclusionFinding =
+        normalMap['conclusao'] ||
+        (await ultrasoundFindingsService.getDefaultNormal('conclusao'))?.text_content
+      if (conclusionFinding) {
+        if (strategy === 'empty_only' && !conclusion.trim()) {
+          newHistory['conclusao'] = conclusion
+          setConclusion(conclusionFinding)
+          appliedCount++
+        } else if (strategy === 'overwrite_all' && conclusion.trim() !== conclusionFinding) {
+          newHistory['conclusao'] = conclusion
+          setConclusion(conclusionFinding)
+          appliedCount++
+        }
+      }
+
+      setHistoryUndo(newHistory)
+      setSections(updatedSections)
+      setHasUnsavedChanges(true)
+      setTudoNormalConfirmOpen(false)
+
+      toast({
+        title: 'Laudo preenchido como normal',
+        description:
+          appliedCount > 0
+            ? `Laudo preenchido como normal — ${appliedCount} estrutura(s) atualizada(s).`
+            : 'Todas as seções já estavam com texto normal.',
+      })
+    } catch (err) {
+      console.error('Erro ao preencher tudo normal:', err)
+      toast({
+        title: 'Erro',
+        description: 'Falha ao buscar frases normais do catálogo.',
+        variant: 'destructive',
+      })
+    } finally {
+      setTudoNormalLoading(false)
     }
   }
 
@@ -1275,18 +1397,48 @@ export default function UltrasoundReportEditor() {
           ) : (
             /* STRUCTURED ORGAN-BY-ORGAN EDITOR */
             <div className="space-y-4">
-              {/* Shortcut hint banner */}
-              <div className="p-3 bg-[#E8F3F0] rounded-xl border border-[#D0E6E1] text-xs text-[#0C6B58] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 shrink-0" />
-                  <span>
-                    <strong>Atalhos na caixa ativa:</strong> Pressione <code>Ctrl+N</code> ou{' '}
-                    <code>Alt+N</code> para inserir o texto padrão normal daquele órgão específico.
+              {/* Top Organ Actions Toolbar: "Tudo Normal" Button & Shortcut hints */}
+              <div className="p-3.5 bg-gradient-to-r from-[#E8F3F0] via-[#EEF6F4] to-white rounded-xl border border-[#D0E6E1] shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    onClick={handleTudoNormalClick}
+                    disabled={tudoNormalLoading}
+                    className="bg-[#0C6B58] hover:bg-[#0A5949] text-white text-xs h-9 font-semibold shadow-sm px-4 shrink-0"
+                    title="Preencher todas as seções de órgãos como normal com um clique"
+                  >
+                    {tudoNormalLoading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                        Preenchendo...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCheck className="w-4 h-4 mr-1.5 text-emerald-200" />
+                        Tudo Normal
+                      </>
+                    )}
+                  </Button>
+
+                  <div className="text-xs text-[#0C6B58]">
+                    <div className="font-semibold flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#0C6B58] shrink-0" />
+                      Preenchimento Global do Laudo
+                    </div>
+                    <p className="text-[11px] text-[#5F6E69] leading-tight">
+                      Preenche as estruturas com o padrão normal sem apagar o que você já digitou.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs border-t sm:border-t-0 pt-2 sm:pt-0 border-[#D0E6E1]/60 text-[#5F6E69] shrink-0">
+                  <span className="hidden md:inline">
+                    Caixa ativa: <code>Ctrl+N</code>
+                  </span>
+                  <span className="text-[10px] bg-white text-[#0C6B58] px-2 py-0.5 rounded border border-[#D0E6E1] font-semibold">
+                    {activeOrganLabel}
                   </span>
                 </div>
-                <span className="text-[10px] text-[#5F6E69] hidden sm:inline">
-                  Ativo: <strong>{activeOrganLabel}</strong>
-                </span>
               </div>
 
               {/* Organ Textarea Boxes */}
@@ -1315,6 +1467,11 @@ export default function UltrasoundReportEditor() {
                           >
                             {section.label}
                           </label>
+                          {section.text.trim() ? (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded font-medium border border-emerald-200">
+                              <Check className="w-2.5 h-2.5" /> Normal / Descrito
+                            </span>
+                          ) : null}
                           {isActive && (
                             <span className="text-[10px] bg-[#E8F3F0] text-[#0C6B58] px-1.5 py-0.2 rounded font-medium">
                               Caixa ativa
@@ -1706,6 +1863,105 @@ export default function UltrasoundReportEditor() {
           </div>
         </div>
       </div>
+
+      {/* CONFIRMATION DIALOG: TUDO NORMAL WITH EXISTING CONTENT */}
+      <Dialog open={tudoNormalConfirmOpen} onOpenChange={setTudoNormalConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-[#1F2A27]">
+              <CheckCheck className="w-5 h-5 text-[#0C6B58]" />
+              Preencher Tudo Normal
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed text-[#5F6E69]">
+              Identificamos que <strong>{tudoNormalFilledCount}</strong> seção(ões) já possuem texto
+              digitado por você. Como deseja proceder?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <label
+              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${
+                tudoNormalMode === 'empty_only'
+                  ? 'border-[#0C6B58] bg-[#E8F3F0]/50 ring-1 ring-[#0C6B58]/30'
+                  : 'border-[#E5E9E7] hover:bg-gray-50'
+              }`}
+            >
+              <input
+                type="radio"
+                name="tudo_normal_mode"
+                value="empty_only"
+                checked={tudoNormalMode === 'empty_only'}
+                onChange={() => setTudoNormalMode('empty_only')}
+                className="mt-1 text-[#0C6B58] focus:ring-[#0C6B58]"
+              />
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-[#1F2A27] block">
+                  Preencher apenas as seções vazias (Recomendado)
+                </span>
+                <p className="text-[11px] text-[#5F6E69] leading-relaxed">
+                  Preserva integralmente o que você já digitou e preenche apenas as estruturas que
+                  estão em branco como normais.
+                </p>
+              </div>
+            </label>
+
+            <label
+              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${
+                tudoNormalMode === 'overwrite_all'
+                  ? 'border-amber-600 bg-amber-50/50 ring-1 ring-amber-600/30'
+                  : 'border-[#E5E9E7] hover:bg-gray-50'
+              }`}
+            >
+              <input
+                type="radio"
+                name="tudo_normal_mode"
+                value="overwrite_all"
+                checked={tudoNormalMode === 'overwrite_all'}
+                onChange={() => setTudoNormalMode('overwrite_all')}
+                className="mt-1 text-amber-600 focus:ring-amber-600"
+              />
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-amber-900 block flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                  Preencher tudo e sobrescrever o conteúdo existente
+                </span>
+                <p className="text-[11px] text-amber-800/80 leading-relaxed">
+                  Substitui todos os campos pelo texto padrão normal de cada estrutura. (Você poderá
+                  desfazer individualmente nas caixas se precisar).
+                </p>
+              </div>
+            </label>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setTudoNormalConfirmOpen(false)}
+              disabled={tudoNormalLoading}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => executeApplyTudoNormal(tudoNormalMode)}
+              disabled={tudoNormalLoading}
+              className="bg-[#0C6B58] hover:bg-[#0A5949] text-white font-semibold"
+            >
+              {tudoNormalLoading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Preenchendo...
+                </>
+              ) : (
+                'Confirmar e Preencher'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* CONFIRMATION DIALOG: REPLACE EXISTING TEXT */}
       <AlertDialog open={replaceConfirmOpen} onOpenChange={setReplaceConfirmOpen}>

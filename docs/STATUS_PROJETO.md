@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.38**  
+> **Versão do Projeto**: **v0.0.39**  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,23 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.39 — Botão "Tudo Normal" no Editor de Laudo de Ultrassonografia**:
+  - **Ação Global "Tudo Normal" no Topo do Formulário de Órgãos**:
+    - No `UltrasoundReportEditor.tsx`, adição do botão verde proeminente **"Tudo Normal"** (com ícone `CheckCheck`) na barra superior do formulário estruturado de órgãos.
+    - Ao ser acionado, todas as seções de órgãos que estão vazias são preenchidas de forma imediata e atômica com o respectivo texto padrão normal do catálogo (`ultrasound_findings`), marcadas visualmente com o badge de status e preservando a conclusão correspondente.
+    - **Proteção Total do Conteúdo Digitado pelo Médico**:
+      - Se nenhuma caixa tiver texto digitado previamente, o preenchimento ocorre direto sem atrito.
+      - Se o médico já tiver digitado achados em alguma seção, um diálogo claro e objetivo informa quantas seções já possuem texto e oferece a opção com opção padrão recomendada: _"Preencher apenas as seções vazias (Recomendado)"_ ou _"Preencher tudo e sobrescrever o conteúdo existente"_.
+    - **Fonte Única de Verdade**:
+      - O texto injetado é exatamente o mesmo cadastrado na coleção `ultrasound_findings` (`is_default_normal = true` ou `finding_type = 'normal'`), o mesmo usado pelos botões individuais `Normal` de cada órgão.
+    - **Feedback Imediato e Histórico Desfazer**:
+      - Toast explicativo ao médico confirmando a quantidade de estruturas preenchidas (ex.: _"Laudo preenchido como normal — 12 estruturas atualizadas"_).
+      - Todas as substituições alimentam o histórico `historyUndo`, permitindo reverter qualquer seção individualmente com o botão "Desfazer".
+    - **Preservação de Atalhos**:
+      - Os botões individuais `Normal` de cada órgão e os atalhos de teclado `Ctrl+N` / `Alt+N` continuam funcionando exatamente como antes para a caixa ativa.
+  - **Integridade do Banco**:
+    - O rascunho de laudo oficial de demonstração do Dr. Lucas (`muvdbwmrw3hagrr`) e todos os dados foram conferidos e permanecem 100% intactos.
 
 - **v0.0.38 — Blindagem de Campos Obrigatórios na Finalização de Laudo e Remoção de Checkbox Redundante**:
   - **Eliminação do Erro "Cannot be blank" na Finalização de Laudo de Ultrassonografia**:
