@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.42**  
+> **Versão do Projeto**: **v0.0.43** (Fechada — TypeScript e QA 100% verde; commit v0.0.44)  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,16 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.43 — Fechamento de Tipagem TypeScript e Homologação de QA Verde**:
+  - **Correção Estrita de Tipagem no Módulo de Assinatura Real (`backendRealSignature.ts`)**:
+    - Ajustado o tipo do corpo de requisição em `pb.send('/backend/v1/assinatura/assinar')` para conformidade com a assinatura de tipos do PocketBase SDK (`Record<string, unknown>`).
+  - **Saneamento de Referência de Validade no Editor de Laudo (`UltrasoundReportEditor.tsx`)**:
+    - Padronização do campo de persistência `validity_days: 90` no payload de finalização do laudo ultrassonográfico, mantendo o prazo clínico padrão de 90 dias em conformidade com o gerador de PDF e a coleção `reports`.
+  - **Homologação Completa do Pipeline de QA**:
+    - Execução do pipeline de QA estático e de compilação (`oxlint` + `tsc --noEmit -p tsconfig.app.json` + `vite build`) com **zero erros** e código de saída 0.
+  - **Auditoria de Integridade de Dados no Banco**:
+    - Consulta de verificação (`db_query`) ao rascunho oficial de laudo do Dr. Lucas (`muvdbwmrw3hagrr`, owner `kxhlkfxh0yddn64`), confirmando preservação integral do status `Rascunho` e de todos os blocos anatômicos descritos.
 
 - **v0.0.42 — Backend Preparado para Assinatura PAdES Real via Segredos e PDF nos Moldes do Proprietário**:
   - **BLOCO 1 — Backend Pronto para Assinatura PAdES Real (Bird ID e VIDaaS)**:

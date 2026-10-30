@@ -1102,7 +1102,7 @@ export default function UltrasoundReportEditor() {
         signature_date: new Date().toISOString(),
         signature_status: sigStatus,
         signature_provider: sigProvider || undefined,
-        validity_days: reportValidityDays,
+        validity_days: 90,
       }
 
       if (currentReportId) {

@@ -96,7 +96,7 @@ class BackendRealSignatureService {
     try {
       const response = await pb.send<BackendSignResponse>('/backend/v1/assinatura/assinar', {
         method: 'POST',
-        body: params,
+        body: params as unknown as Record<string, unknown>,
       })
       return response
     } catch (err: unknown) {
