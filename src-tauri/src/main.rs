@@ -91,6 +91,8 @@ fn spawn_llama_server(app: &AppHandle, state: &SidecarState) {
     let binary_candidates = vec![
         app.path().resolve("binaries/llama-server.exe", tauri::path::BaseDirectory::Resource).ok(),
         app.path().resolve("binaries/llama-server", tauri::path::BaseDirectory::Resource).ok(),
+        app.path().resolve("binaries/llama-server-x86_64-pc-windows-msvc.exe", tauri::path::BaseDirectory::Resource).ok(),
+        Some(PathBuf::from("src-tauri/binaries/llama-server-x86_64-pc-windows-msvc.exe")),
         Some(PathBuf::from("src-tauri/binaries/llama-server.exe")),
         Some(PathBuf::from("bin/llama-server.exe")),
         Some(PathBuf::from("bin/llama-server")),
@@ -164,6 +166,8 @@ fn spawn_pocketbase(app: &AppHandle, state: &SidecarState) {
     let binary_candidates = vec![
         app.path().resolve("binaries/pocketbase.exe", tauri::path::BaseDirectory::Resource).ok(),
         app.path().resolve("binaries/pocketbase", tauri::path::BaseDirectory::Resource).ok(),
+        app.path().resolve("binaries/pocketbase-x86_64-pc-windows-msvc.exe", tauri::path::BaseDirectory::Resource).ok(),
+        Some(PathBuf::from("src-tauri/binaries/pocketbase-x86_64-pc-windows-msvc.exe")),
         Some(PathBuf::from("src-tauri/binaries/pocketbase.exe")),
         Some(PathBuf::from("bin/pocketbase.exe")),
         Some(PathBuf::from("bin/pocketbase")),

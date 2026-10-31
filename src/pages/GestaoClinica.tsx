@@ -472,10 +472,18 @@ export default function GestaoClinica() {
     }
   }, [transactions])
 
+  // Relatórios e Repasses Médicos Opcionais (off por padrão, sem percentual obrigatório)
+  const [medicalTransferActive, setMedicalTransferActive] = useState<boolean>(false)
+  const [medicalTransferPct, setMedicalTransferPct] = useState<number>(0)
+  const [reportFilterProcedure, setReportFilterProcedure] = useState<string>('todos')
+  const [reportFilterDoctor, setReportFilterDoctor] = useState<string>('todos')
+
   // Export CSV
   const handleExportCSV = () => {
     const headers = [
       'Data',
+      'Unidade',
+      'Medico',
       'Paciente',
       'Procedimento',
       'Modalidade',
@@ -484,22 +492,32 @@ export default function GestaoClinica() {
       'ValorFinal',
       'ValorRecebido',
       'SaldoPendente',
+      'RepasseMedico',
       'Status',
       'Operador',
     ]
-    const rows = transactions.map((t) => [
-      t.payment_date?.slice(0, 10) || '',
-      `"${t.patient_name}"`,
-      `"${t.procedure_name}"`,
-      t.modality,
-      t.table_price_used,
-      t.discount_amount,
-      t.final_charged_amount,
-      t.received_amount,
-      t.pending_balance,
-      t.financial_status,
-      `"${t.operator_name || ''}"`,
-    ])
+    const rows = transactions.map((t) => {
+      const repasse =
+        medicalTransferActive && medicalTransferPct > 0
+          ? ((t.received_amount * medicalTransferPct) / 100).toFixed(2)
+          : '0.00'
+      return [
+        t.payment_date?.slice(0, 10) || '',
+        `"${t.clinic_location}"`,
+        `"${t.doctor_name || 'Dr. Médico'}"`,
+        `"${t.patient_name}"`,
+        `"${t.procedure_name}"`,
+        t.modality,
+        t.table_price_used,
+        t.discount_amount,
+        t.final_charged_amount,
+        t.received_amount,
+        t.pending_balance,
+        repasse,
+        t.financial_status,
+        `"${t.operator_name || ''}"`,
+      ]
+    })
     const csvContent = [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n')
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -512,6 +530,84 @@ export default function GestaoClinica() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  // Export Relatório PDF / Impressão Consolidada
+  const handleExportReportPDF = () => {
+    const win = window.open('', '_blank')
+    if (!win) return
+
+    const totalRecebido = transactions.reduce((acc, t) => acc + (t.received_amount || 0), 0)
+    const repasseTotal =
+      medicalTransferActive && medicalTransferPct > 0
+        ? (totalRecebido * medicalTransferPct) / 100
+        : 0
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Relatório Financeiro — ${selectedClinic}</title>
+        <style>
+          body { font-family: -apple-system, sans-serif; padding: 24px; color: #1F2A27; font-size: 11pt; }
+          h1 { color: #0C6B58; margin-bottom: 4px; font-size: 16pt; }
+          .meta { color: #5F6E69; font-size: 9pt; margin-bottom: 16px; border-bottom: 1px solid #E5E9E7; padding-bottom: 8px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 9pt; }
+          th { background: #E8F3F0; color: #0C6B58; text-align: left; padding: 6px 8px; border: 1px solid #C5D7D2; }
+          td { padding: 6px 8px; border: 1px solid #E5E9E7; }
+          .totals { margin-top: 16px; text-align: right; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <h1>LW Laudos — Relatório Financeiro e Operacional</h1>
+        <div class="meta">
+          <strong>Unidade:</strong> ${selectedClinic} | <strong>Data/Período:</strong> ${formatCuiabaDate(selectedDate)} | <strong>Emissão:</strong> ${new Date().toLocaleString('pt-BR')}
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Paciente</th>
+              <th>Procedimento</th>
+              <th>Modalidade</th>
+              <th>Valor Cobrado</th>
+              <th>Recebido</th>
+              <th>Pendente</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${transactions
+              .map(
+                (t) => `
+              <tr>
+                <td>${t.payment_date ? t.payment_date.slice(0, 10) : ''}</td>
+                <td>${t.patient_name}</td>
+                <td>${t.procedure_name}</td>
+                <td>${t.modality}</td>
+                <td>R$ ${t.final_charged_amount.toFixed(2)}</td>
+                <td>R$ ${t.received_amount.toFixed(2)}</td>
+                <td>R$ ${t.pending_balance.toFixed(2)}</td>
+                <td>${t.financial_status}</td>
+              </tr>
+            `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+        <div class="totals">
+          <p>Total Recebido (Caixa): R$ ${totalRecebido.toFixed(2)}</p>
+          ${medicalTransferActive ? `<p>Repasse Médico (${medicalTransferPct}%): R$ ${repasseTotal.toFixed(2)}</p>` : ''}
+        </div>
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+      </html>
+    `
+    win.document.write(html)
+    win.document.close()
   }
 
   return (
@@ -567,6 +663,16 @@ export default function GestaoClinica() {
           >
             <Download className="w-3.5 h-3.5 mr-1" />
             Exportar CSV
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportReportPDF}
+            className="h-9 text-xs border-[#E5E9E7] text-[#0C6B58]"
+          >
+            <FileText className="w-3.5 h-3.5 mr-1" />
+            Exportar PDF
           </Button>
         </div>
       </div>

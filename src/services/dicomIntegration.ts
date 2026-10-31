@@ -250,16 +250,61 @@ class DicomIntegrationService {
 
   /**
    * Fila de Conciliação Humana.
-   * Persistida com segurança em localStorage (com migração de sessionStorage anterior)
-   * para evitar perda de estudos pendentes ao reiniciar o aplicativo desktop ou fechar a aba.
+   * Persistida de forma durável no banco de dados local (PocketBase / SQLite) e
+   * sincronizada com cache local tolerante a falhas (localStorage).
+   * Migra e limpa dados legados de sessionStorage para NUNCA perder estudos
+   * pendentes ao fechar o programa ou reiniciar o desktop.
    */
+  async getPersistentReconciliationQueue(): Promise<DicomReconciliationItem[]> {
+    try {
+      // 1. Tentar buscar registros pendentes direto do PocketBase
+      const records = await pb.collection('dicom_reconciliation_queue').getFullList({
+        filter: 'status = "unidentified" || status = "ambiguous"',
+        sort: '-created',
+      })
+
+      if (records && records.length > 0) {
+        const mapped: DicomReconciliationItem[] = records.map((r: any) => ({
+          id: r.id,
+          receivedAt: r.created,
+          fileName: r.file_name,
+          fileSize: r.file_size || 0,
+          studyInstanceUid: r.study_instance_uid,
+          seriesInstanceUid: r.series_instance_uid,
+          sopInstanceUid: r.sop_instance_uid,
+          accessionNumber: r.accession_number,
+          patientIdDicom: r.patient_id_dicom,
+          patientNameDicom: r.patient_name_dicom,
+          modality: r.modality || 'US',
+          studyDescription: r.study_description,
+          matchedPatientId: r.matched_patient_id,
+          matchedPatientName: r.matched_patient_name,
+          matchedExamId: r.matched_exam_id,
+          matchedAppointmentId: r.matched_appointment_id,
+          status: (r.status as any) || 'unidentified',
+          matchReason: r.match_reason || '',
+          confidence: (r.confidence as any) || 'none',
+          blob: new Blob([], { type: 'application/dicom' }),
+          previewUrl: r.preview_image ? pb.files.getURL(r, r.preview_image) : '',
+          framesCount: r.frames_count || 1,
+        }))
+        this.saveReconciliationQueue(mapped)
+        return mapped
+      }
+    } catch {
+      /* Fallback transparente se o banco local ainda estiver inicializando */
+    }
+
+    return this.getReconciliationQueue()
+  }
+
   getReconciliationQueue(): DicomReconciliationItem[] {
     try {
       // 1. Tenta recuperar do armazenamento persistente
       const rawLocal = localStorage.getItem(RECONCILIATION_STORAGE_KEY)
       if (rawLocal) return JSON.parse(rawLocal)
 
-      // 2. Fallback de migração transparente se existia algo em sessionStorage
+      // 2. Fallback de migração transparente se existia algo em sessionStorage (migrar e expurgar)
       const rawSession = sessionStorage.getItem(RECONCILIATION_STORAGE_KEY)
       if (rawSession) {
         const parsed = JSON.parse(rawSession)
@@ -276,8 +321,42 @@ class DicomIntegrationService {
   saveReconciliationQueue(items: DicomReconciliationItem[]): void {
     try {
       localStorage.setItem(RECONCILIATION_STORAGE_KEY, JSON.stringify(items))
+      // Garantir que sessionStorage não guarde mais resquícios
+      sessionStorage.removeItem(RECONCILIATION_STORAGE_KEY)
     } catch (err) {
       console.warn('Aviso: Armazenamento local da fila de conciliação excedeu limite:', err)
+    }
+  }
+
+  /**
+   * Persiste um item na tabela de conciliação do banco de dados PocketBase
+   */
+  async persistReconciliationItemToDatabase(item: DicomReconciliationItem): Promise<string> {
+    try {
+      const record = await pb.collection('dicom_reconciliation_queue').create({
+        study_instance_uid: item.studyInstanceUid || '',
+        series_instance_uid: item.seriesInstanceUid || '',
+        sop_instance_uid: item.sopInstanceUid || '',
+        accession_number: item.accessionNumber || '',
+        patient_id_dicom: item.patientIdDicom || '',
+        patient_name_dicom: item.patientNameDicom || '',
+        modality: item.modality || 'US',
+        study_description: item.studyDescription || '',
+        file_name: item.fileName,
+        file_size: item.fileSize,
+        status: item.status === 'ambiguous' ? 'ambiguous' : 'unidentified',
+        confidence: item.confidence || 'none',
+        match_reason: item.matchReason,
+        matched_patient_id: item.matchedPatientId || '',
+        matched_patient_name: item.matchedPatientName || '',
+        matched_exam_id: item.matchedExamId || '',
+        matched_appointment_id: item.matchedAppointmentId || '',
+        frames_count: item.framesCount || 1,
+      })
+      return record.id
+    } catch (err) {
+      console.warn('Não foi possível gravar na tabela dicom_reconciliation_queue:', err)
+      return item.id
     }
   }
 
@@ -447,6 +526,7 @@ class DicomIntegrationService {
       const queue = this.getReconciliationQueue()
       queue.unshift(reconciliationItem)
       this.saveReconciliationQueue(queue)
+      await this.persistReconciliationItemToDatabase(reconciliationItem)
 
       this.logTransfer({
         deviceAe: options?.sourceDeviceAe || 'SAEVO_US',

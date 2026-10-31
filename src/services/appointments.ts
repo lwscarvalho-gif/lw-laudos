@@ -2,6 +2,25 @@ import pb from '@/lib/pocketbase/client'
 import type { Appointment, Patient } from '@/types'
 import { formatDicomPatientName } from '@/lib/formatters'
 
+export interface ScheduleBlockInput {
+  id?: string
+  doctor_id?: string
+  clinic_location: string
+  date: string // YYYY-MM-DD
+  start_time: string // HH:mm
+  end_time: string // HH:mm
+  reason: string // Férias, Feriado, Descanso, Reunião, Bloqueio pontual
+  is_recurring?: boolean
+  recurrence_days?: number[] // 0-6 (domingo a sábado)
+  block_type:
+    | 'pontual'
+    | 'recorrente'
+    | 'ferias'
+    | 'feriado'
+    | 'intervalo_descanso'
+    | 'extraordinario'
+}
+
 export interface CreateAppointmentInput {
   patient_id: string
   owner_id?: string // doctor assigned
@@ -312,5 +331,47 @@ export const appointmentsService = {
     } catch {
       return null
     }
+  },
+
+  /**
+   * Gerenciamento de Bloqueios de Agenda (pontuais, recorrentes, feriados, férias, descansos).
+   * REGRA DE OURO: Bloqueio jamais apaga nem cancela agendamentos existentes.
+   */
+  getScheduleBlocks(clinic?: string, date?: string): ScheduleBlockInput[] {
+    try {
+      const raw = localStorage.getItem('lw_laudos_schedule_blocks_v1')
+      if (raw) {
+        const list: ScheduleBlockInput[] = JSON.parse(raw)
+        return list.filter((b) => {
+          if (clinic && clinic !== 'Todas' && b.clinic_location !== clinic) return false
+          if (date && b.block_type === 'pontual' && b.date !== date) return false
+          return true
+        })
+      }
+    } catch {
+      /* ignore */
+    }
+    return []
+  },
+
+  saveScheduleBlock(block: ScheduleBlockInput): ScheduleBlockInput {
+    const raw = localStorage.getItem('lw_laudos_schedule_blocks_v1')
+    const list: ScheduleBlockInput[] = raw ? JSON.parse(raw) : []
+    const newBlock: ScheduleBlockInput = {
+      ...block,
+      id: block.id || `blk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    }
+    list.push(newBlock)
+    localStorage.setItem('lw_laudos_schedule_blocks_v1', JSON.stringify(list))
+    return newBlock
+  },
+
+  deleteScheduleBlock(id: string): boolean {
+    const raw = localStorage.getItem('lw_laudos_schedule_blocks_v1')
+    if (!raw) return false
+    const list: ScheduleBlockInput[] = JSON.parse(raw)
+    const filtered = list.filter((b) => b.id !== id)
+    localStorage.setItem('lw_laudos_schedule_blocks_v1', JSON.stringify(filtered))
+    return filtered.length !== list.length
   },
 }

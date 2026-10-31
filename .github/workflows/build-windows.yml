@@ -9,15 +9,15 @@ on:
         type: boolean
         default: true
       pocketbase_version:
-        description: 'Versão oficial do PocketBase'
+        description: 'Versão oficial do PocketBase (v0.26.6 recomendada/auditada)'
         required: true
         type: string
-        default: '0.26.9'
+        default: '0.26.6'
       llama_cpp_release:
-        description: 'Release tag oficial do llama.cpp (ex: b4822)'
+        description: 'Release tag noturna oficial do llama.cpp (ex: b11960)'
         required: true
         type: string
-        default: 'b4822'
+        default: 'b11960'
 
 permissions:
   contents: read
@@ -60,7 +60,9 @@ jobs:
       - name: Baixar e Verificar PocketBase Oficial para Windows x64
         shell: pwsh
         run: |
-          $pbVer = "${{ github.event.inputs.pocketbase_version }}"
+          $pbVer = "${{ github.event.inputs.pocketbase_version }}".Trim()
+          if ($pbVer.StartsWith("v")) { $pbVer = $pbVer.Substring(1) }
+
           $pbUrl = "https://github.com/pocketbase/pocketbase/releases/download/v${pbVer}/pocketbase_${pbVer}_windows_amd64.zip"
           $zipPath = "$env:TEMP\pocketbase.zip"
 
@@ -68,13 +70,52 @@ jobs:
           try {
             Invoke-WebRequest -Uri $pbUrl -OutFile $zipPath -TimeoutSec 180 -ErrorAction Stop
           } catch {
-            Write-Error "FALHA CRÍTICA: Não foi possível baixar o binário oficial do PocketBase. O build não prosseguirá com stubs."
+            Write-Error "FALHA CRÍTICA: Não foi possível baixar o binário oficial do PocketBase ($pbUrl). O build NUNCA prosseguirá com stubs."
             exit 1
           }
 
           if (!(Test-Path $zipPath) -or (Get-Item $zipPath).Length -lt 5000000) {
             Write-Error "FALHA CRÍTICA: Arquivo baixado do PocketBase corrompido ou incompleto."
             exit 1
+          }
+
+          $zipHash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
+          Write-Host "SHA-256 do ZIP PocketBase baixado: $zipHash"
+
+          # Tabela de hashes SHA-256 oficiais do checksums.txt das releases do PocketBase windows_amd64
+          $knownPbHashes = @{
+            "0.26.6" = "16f5a8469431553576f8a17e25eeb060f02e7f7c95d2fd2f1d3dd5801931a33a"
+          }
+
+          if ($knownPbHashes.ContainsKey($pbVer)) {
+            $expectedPbHash = $knownPbHashes[$pbVer].ToLower()
+            if ($zipHash -ne $expectedPbHash) {
+              Write-Error "FALHA CRÍTICA DE INTEGRIDADE: SHA-256 do PocketBase ($zipHash) diverge do hash oficial da release ($expectedPbHash)! Interrompendo build."
+              exit 1
+            }
+            Write-Host "Verificação criptográfica estrita do PocketBase CONCLUÍDA com sucesso (100% autêntico)."
+          } else {
+            # Se for versão sem hash estático pré-catalogado, tenta baixar o checksums.txt oficial da release
+            Write-Host "Buscando checksums.txt oficial para v${pbVer}..."
+            try {
+              $checksumsUrl = "https://github.com/pocketbase/pocketbase/releases/download/v${pbVer}/checksums.txt"
+              $checksumsText = (Invoke-RestMethod -Uri $checksumsUrl -TimeoutSec 30)
+              $matchedLine = ($checksumsText -split "`n") | Where-Object { $_ -match "pocketbase_${pbVer}_windows_amd64.zip" }
+              if ($matchedLine) {
+                $remoteHash = ($matchedLine -split "\s+")[0].Trim().ToLower()
+                if ($zipHash -ne $remoteHash) {
+                  Write-Error "FALHA CRÍTICA DE INTEGRIDADE: SHA-256 ($zipHash) não confere com checksums.txt oficial ($remoteHash)!"
+                  exit 1
+                }
+                Write-Host "Verificação criptográfica do PocketBase via checksums.txt oficial CONCLUÍDA com sucesso."
+              } else {
+                Write-Error "FALHA CRÍTICA: Arquivo não catalogado em checksums.txt oficial. Interrompendo build."
+                exit 1
+              }
+            } catch {
+              Write-Error "FALHA CRÍTICA: Não foi possível validar o hash oficial da versão v${pbVer} do PocketBase. O build não prosseguirá com binários não auditados."
+              exit 1
+            }
           }
 
           Expand-Archive -Path $zipPath -DestinationPath "$env:TEMP\pb_extracted" -Force
@@ -85,31 +126,45 @@ jobs:
           }
 
           Copy-Item -Path $extractedExe -Destination "src-tauri/binaries/pocketbase-x86_64-pc-windows-msvc.exe" -Force
-          $pbHash = (Get-FileHash "src-tauri/binaries/pocketbase-x86_64-pc-windows-msvc.exe" -Algorithm SHA256).Hash.ToLower()
-          Write-Host "PocketBase preparado com sucesso. SHA256 calculado: $pbHash"
-
-          # Tabela de hashes SHA-256 conhecidos e confiáveis para releases oficiais do PocketBase windows_amd64
-          $knownPbHashes = @{
-            "0.26.9" = "f5f5c12850a581e6df982de92b0ba8d067c2937ee36ce7fc16fa2e3c09b2b2a6"
-          }
-
-          if ($knownPbHashes.ContainsKey($pbVer)) {
-            $expectedPbHash = $knownPbHashes[$pbVer]
-            if ($pbHash -ne $expectedPbHash) {
-              Write-Error "FALHA DE SEGURANÇA: SHA-256 do PocketBase ($pbHash) não confere com o hash confiável esperado ($expectedPbHash)!"
-              exit 1
-            }
-            Write-Host "Verificação criptográfica estrita do PocketBase CONCLUÍDA com sucesso."
-          } else {
-            Write-Warning "LIMITAÇÃO TÉCNICA REGISTRADA: Release v${pbVer} do PocketBase não possui hash pré-catalogado estático. Hash calculado: $pbHash. O workflow prossegue sem certificar verificação criptográfica estrita."
-          }
+          Write-Host "pocketbase-x86_64-pc-windows-msvc.exe instalado com sucesso em src-tauri/binaries/"
 
       - name: Baixar e Verificar llama.cpp (llama-server) Oficial
         shell: pwsh
         run: |
-          $tag = "${{ github.event.inputs.llama_cpp_release }}"
+          $tag = "${{ github.event.inputs.llama_cpp_release }}".Trim()
+          $assetName = "llama-${tag}-bin-win-cpu-x64.zip"
           $llamaZip = "$env:TEMP\llama-server.zip"
-          $llamaUrl = "https://github.com/ggerganov/llama.cpp/releases/download/${tag}/llama-${tag}-bin-win-avx2-x64.zip"
+          $llamaUrl = "https://github.com/ggml-org/llama.cpp/releases/download/${tag}/${assetName}"
+
+          Write-Host "Consultando API oficial do GitHub para digest da release ${tag}..."
+          $apiReleaseUrl = "https://api.github.com/repos/ggml-org/llama.cpp/releases/tags/${tag}"
+          $expectedLlamaHash = $null
+          try {
+            $headers = @{ "User-Agent" = "LW-Laudos-Builder" }
+            $relJson = Invoke-RestMethod -Uri $apiReleaseUrl -Headers $headers -TimeoutSec 30
+            $targetAsset = $relJson.assets | Where-Object { $_.name -eq $assetName }
+            if ($targetAsset -and $targetAsset.digest) {
+              $expectedLlamaHash = $targetAsset.digest.Replace("sha256:", "").Trim().ToLower()
+              Write-Host "Hash oficial obtido via API do GitHub para $assetName: $expectedLlamaHash"
+            }
+          } catch {
+            Write-Host "Aviso na consulta da API do GitHub: $_. Tentando hash auditado estático..."
+          }
+
+          # Fallback de hashes auditados para tags conhecidas se a API do GitHub atingir rate limit
+          $auditedLlamaHashes = @{
+            "b11960" = "73f962f82850d244db47eaacb9d913637027b82399124324298576d58c5f4287"
+          }
+
+          if (-not $expectedLlamaHash -and $auditedLlamaHashes.ContainsKey($tag)) {
+            $expectedLlamaHash = $auditedLlamaHashes[$tag].ToLower()
+            Write-Host "Usando hash auditado fixado para tag ${tag}: $expectedLlamaHash"
+          }
+
+          if (-not $expectedLlamaHash) {
+            Write-Error "FALHA OBRIGATÓRIA: Não foi possível obter o hash SHA-256 oficial do llama.cpp ($assetName) via API do GitHub nem tabela auditada. Interrompendo build."
+            exit 1
+          }
 
           Write-Host "Baixando release oficial do llama.cpp: $llamaUrl..."
           try {
@@ -124,31 +179,33 @@ jobs:
             exit 1
           }
 
+          $calcLlamaHash = (Get-FileHash -Path $llamaZip -Algorithm SHA256).Hash.ToLower()
+          Write-Host "SHA-256 calculado do ZIP do llama.cpp: $calcLlamaHash"
+          if ($calcLlamaHash -ne $expectedLlamaHash) {
+            Write-Error "FALHA CRÍTICA DE INTEGRIDADE: SHA-256 do llama.cpp ($calcLlamaHash) diverge do hash oficial da release ($expectedLlamaHash)! Interrompendo build."
+            exit 1
+          }
+          Write-Host "Verificação criptográfica estrita do llama.cpp CONCLUÍDA com sucesso."
+
           Expand-Archive -Path $llamaZip -DestinationPath "$env:TEMP\llama_extracted" -Force
-          $serverExe = "$env:TEMP\llama_extracted\llama-server.exe"
-          if (!(Test-Path $serverExe)) {
+
+          # Localizar llama-server.exe (pode estar na raiz do zip ou em subpasta)
+          $serverExe = Get-ChildItem -Path "$env:TEMP\llama_extracted" -Filter "llama-server.exe" -Recurse | Select-Object -First 1
+          if (-not $serverExe -or !(Test-Path $serverExe.FullName)) {
             Write-Error "FALHA OBRIGATÓRIA: llama-server.exe não encontrado no zip do llama.cpp."
             exit 1
           }
 
-          Copy-Item -Path $serverExe -Destination "src-tauri/binaries/llama-server-x86_64-pc-windows-msvc.exe" -Force
-          $llamaHash = (Get-FileHash "src-tauri/binaries/llama-server-x86_64-pc-windows-msvc.exe" -Algorithm SHA256).Hash.ToLower()
-          Write-Host "llama-server preparado com sucesso. SHA256 calculado: $llamaHash"
+          Copy-Item -Path $serverExe.FullName -Destination "src-tauri/binaries/llama-server-x86_64-pc-windows-msvc.exe" -Force
+          Write-Host "llama-server-x86_64-pc-windows-msvc.exe posicionado com sucesso."
 
-          # Tabela de hashes auditados para releases conhecidas do llama.cpp
-          $knownLlamaHashes = @{
-            "b4822" = "a0d9b4b025fcf958999335f60dc5e381b1dd83a8b418a0377e8fd01a61c33bf7"
-          }
-
-          if ($knownLlamaHashes.ContainsKey($tag)) {
-            $expectedLlamaHash = $knownLlamaHashes[$tag]
-            if ($llamaHash -ne $expectedLlamaHash) {
-              Write-Error "FALHA DE SEGURANÇA: SHA-256 do llama-server ($llamaHash) não confere com o esperado ($expectedLlamaHash)!"
-              exit 1
-            }
-            Write-Host "Verificação criptográfica estrita do llama-server CONCLUÍDA com sucesso."
-          } else {
-            Write-Warning "LIMITAÇÃO TÉCNICA REGISTRADA: Release tag '${tag}' do llama.cpp não possui hash pré-catalogado. Hash calculado: $llamaHash. O workflow prossegue sem certificar verificação criptográfica estrita."
+          # Copiar todas as DLLs dependentes presentes no pacote (ex.: ggml.dll, llama.dll, libgomp, etc.)
+          $extractedDir = $serverExe.DirectoryName
+          $dlls = Get-ChildItem -Path $extractedDir -Filter "*.dll" -Recurse
+          Write-Host "DLLs encontradas no pacote do llama.cpp: $($dlls.Count)"
+          foreach ($dll in $dlls) {
+            Copy-Item -Path $dll.FullName -Destination "src-tauri/binaries/$($dll.Name)" -Force
+            Write-Host "  -> DLL copiada: $($dll.Name)"
           }
 
       - name: Baixar e Validar Modelo GGUF Oficial com Hash Estrito
@@ -158,14 +215,14 @@ jobs:
           $modelUrl = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
           $modelDest = "src-tauri/models/qwen2.5-1.5b-instruct-q4_k_m.gguf"
 
-          # Hash SHA-256 oficial do Qwen2.5-1.5B-Instruct Q4_K_M auditado no HuggingFace
-          $expectedModelHash = "dbe8d203bd1a85e4ff7d6396e95964860b73c359ce9bc2f2105151593883a48e".ToLower()
+          # Hash SHA-256 oficial do Qwen2.5-1.5B-Instruct Q4_K_M auditado via Git LFS pointer oficial do HuggingFace
+          $expectedModelHash = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e".ToLower()
 
-          Write-Host "Baixando modelo GGUF oficial Qwen2.5-1.5B-Instruct Q4_K_M (~986 MB)..."
+          Write-Host "Baixando modelo GGUF oficial Qwen2.5-1.5B-Instruct Q4_K_M (~1.04 GB)..."
           try {
             Invoke-WebRequest -Uri $modelUrl -OutFile $modelDest -TimeoutSec 1800 -ErrorAction Stop
           } catch {
-            Write-Error "FALHA OBRIGATÓRIA: Falha no download do modelo GGUF. Proibido continuar com placeholder/stub."
+            Write-Error "FALHA OBRIGATÓRIA: Falha no download do modelo GGUF oficial. Proibido continuar com placeholder/stub."
             exit 1
           }
 
@@ -177,18 +234,19 @@ jobs:
           $fileSize = (Get-Item $modelDest).Length
           Write-Host "Tamanho do arquivo baixado: $fileSize bytes"
           if ($fileSize -lt 800000000) {
-            Write-Error "FALHA OBRIGATÓRIA: Tamanho do modelo GGUF abaixo do esperado (< 800 MB). Arquivo truncado."
+            Write-Error "FALHA OBRIGATÓRIA: Tamanho do modelo GGUF abaixo do esperado (< 800 MB). Arquivo truncado ou download incompleto."
             exit 1
           }
 
           $calcHash = (Get-FileHash -Path $modelDest -Algorithm SHA256).Hash.ToLower()
-          Write-Host "Hash SHA256 calculado do modelo GGUF: $calcHash"
+          Write-Host "Hash SHA-256 calculado do modelo GGUF: $calcHash"
 
           if ($calcHash -ne $expectedModelHash) {
-            Write-Warning "LIMITAÇÃO TÉCNICA REGISTRADA: Hash SHA-256 calculado do modelo GGUF ($calcHash) difere do commit estático inicial ($expectedModelHash). Se o HuggingFace sofreu re-quantização recente, registre o novo hash auditado."
-          } else {
-            Write-Host "Verificação criptográfica estrita do modelo GGUF CONCLUÍDA com sucesso."
+            Write-Error "FALHA CRÍTICA DE INTEGRIDADE: Hash SHA-256 do modelo GGUF ($calcHash) diverge do hash oficial LFS auditado ($expectedModelHash)! Bloqueando pacote como 'IA não verificada'."
+            exit 1
           }
+
+          Write-Host "Verificação criptográfica estrita do modelo GGUF CONCLUÍDA com sucesso (100% autêntico e íntegro)."
 
       - name: Instalar Dependências do Frontend via pnpm
         run: pnpm install --frozen-lockfile

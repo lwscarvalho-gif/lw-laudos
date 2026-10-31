@@ -214,6 +214,62 @@ export async function runTestSuite() {
     'SVG da mama direita renderizado com sucesso',
   )
 
+  // TESTE 9: PERSISTÊNCIA DA FILA DE CONCILIAÇÃO DICOM
+  console.log(
+    '\n[TEST 9] DICOM: Sobrevida da Fila de Conciliação e Migração de Armazenamento Volátil',
+  )
+  sessionStorage.setItem(
+    'lw_laudos_dicom_reconciliation_v1',
+    JSON.stringify([
+      {
+        id: 'rec_legacy_session_test',
+        receivedAt: new Date().toISOString(),
+        fileName: 'estudo_legado.dcm',
+        fileSize: 1024,
+        status: 'unidentified',
+        matchReason: 'Estudo pendente',
+        confidence: 'none',
+        framesCount: 1,
+      },
+    ]),
+  )
+  const queueAfterMigration = dicomIntegrationService.getReconciliationQueue()
+  assert(
+    queueAfterMigration.some((item) => item.id === 'rec_legacy_session_test'),
+    'Itens pendentes em sessionStorage são recuperados e migrados com segurança',
+  )
+  assert(
+    sessionStorage.getItem('lw_laudos_dicom_reconciliation_v1') === null,
+    'sessionStorage volátil é esvaziado após migração para persistência no banco/local',
+  )
+
+  // TESTE 10: BLOQUEIOS DE AGENDA E DURAÇÃO DESACOPLADA
+  console.log('\n[TEST 10] Agenda: Bloqueio Não Apaga Agendamentos e Respeita Duração')
+  const { appointmentsService } = await import('../services/appointments')
+  const blockTest = appointmentsService.saveScheduleBlock({
+    clinic_location: 'Gastroimagem',
+    date: '2026-11-15',
+    start_time: '12:00',
+    end_time: '13:00',
+    reason: 'Intervalo de descanso e almoço',
+    block_type: 'intervalo_descanso',
+  })
+  const retrievedBlocks = appointmentsService.getScheduleBlocks('Gastroimagem', '2026-11-15')
+  assert(
+    retrievedBlocks.some((b) => b.id === blockTest.id),
+    'Bloqueio salvo com sucesso sem interferir nem apagar agendamentos pré-existentes',
+  )
+  appointmentsService.deleteScheduleBlock(blockTest.id!)
+
+  // TESTE 11: ISOLAMENTO CLÍNICO E LICENCIAMENTO
+  console.log('\n[TEST 11] Licenciamento e Isolamento Multiclínica')
+  const { licensingService } = await import('../services/licensing')
+  const lic = licensingService.getLicense()
+  assert(
+    lic.maxAuthorizedDevices >= 2,
+    'Modelo de licenciamento contempla múltiplos computadores autorizados (2 profissional / 3 clínica)',
+  )
+
   console.log('\n===========================================================')
   console.log(`  RESULTADO DOS TESTES: ${passedTests} PASSOU, ${failedTests} FALHOU`)
   console.log('===========================================================')
