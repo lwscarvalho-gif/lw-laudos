@@ -270,6 +270,20 @@ export default function Exames() {
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {!hasReport && (
+                            <Link
+                              to={
+                                ex.type.toLowerCase().includes('ultra')
+                                  ? `/laudos/ultrassom?exame=${ex.id}&paciente=${ex.patient_id}`
+                                  : `/laudos/novo?exame=${ex.id}`
+                              }
+                              title="Criar Laudo para este exame"
+                              className="inline-flex items-center gap-1 text-xs text-white bg-[#0C6B58] hover:bg-[#0A5949] px-2.5 py-1 rounded-md font-medium transition shadow-xs"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              Criar Laudo
+                            </Link>
+                          )}
                           <Link
                             to={`/exames/${ex.id}`}
                             title="Ver detalhes"
@@ -320,12 +334,23 @@ export default function Exames() {
                     </div>
 
                     <div className="flex items-center gap-1">
-                      {hasReport && (
+                      {hasReport ? (
                         <Link
                           to={`/laudos/${reportMap[ex.id]}`}
                           className="px-2 py-1 text-xs bg-[#E8F3F0] text-[#0C6B58] rounded-md font-medium"
                         >
                           Ver Laudo
+                        </Link>
+                      ) : (
+                        <Link
+                          to={
+                            ex.type.toLowerCase().includes('ultra')
+                              ? `/laudos/ultrassom?exame=${ex.id}&paciente=${ex.patient_id}`
+                              : `/laudos/novo?exame=${ex.id}`
+                          }
+                          className="px-2 py-1 text-xs bg-[#0C6B58] text-white rounded-md font-medium shadow-xs"
+                        >
+                          Criar Laudo
                         </Link>
                       )}
                       <Link

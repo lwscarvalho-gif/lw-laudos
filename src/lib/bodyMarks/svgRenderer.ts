@@ -30,6 +30,9 @@ export function buildBodyMarkSvgString(
 
   let anatomyContent = ''
   switch (schemeId) {
+    case 'mama_bilateral':
+      anatomyContent = renderBilateralBreastSvg()
+      break
     case 'mama_direita':
       anatomyContent = renderBreastSvg(true)
       break
@@ -130,6 +133,87 @@ export function buildBodyMarkSvgString(
       ${subText}
     </text>
   </svg>`
+}
+
+/**
+ * BILATERAL BREASTS (MAMA DIREITA + MAMA ESQUERDA SIMULTÂNEAS)
+ */
+function renderBilateralBreastSvg(): string {
+  // Coordenadas centrais das duas mamas na mesma prancha
+  const cy = 230
+  const rBreast = 100
+  const rClock = 78
+
+  // Mama Direita (cx = 170)
+  const cxR = 170
+  let clockR = ''
+  for (let h = 1; h <= 12; h++) {
+    const angleRad = ((h * 30 - 90) * Math.PI) / 180
+    const nx = cxR + rClock * Math.cos(angleRad)
+    const ny = cy + rClock * Math.sin(angleRad) + 3
+    clockR += `
+      <circle cx="${nx}" cy="${ny - 3}" r="6.5" fill="#FFFFFF" stroke="#0C6B58" stroke-width="0.8" opacity="0.9"/>
+      <text x="${nx}" y="${ny}" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="7.5" font-weight="700" fill="#0C6B58">${h}h</text>
+    `
+  }
+
+  // Mama Esquerda (cx = 430)
+  const cxL = 430
+  let clockL = ''
+  for (let h = 1; h <= 12; h++) {
+    const angleRad = ((h * 30 - 90) * Math.PI) / 180
+    const nx = cxL + rClock * Math.cos(angleRad)
+    const ny = cy + rClock * Math.sin(angleRad) + 3
+    clockL += `
+      <circle cx="${nx}" cy="${ny - 3}" r="6.5" fill="#FFFFFF" stroke="#0C6B58" stroke-width="0.8" opacity="0.9"/>
+      <text x="${nx}" y="${ny}" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="7.5" font-weight="700" fill="#0C6B58">${h}h</text>
+    `
+  }
+
+  return `
+    <g id="bilateral-breast-anatomy">
+      <!-- Mama Direita (MD) -->
+      <g id="mama-direita-bilat">
+        <circle cx="${cxR}" cy="${cy}" r="${rBreast}" fill="url(#organGrad)" stroke="#0C6B58" stroke-width="2" />
+        <circle cx="${cxR}" cy="${cy}" r="55" fill="none" stroke="#B8CCC5" stroke-width="1" stroke-dasharray="2,2"/>
+        <line x1="${cxR - rBreast - 10}" y1="${cy}" x2="${cxR + rBreast + 10}" y2="${cy}" stroke="#0C6B58" stroke-width="1.2" />
+        <line x1="${cxR}" y1="${cy - rBreast - 10}" x2="${cxR}" y2="${cy + rBreast + 10}" stroke="#0C6B58" stroke-width="1.2" />
+        <circle cx="${cxR}" cy="${cy}" r="18" fill="#D3B89C" stroke="#A78263" stroke-width="1.2" />
+        <circle cx="${cxR}" cy="${cy}" r="7" fill="#8F6244" />
+        <text x="${cxR}" y="${cy + 2.5}" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="6" font-weight="bold" fill="#FFFFFF">MD</text>
+        ${clockR}
+        <rect x="${cxR - 70}" y="${cy - rBreast - 32}" width="140" height="18" rx="4" fill="#0C6B58" />
+        <text x="${cxR}" y="${cy - rBreast - 20}" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="9" font-weight="bold" fill="#FFFFFF">MAMA DIREITA (MD)</text>
+        <text x="${cxR - 55}" y="${cy - 60}" font-family="-apple-system, sans-serif" font-size="8" font-weight="bold" fill="#0C6B58">QSL</text>
+        <text x="${cxR + 35}" y="${cy - 60}" font-family="-apple-system, sans-serif" font-size="8" font-weight="bold" fill="#0C6B58">QSM</text>
+        <text x="${cxR - 55}" y="${cy + 68}" font-family="-apple-system, sans-serif" font-size="8" font-weight="bold" fill="#0C6B58">QIL</text>
+        <text x="${cxR + 35}" y="${cy + 68}" font-family="-apple-system, sans-serif" font-size="8" font-weight="bold" fill="#0C6B58">QIM</text>
+      </g>
+
+      <!-- Divisória Esternal Central -->
+      <line x1="300" y1="100" x2="300" y2="380" stroke="#CCD7D3" stroke-width="1.5" stroke-dasharray="4,3" />
+      <rect x="260" y="235" width="80" height="16" rx="3" fill="#FFFFFF" stroke="#CCD7D3" stroke-width="1" />
+      <text x="300" y="246" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="7.5" font-weight="bold" fill="#718079">ESTERNO</text>
+
+      <!-- Mama Esquerda (ME) -->
+      <g id="mama-esquerda-bilat">
+        <circle cx="${cxL}" cy="${cy}" r="${rBreast}" fill="url(#organGrad)" stroke="#0C6B58" stroke-width="2" />
+        <circle cx="${cxL}" cy="${cy}" r="55" fill="none" stroke="#B8CCC5" stroke-width="1" stroke-dasharray="2,2"/>
+        <line x1="${cxL - rBreast - 10}" y1="${cy}" x2="${cxL + rBreast + 10}" y2="${cy}" stroke="#0C6B58" stroke-width="1.2" />
+        <line x1="${cxL}" y1="${cy - rBreast - 10}" x2="${cxL}" y2="${cy + rBreast + 10}" stroke="#0C6B58" stroke-width="1.2" />
+        <circle cx="${cxL}" cy="${cy}" r="18" fill="#D3B89C" stroke="#A78263" stroke-width="1.2" />
+        <circle cx="${cxL}" cy="${cy}" r="7" fill="#8F6244" />
+        <text x="${cxL}" y="${cy + 2.5}" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="6" font-weight="bold" fill="#FFFFFF">ME</text>
+        ${clockL}
+        <rect x="${cxL - 70}" y="${cy - rBreast - 32}" width="140" height="18" rx="4" fill="#0C6B58" />
+        <text x="${cxL}" y="${cy - rBreast - 20}" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="9" font-weight="bold" fill="#FFFFFF">MAMA ESQUERDA (ME)</text>
+        <text x="${cxL - 55}" y="${cy - 60}" font-family="-apple-system, sans-serif" font-size="8" font-weight="bold" fill="#0C6B58">QSM</text>
+        <text x="${cxL + 35}" y="${cy - 60}" font-family="-apple-system, sans-serif" font-size="8" font-weight="bold" fill="#0C6B58">QSL</text>
+        <text x="${cxL - 55}" y="${cy + 68}" font-family="-apple-system, sans-serif" font-size="8" font-weight="bold" fill="#0C6B58">QIM</text>
+        <text x="${cxL + 35}" y="${cy + 68}" font-family="-apple-system, sans-serif" font-size="8" font-weight="bold" fill="#0C6B58">QIL</text>
+      </g>
+    </g>
+  `
 }
 
 /**

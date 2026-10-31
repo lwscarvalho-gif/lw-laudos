@@ -102,6 +102,9 @@ export interface Exam extends RecordModel {
   owner_id: string
   patient_id: string
   type: string
+  procedure_id?: string
+  referring_physician?: string
+  clinic_location?: string
   exam_date: string
   status: ExamStatus
   indication?: string
@@ -198,6 +201,7 @@ export interface UltrasoundSectionData {
 
 export type BodyMarkSchemeId =
   | 'none'
+  | 'mama_bilateral'
   | 'mama_direita'
   | 'mama_esquerda'
   | 'utero_transvaginal'

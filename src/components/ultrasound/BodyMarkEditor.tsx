@@ -288,12 +288,13 @@ export default function BodyMarkEditor({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Nenhum esquema (sem body mark)</SelectItem>
+              <SelectItem value="mama_bilateral">Mamas Bilateral (MD e ME)</SelectItem>
               <SelectItem value="mama_direita">Mama Direita (MD)</SelectItem>
               <SelectItem value="mama_esquerda">Mama Esquerda (ME)</SelectItem>
               <SelectItem value="utero_transvaginal">Útero / Transvaginal (DIU)</SelectItem>
               <SelectItem value="ombro_articular">Articulação do Ombro (Tendões)</SelectItem>
               <SelectItem value="tireoide">Tireoide (Lobos e Istmo)</SelectItem>
-              <SelectItem value="abdome_fatia">Fatia Abdominal</SelectItem>
+              {/* Prioridade 6: Esquema abdome_fatia ocultado por baixa qualidade */}
             </SelectContent>
           </Select>
 
@@ -484,7 +485,9 @@ export default function BodyMarkEditor({
 
           <div className="space-y-3.5 py-2 text-xs">
             {/* Breast-specific fields */}
-            {(schemeId === 'mama_direita' || schemeId === 'mama_esquerda') && (
+            {(schemeId === 'mama_direita' ||
+              schemeId === 'mama_esquerda' ||
+              schemeId === 'mama_bilateral') && (
               <div className="grid grid-cols-2 gap-3 p-3 bg-[#F7F9F8] rounded-lg border border-[#E5E9E7]">
                 <div className="space-y-1">
                   <Label className="text-[11px] font-semibold text-[#1F2A27]">Quadrante</Label>

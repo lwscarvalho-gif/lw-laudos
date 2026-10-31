@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-31T21:25:23.643Z",
+  "generatedAt": "2026-10-31T23:23:42.362Z",
   "collections": [
     {
       "name": "users",
@@ -337,6 +337,24 @@
           "required": false,
           "system": false,
           "collectionRef": "appointments"
+        },
+        {
+          "name": "procedure_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "referring_physician",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "clinic_location",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -2478,6 +2496,172 @@
       "indexes": [
         "CREATE INDEX idx_dicom_log_action ON dicom_transfer_logs (action)",
         "CREATE INDEX idx_dicom_log_created ON dicom_transfer_logs (created DESC)"
+      ]
+    },
+    {
+      "name": "daily_closings",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral' || @request.auth.role = 'Gestor')",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')"
+      },
+      "fields": [
+        {
+          "name": "clinic_location",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "closing_date",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "mode",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["completo", "solicitante", "sintetico"]
+        },
+        {
+          "name": "total_finalized",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "total_absent",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_json",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "issued_by_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "issued_by_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "issued_by_role",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "issued_at",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "version",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_daily_clos_clinic_date ON daily_closings (clinic_location, closing_date)"
+      ]
+    },
+    {
+      "name": "referring_physicians",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "name_normalized",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "clinic_location",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created_by_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created_by_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_ref_phys_normalized ON referring_physicians (name_normalized)",
+        "CREATE INDEX idx_ref_phys_clinic ON referring_physicians (clinic_location)"
       ]
     }
   ]

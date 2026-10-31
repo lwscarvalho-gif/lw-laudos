@@ -51,6 +51,9 @@ export const examsService = {
   async create(data: {
     patient_id: string
     type: string
+    procedure_id?: string
+    referring_physician?: string
+    clinic_location?: string
     exam_date: string
     status?: ExamStatus
     indication?: string

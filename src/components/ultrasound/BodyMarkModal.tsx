@@ -37,6 +37,36 @@ export default function BodyMarkModal({
   const hasActiveScheme = schemeId !== 'none'
   const activeSchemeDef = hasActiveScheme ? ANATOMICAL_SCHEMES[schemeId] : null
 
+  // Auto-selecionar esquema contextual se estiver em 'none' e o tipo do exame for compatível
+  React.useEffect(() => {
+    if (open && schemeId === 'none' && examType) {
+      const lower = examType.toLowerCase()
+      if (lower.includes('mama') || lower.includes('mamári') || lower.includes('mamari')) {
+        if (lower.includes('unilateral') && lower.includes('esquerd')) {
+          onChange({ schemeId: 'mama_esquerda', points: [] })
+        } else if (lower.includes('unilateral') && lower.includes('direit')) {
+          onChange({ schemeId: 'mama_direita', points: [] })
+        } else {
+          onChange({ schemeId: 'mama_bilateral', points: [] })
+        }
+      } else if (
+        lower.includes('tireoide') ||
+        lower.includes('tireóide') ||
+        lower.includes('cervical')
+      ) {
+        onChange({ schemeId: 'tireoide', points: [] })
+      } else if (
+        lower.includes('transvaginal') ||
+        lower.includes('útero') ||
+        lower.includes('pélvica')
+      ) {
+        onChange({ schemeId: 'utero_transvaginal', points: [] })
+      } else if (lower.includes('ombro') || lower.includes('manguito')) {
+        onChange({ schemeId: 'ombro_articular', points: [] })
+      }
+    }
+  }, [open, examType, schemeId, onChange])
+
   const handleRemoveScheme = () => {
     if (
       window.confirm(

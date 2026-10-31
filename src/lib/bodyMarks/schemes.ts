@@ -17,6 +17,16 @@ export const ANATOMICAL_SCHEMES: Record<
   Exclude<BodyMarkSchemeId, 'none'>,
   AnatomicalSchemeDefinition
 > = {
+  mama_bilateral: {
+    id: 'mama_bilateral',
+    title: 'Mamas Bilateral (MD e ME)',
+    subtitle: 'Mapeamento simultâneo de mama direita e esquerda com quadrantes e horas',
+    organScope: 'Mamas',
+    defaultSide: 'Bilateral',
+    supportsClockHour: true,
+    supportsQuadrants: true,
+    supportsDistance: true,
+  },
   mama_direita: {
     id: 'mama_direita',
     title: 'Mama Direita',
