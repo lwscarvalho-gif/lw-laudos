@@ -35,7 +35,11 @@ import {
 } from '@/services/clinicManagement'
 import { appointmentsService } from '@/services/appointments'
 import { patientsService } from '@/services/patients'
-import type { Appointment } from '@/types'
+import { reportsService } from '@/services/reports'
+import type { Appointment, Report } from '@/types'
+import { ReferringPhysiciansReportPanel } from '@/components/ReferringPhysiciansReportPanel'
+import { DailyClosingProductionPanel } from '@/components/DailyClosingProductionPanel'
+import { PriceTableImportPanel } from '@/components/PriceTableImportPanel'
 import { getCuiabaTodayYMD, formatCuiabaDate, formatCuiabaTime } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -90,6 +94,7 @@ export default function GestaoClinica() {
   const [specialRequests, setSpecialRequests] = useState<SpecialPriceRequest[]>([])
   const [settings, setSettings] = useState<ClinicFinancialSettings | null>(null)
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([])
+  const [allReports, setAllReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(false)
 
   // Modals
@@ -122,22 +127,24 @@ export default function GestaoClinica() {
   const loadClinicData = useCallback(async () => {
     setLoading(true)
     try {
-      const [procs, txs, requests, clinicSettings, allAppts] = await Promise.all([
+      const [procs, txs, requests, clinicSettings, allAppts, reportsList] = await Promise.all([
         clinicManagementService.getProcedures(selectedClinic),
         clinicManagementService.getTransactions(selectedClinic),
         clinicManagementService.getSpecialPriceRequests(selectedClinic),
         clinicManagementService.getSettings(selectedClinic),
         appointmentsService.getAll(),
+        reportsService.getAll(),
       ])
 
       setProcedures(procs)
       setTransactions(txs)
       setSpecialRequests(requests)
       setSettings(clinicSettings)
+      setAllReports(reportsList)
 
       // Filter appointments for selected clinic and date
       const filteredAppts = allAppts.filter((a) => {
-        const d = a.start_time.slice(0, 10)
+        const d = (a.start_time || '').slice(0, 10)
         return (a.clinic_location === selectedClinic || !a.clinic_location) && d === selectedDate
       })
       setTodayAppointments(filteredAppts)
@@ -732,10 +739,18 @@ export default function GestaoClinica() {
 
       {/* Main Tabs Container */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-white border border-[#E5E9E7] p-1 h-11 rounded-xl">
+        <TabsList className="bg-white border border-[#E5E9E7] p-1 h-11 rounded-xl flex-wrap">
           <TabsTrigger value="recebimento" className="text-xs font-semibold gap-1.5">
             <UserCheck className="w-3.5 h-3.5" />
             Fluxo da Secretária / Fila do Médico
+          </TabsTrigger>
+          <TabsTrigger value="fechamento" className="text-xs font-semibold gap-1.5">
+            <FileText className="w-3.5 h-3.5" />
+            Fechamento Diário de Produção
+          </TabsTrigger>
+          <TabsTrigger value="origem_solicitacoes" className="text-xs font-semibold gap-1.5">
+            <Building2 className="w-3.5 h-3.5" />
+            Origem das Solicitações
           </TabsTrigger>
           <TabsTrigger value="procedimentos" className="text-xs font-semibold gap-1.5">
             <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -743,8 +758,7 @@ export default function GestaoClinica() {
           </TabsTrigger>
           <TabsTrigger value="solicitacoes" className="text-xs font-semibold gap-1.5">
             <ShieldAlert className="w-3.5 h-3.5" />
-            Autorizações de Desconto (
-            {specialRequests.filter((r) => r.status === 'Pendente').length})
+            Autorizações ({specialRequests.filter((r) => r.status === 'Pendente').length})
           </TabsTrigger>
           <TabsTrigger value="historico" className="text-xs font-semibold gap-1.5">
             <Receipt className="w-3.5 h-3.5" />
@@ -868,8 +882,37 @@ export default function GestaoClinica() {
           </div>
         </TabsContent>
 
+        {/* TAB FECHAMENTO DIÁRIO DE PRODUÇÃO */}
+        <TabsContent value="fechamento" className="space-y-4">
+          <DailyClosingProductionPanel
+            clinicLocation={selectedClinic}
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
+            appointments={todayAppointments}
+            reports={allReports}
+            currentUser={user}
+          />
+        </TabsContent>
+
+        {/* TAB ORIGEM DAS SOLICITAÇÕES (MÉDICOS SOLICITANTES) */}
+        <TabsContent value="origem_solicitacoes" className="space-y-4">
+          <ReferringPhysiciansReportPanel
+            reports={allReports}
+            procedures={procedures}
+            clinicLocation={selectedClinic}
+          />
+        </TabsContent>
+
         {/* TAB 2: CATÁLOGO DE PROCEDIMENTOS E PREÇOS */}
         <TabsContent value="procedimentos" className="space-y-4">
+          {/* Painel de Importação CSV/Planilha de Tabela de Preços */}
+          {(isManager || isAdmin) && (
+            <PriceTableImportPanel
+              clinicLocation={selectedClinic}
+              existingProcedures={procedures}
+              onImportCompleted={loadClinicData}
+            />
+          )}
           <div className="bg-white rounded-xl border border-[#E5E9E7] shadow-xs overflow-hidden">
             <div className="p-4 border-b border-[#E5E9E7] bg-[#FAFBFB] flex items-center justify-between">
               <div>

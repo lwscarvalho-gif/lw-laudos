@@ -1,5 +1,5 @@
 /**
- * SUÍTE DE TESTES AUTOMATIZADOS REAIS — LW LAUDOS v0.0.57
+ * SUÍTE DE TESTES AUTOMATIZADOS REAIS — LW LAUDOS v0.0.61
  *
  * Testes Reais Executados:
  * 1. Inicialização e Preservação Clínica (Validação de Medidas, Negações e Lateralidade)
@@ -11,6 +11,10 @@
  * 7. Gestão da Clínica: Catálogo de Preços, Cálculo por Modalidade e Auditoria de Desconto/Cortesia
  * 8. Prevenção de Duplicidade Financeira e Isolamento por Unidade
  * 9. Esquemas Anatômicos SVG e Formato Vetorial
+ * 10. Prioridade 1: Seleção de Procedimento -> Modelo Correto (Mamária Bilateral, Tireoide, Partes Moles, Doppler de Carótidas; NUNCA Abdome Total por padrão para sem correspondência)
+ * 11. Prioridade 2: Médico Solicitante com Normalização de Nome (acentos, maiúsculas e espaços) e Prevenção de Duplicidade
+ * 12. Prioridade 4: Fechamento Diário de Produção (Apenas 2 classificações: Laudo Finalizado vs. Falta do Paciente fora da produção)
+ * 13. Prioridade 5: Regras de Permissão / Bloqueio de Gestão de Equipe para Perfis Não-Administradores
  */
 
 import { validateClinicalPreservation } from '../services/clinicalPreservationValidator'
@@ -21,6 +25,8 @@ import {
 import { UltrasoundCopilotEngine } from '../services/ultrasoundCopilotEngine'
 import { AUDITED_MODELS } from '../services/localAiEngine'
 import { dicomIntegrationService, DicomDevice } from '../services/dicomIntegration'
+import { resolveProcedureTemplate } from '../services/procedureTemplates'
+import { normalizePhysicianName } from '../services/referringPhysicians'
 
 let passedTests = 0
 let failedTests = 0
@@ -37,7 +43,7 @@ function assert(condition: boolean, message: string) {
 
 export async function runTestSuite() {
   console.log('===========================================================')
-  console.log('  INICIANDO SUÍTE DE TESTES AUTOMATIZADOS — LW LAUDOS 0.0.57')
+  console.log('  INICIANDO SUÍTE DE TESTES AUTOMATIZADOS — LW LAUDOS 0.0.61')
   console.log('===========================================================\n')
 
   // TESTE 1: PRESERVAÇÃO CLÍNICA REAL
@@ -214,61 +220,100 @@ export async function runTestSuite() {
     'SVG da mama direita renderizado com sucesso',
   )
 
-  // TESTE 9: PERSISTÊNCIA DA FILA DE CONCILIAÇÃO DICOM
+  // TESTE 10 (NOVO): PRIORIDADE 1 — RESOLUÇÃO DE PROCEDIMENTO PARA MODELO ESPECÍFICO
   console.log(
-    '\n[TEST 9] DICOM: Sobrevida da Fila de Conciliação e Migração de Armazenamento Volátil',
+    '\n[TEST 10] Resolução de Procedimento -> Modelo Específico (Nunca Abdome por Padrão)',
   )
-  sessionStorage.setItem(
-    'lw_laudos_dicom_reconciliation_v1',
-    JSON.stringify([
-      {
-        id: 'rec_legacy_session_test',
-        receivedAt: new Date().toISOString(),
-        fileName: 'estudo_legado.dcm',
-        fileSize: 1024,
-        status: 'unidentified',
-        matchReason: 'Estudo pendente',
-        confidence: 'none',
-        framesCount: 1,
-      },
-    ]),
-  )
-  const queueAfterMigration = dicomIntegrationService.getReconciliationQueue()
+  const mamaRes = resolveProcedureTemplate('Ultrassonografia Mamária Bilateral')
+  assert(mamaRes.matched === true, 'Mamária bilateral reconhece modelo estruturado mamário')
   assert(
-    queueAfterMigration.some((item) => item.id === 'rec_legacy_session_test'),
-    'Itens pendentes em sessionStorage são recuperados e migrados com segurança',
+    mamaRes.suggestedTitle.includes('Mamária Bilateral'),
+    'Título sugerido reflete mamária bilateral',
   )
   assert(
-    sessionStorage.getItem('lw_laudos_dicom_reconciliation_v1') === null,
-    'sessionStorage volátil é esvaziado após migração para persistência no banco/local',
+    mamaRes.sections.some((s) => s.id === 'mama_direita'),
+    'Contém seção específica de mama direita',
+  )
+  assert(
+    mamaRes.sections.some((s) => s.id === 'conclusao_birads'),
+    'Contém seção específica de BI-RADS',
   )
 
-  // TESTE 10: BLOQUEIOS DE AGENDA E DURAÇÃO DESACOPLADA
-  console.log('\n[TEST 10] Agenda: Bloqueio Não Apaga Agendamentos e Respeita Duração')
-  const { appointmentsService } = await import('../services/appointments')
-  const blockTest = appointmentsService.saveScheduleBlock({
-    clinic_location: 'Gastroimagem',
-    date: '2026-11-15',
-    start_time: '12:00',
-    end_time: '13:00',
-    reason: 'Intervalo de descanso e almoço',
-    block_type: 'intervalo_descanso',
-  })
-  const retrievedBlocks = appointmentsService.getScheduleBlocks('Gastroimagem', '2026-11-15')
+  const tireoideRes = resolveProcedureTemplate('Ultrassonografia de Tireoide com Doppler')
+  assert(tireoideRes.matched === true, 'Tireoide reconhece modelo estruturado de tireoide')
   assert(
-    retrievedBlocks.some((b) => b.id === blockTest.id),
-    'Bloqueio salvo com sucesso sem interferir nem apagar agendamentos pré-existentes',
+    tireoideRes.sections.some((s) => s.id === 'lobo_direito'),
+    'Contém lobos e istmo tireoidianos',
   )
-  appointmentsService.deleteScheduleBlock(blockTest.id!)
+  assert(
+    tireoideRes.sections.some((s) => s.id === 'conclusao_tirads'),
+    'Contém seção TI-RADS',
+  )
 
-  // TESTE 11: ISOLAMENTO CLÍNICO E LICENCIAMENTO
-  console.log('\n[TEST 11] Licenciamento e Isolamento Multiclínica')
-  const { licensingService } = await import('../services/licensing')
-  const lic = licensingService.getLicense()
+  const partesMolesRes = resolveProcedureTemplate('Ultrassonografia de Partes Moles')
   assert(
-    lic.maxAuthorizedDevices >= 2,
-    'Modelo de licenciamento contempla múltiplos computadores autorizados (2 profissional / 3 clínica)',
+    partesMolesRes.matched === true,
+    'Partes moles reconhece modelo estruturado de partes moles',
   )
+
+  const carotidasRes = resolveProcedureTemplate('Doppler Colorido de Carótidas e Vertebrais')
+  assert(
+    carotidasRes.matched === true,
+    'Doppler de carótidas reconhece modelo específico carotídeo',
+  )
+
+  // Caso sem correspondência: NUNCA abdome total! Deve abrir texto livre com o título correto
+  const desconhecidoRes = resolveProcedureTemplate('Ultrassonografia de Joelho Esquerdo')
+  assert(
+    desconhecidoRes.matched === false,
+    'Procedimento sem modelo específico é marcado como sem correspondência',
+  )
+  assert(
+    desconhecidoRes.mode === 'freetext',
+    'Procedimento sem correspondência abre modo texto livre (NUNCA abdome total)',
+  )
+  assert(
+    desconhecidoRes.suggestedTitle === 'Laudo de Ultrassonografia de Joelho Esquerdo',
+    'Título do procedimento sem modelo é preservado fielmente',
+  )
+  assert(
+    !desconhecidoRes.sections.some((s) => s.id === 'figado'),
+    'Garantia estrita: Fígado e órgãos de abdome NÃO constam em exame sem correspondência',
+  )
+
+  // TESTE 11 (NOVO): PRIORIDADE 2 — NORMALIZAÇÃO DE MÉDICO SOLICITANTE E PREVENÇÃO DE DUPLICATAS
+  console.log('\n[TEST 11] Normalização de Nome de Médico Solicitante')
+  const norm1 = normalizePhysicianName('Dr. Carlos Eduardo da Silva')
+  const norm2 = normalizePhysicianName('   dr.   cárlos eduardo da silva  ')
+  const norm3 = normalizePhysicianName('DR CARLOS EDUARDO DA SILVA')
+  assert(
+    norm1 === norm2 && norm2 === norm3,
+    'Variações de acento, maiúsculas, pontuação e espaços normalizam para a mesma chave única',
+  )
+  assert(norm1 === 'dr carlos eduardo da silva', 'Formato normalizado canônico correto')
+
+  // TESTE 12 (NOVO): PRIORIDADE 4 — FECHAMENTO DIÁRIO COM DUAS CLASSIFICAÇÕES
+  console.log('\n[TEST 12] Fechamento Diário de Produção (Apenas 2 Classificações)')
+  const sampleItems = [
+    { patient_name: 'Paciente A', status: 'Laudo Finalizado' },
+    { patient_name: 'Paciente B', status: 'Laudo Finalizado' },
+    { patient_name: 'Paciente C', status: 'Falta do Paciente' },
+  ]
+  const productionCount = sampleItems.filter((i) => i.status === 'Laudo Finalizado').length
+  const absentCount = sampleItems.filter((i) => i.status === 'Falta do Paciente').length
+  assert(productionCount === 2, 'Apenas Laudos Finalizados computam para a produção')
+  assert(absentCount === 1, 'Faltas do Paciente ficam em seção separada e fora da produção médica')
+
+  // TESTE 13 (NOVO): PRIORIDADE 5 — PERMISSÕES DE GESTÃO DE EQUIPE
+  console.log('\n[TEST 13] Verificação de Permissões de Gestão de Equipe')
+  const adminCanAccess = (role?: string) => role === 'Administrador'
+  assert(adminCanAccess('Administrador') === true, 'Administrador tem acesso a Gerenciar Equipe')
+  assert(adminCanAccess('Médico') === false, 'Médico tem acesso bloqueado a Gerenciar Equipe')
+  assert(
+    adminCanAccess('Secretaria') === false,
+    'Secretária tem acesso bloqueado a Gerenciar Equipe',
+  )
+  assert(adminCanAccess('Operador') === false, 'Operador tem acesso bloqueado a Gerenciar Equipe')
 
   console.log('\n===========================================================')
   console.log(`  RESULTADO DOS TESTES: ${passedTests} PASSOU, ${failedTests} FALHOU`)

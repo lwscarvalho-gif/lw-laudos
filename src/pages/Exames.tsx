@@ -12,6 +12,7 @@ import {
   Calendar,
   User,
   FileCheck2,
+  FileText,
 } from 'lucide-react'
 import { examsService } from '@/services/exams'
 import { reportsService } from '@/services/reports'
@@ -272,11 +273,7 @@ export default function Exames() {
                         <div className="flex items-center justify-end gap-1.5">
                           {!hasReport && (
                             <Link
-                              to={
-                                ex.type.toLowerCase().includes('ultra')
-                                  ? `/laudos/ultrassom?exame=${ex.id}&paciente=${ex.patient_id}`
-                                  : `/laudos/novo?exame=${ex.id}`
-                              }
+                              to={`/laudos/ultrassom?exame=${ex.id}&paciente=${ex.patient_id}`}
                               title="Criar Laudo para este exame"
                               className="inline-flex items-center gap-1 text-xs text-white bg-[#0C6B58] hover:bg-[#0A5949] px-2.5 py-1 rounded-md font-medium transition shadow-xs"
                             >
@@ -343,11 +340,7 @@ export default function Exames() {
                         </Link>
                       ) : (
                         <Link
-                          to={
-                            ex.type.toLowerCase().includes('ultra')
-                              ? `/laudos/ultrassom?exame=${ex.id}&paciente=${ex.patient_id}`
-                              : `/laudos/novo?exame=${ex.id}`
-                          }
+                          to={`/laudos/ultrassom?exame=${ex.id}&paciente=${ex.patient_id}`}
                           className="px-2 py-1 text-xs bg-[#0C6B58] text-white rounded-md font-medium shadow-xs"
                         >
                           Criar Laudo

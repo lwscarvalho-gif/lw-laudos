@@ -24,6 +24,13 @@ export const reportsService = {
     }
   },
 
+  async getAll(): Promise<Report[]> {
+    return pb.collection('reports').getFullList<Report>({
+      sort: '-created',
+      expand: 'patient_id,exam_id,template_id',
+    })
+  },
+
   async getRecent(limit = 5): Promise<Report[]> {
     return pb
       .collection('reports')

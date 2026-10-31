@@ -85,6 +85,7 @@ import { useToast } from '@/hooks/use-toast'
 import { AppointmentVoucherModal } from '@/components/AppointmentVoucherModal'
 import { examPreparationsService } from '@/services/examPreparations'
 import { requestAnalysisService, ExtractedRequestData } from '@/services/requestAnalysis'
+import { ReferringPhysicianCombobox } from '@/components/ReferringPhysicianCombobox'
 
 // Default standard exam types for quick selection
 const COMMON_EXAM_TYPES = [
@@ -1872,11 +1873,11 @@ export default function Agenda() {
 
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Médico Solicitante</Label>
-                <Input
+                <ReferringPhysicianCombobox
                   value={formReferring}
-                  onChange={(e) => setFormReferring(e.target.value)}
-                  placeholder="Ex.: Dr. Carlos Eduardo / Pediatra"
-                  className="text-xs bg-white"
+                  onChange={setFormReferring}
+                  clinicLocation={formClinic}
+                  placeholder="Buscar solicitante existente ou cadastrar rápido..."
                 />
               </div>
             </div>

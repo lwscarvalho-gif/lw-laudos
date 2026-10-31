@@ -17,7 +17,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-
+import { ClinicProcedureSelect } from '@/components/ClinicProcedureSelect'
+import { ReferringPhysicianCombobox } from '@/components/ReferringPhysicianCombobox'
 const EXAM_TYPE_SUGGESTIONS = [
   'Ressonância Magnética',
   'Tomografia Computadorizada',
@@ -43,6 +44,9 @@ export default function ExameNovo() {
 
   const [patientId, setPatientId] = useState(prefilledPatientId)
   const [type, setType] = useState('')
+  const [procedureId, setProcedureId] = useState<string>('')
+  const [referringPhysician, setReferringPhysician] = useState<string>('')
+  const [clinicLocation, setClinicLocation] = useState<string>('HM Samuel Marques dos Santos')
   const [examDate, setExamDate] = useState(getLocalTodayYMD())
   const [status, setStatus] = useState<ExamStatus>('Pendente')
   const [indication, setIndication] = useState('')
@@ -81,6 +85,9 @@ export default function ExameNovo() {
       const created = await examsService.create({
         patient_id: patientId,
         type: type.trim(),
+        procedure_id: procedureId || undefined,
+        referring_physician: referringPhysician.trim() || undefined,
+        clinic_location: clinicLocation || undefined,
         exam_date: parseLocalYMDToISO(examDate),
         status,
         indication: indication.trim(),
@@ -165,25 +172,57 @@ export default function ExameNovo() {
             )}
           </div>
 
-          {/* Exam Type with datalist suggestions */}
+          {/* Unidade e Procedimento da Clínica (Fonte Única) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#1F2A27]">Unidade de Atendimento</Label>
+              <Select
+                value={clinicLocation}
+                onValueChange={(val) => {
+                  setClinicLocation(val)
+                  setType('')
+                  setProcedureId('')
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="HM Samuel Marques dos Santos">
+                    HM Samuel Marques dos Santos
+                  </SelectItem>
+                  <SelectItem value="Gastroimagem">Gastroimagem</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#1F2A27]">
+                Procedimento Ativo da Unidade *
+              </Label>
+              <ClinicProcedureSelect
+                clinicLocation={clinicLocation}
+                value={type}
+                onChange={(procName, procObj) => {
+                  setType(procName)
+                  if (procObj) {
+                    setProcedureId(procObj.id)
+                  }
+                }}
+              />
+              {fieldErrors.type && <p className="text-xs text-[#DC2626]">{fieldErrors.type}</p>}
+            </div>
+          </div>
+
+          {/* Médico Solicitante com busca normalizada e cadastro rápido */}
           <div className="space-y-1.5">
-            <Label htmlFor="exam_type" className="text-xs font-semibold text-[#1F2A27]">
-              Tipo de Exame *
-            </Label>
-            <Input
-              id="exam_type"
-              list="exam-type-suggestions"
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              placeholder="Digite ou selecione (ex.: Ressonância Magnética, Ultrassom...)"
-              className={fieldErrors.type ? 'border-red-500' : ''}
+            <Label className="text-xs font-semibold text-[#1F2A27]">Médico Solicitante</Label>
+            <ReferringPhysicianCombobox
+              value={referringPhysician}
+              onChange={setReferringPhysician}
+              clinicLocation={clinicLocation}
+              placeholder="Buscar por nome (ignora acentos/maiúsculas) ou cadastrar rápido..."
             />
-            <datalist id="exam-type-suggestions">
-              {EXAM_TYPE_SUGGESTIONS.map((sug) => (
-                <option key={sug} value={sug} />
-              ))}
-            </datalist>
-            {fieldErrors.type && <p className="text-xs text-[#DC2626]">{fieldErrors.type}</p>}
           </div>
 
           {/* Date and Status */}

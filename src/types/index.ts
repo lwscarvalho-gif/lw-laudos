@@ -125,6 +125,7 @@ export type AppointmentStatus =
   | 'Em atendimento'
   | 'Realizado'
   | 'Cancelado'
+  | 'Falta'
 
 export interface Appointment extends RecordModel {
   id: string
