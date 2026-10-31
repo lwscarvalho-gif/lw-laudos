@@ -1,0 +1,109 @@
+name: Release Windows Installer (Offline NSIS)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      pocketbase_version:
+        description: 'Versão do PocketBase oficial'
+        required: false
+        default: '0.22.20'
+      llama_version:
+        description: 'Release tag do llama.cpp'
+        required: false
+        default: 'b3600'
+      download_sample_model:
+        description: 'Baixar modelo ultrassom GGUF leve (Qwen2.5-0.5B-Instruct Q4_K_M) para teste'
+        type: boolean
+        default: false
+
+jobs:
+  build-windows:
+    name: Build Windows x64 NSIS Installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalar Rust estável (MSVC x64)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Cargo / Rust
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Baixar e posicionar PocketBase oficial para Windows (Sidecar)
+        shell: pwsh
+        run: |
+          $pbVersion = "${{ github.event.inputs.pocketbase_version || '0.22.20' }}"
+          Write-Host "Baixando PocketBase oficial v$pbVersion..."
+          New-Item -ItemType Directory -Force -Path "src-tauri/binaries"
+          $zipUrl = "https://github.com/pocketbase/pocketbase/releases/download/v$pbVersion/pocketbase_${pbVersion}_windows_amd64.zip"
+          Invoke-WebRequest -Uri $zipUrl -OutFile "pocketbase.zip"
+          Expand-Archive -Path "pocketbase.zip" -DestinationPath "pb_extracted" -Force
+          Copy-Item -Path "pb_extracted/pocketbase.exe" -Destination "src-tauri/binaries/pocketbase-x86_64-pc-windows-msvc.exe" -Force
+          Remove-Item -Recurse -Force "pocketbase.zip", "pb_extracted"
+          Write-Host "[OK] PocketBase sidecar posicionado com sucesso em src-tauri/binaries/pocketbase-x86_64-pc-windows-msvc.exe"
+
+      - name: Baixar binário oficial do llama.cpp (llama-server) para Windows
+        shell: pwsh
+        run: |
+          $llamaVer = "${{ github.event.inputs.llama_version || 'b3600' }}"
+          Write-Host "Baixando llama-server Windows x64 release $llamaVer..."
+          $llamaUrl = "https://github.com/ggerganov/llama.cpp/releases/download/$llamaVer/llama-$llamaVer-bin-win-avx2-x64.zip"
+          try {
+            Invoke-WebRequest -Uri $llamaUrl -OutFile "llama.zip"
+            Expand-Archive -Path "llama.zip" -DestinationPath "llama_extracted" -Force
+            New-Item -ItemType Directory -Force -Path "src-tauri/binaries/llama"
+            Copy-Item -Path "llama_extracted/*" -Destination "src-tauri/binaries/llama/" -Recurse -Force
+            Remove-Item -Recurse -Force "llama.zip", "llama_extracted"
+            Write-Host "[OK] llama-server posicionado em src-tauri/binaries/llama/"
+          } catch {
+            Write-Host "[AVISO] Falha ao baixar pacote específico do llama.cpp ($llamaUrl). O app continuará com o motor heurístico integrado e suporte a servidor externo."
+          }
+
+      - name: Instalar dependências npm do frontend
+        run: npm ci
+
+      - name: Compilar frontend React + Vite
+        run: npm run build
+
+      - name: Compilar instalador Tauri 2 (NSIS)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'LW Laudos ${{ github.ref_name }}'
+          releaseBody: 'Instalador desktop Windows oficial offline para o LW LAUDOS com PocketBase embarcado.'
+          releaseDraft: true
+          prerelease: false
+
+      - name: Upload artefato do instalador gerado
+        uses: actions/upload-artifact@v4
+        with:
+          name: lw-laudos-windows-installer
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: warn

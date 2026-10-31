@@ -224,7 +224,7 @@ export function DigitalSignatureCard() {
               htmlFor="digital_sig_switch"
               className="text-xs font-semibold text-[#1F2A27] cursor-pointer select-none"
             >
-              {isEnabled ? 'Ativa' : 'Inativa'}
+              {isEnabled ? 'Provedor Conectado' : 'Provedor Desconectado'}
             </label>
             <Switch
               id="digital_sig_switch"

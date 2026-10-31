@@ -331,7 +331,7 @@ export default function Layout() {
                       ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
                       : 'bg-white text-[#1F2A27] border-[#D6DDD9] hover:bg-[#F7F9F8]'
                 }`}
-                title="Gerenciar ativação do certificado de assinatura digital"
+                title="Status do provedor de assinatura digital do médico (Bird ID, VIDaaS ou A1)"
               >
                 <Shield
                   className={`w-3.5 h-3.5 ${
@@ -342,8 +342,14 @@ export default function Layout() {
                         : 'text-[#8A9691]'
                   }`}
                 />
-                <span className="hidden sm:inline">Assinatura digital ·</span>
-                <span>{isSigActive ? 'ativa' : sigEval.isExpired ? 'expirada' : 'ativar'}</span>
+                <span className="hidden sm:inline">Provedor de assinatura:</span>
+                <span>
+                  {isSigActive
+                    ? `conectado (${sigEval.session?.providerLabel || 'Ativo'})`
+                    : sigEval.isExpired
+                      ? 'sessão expirada'
+                      : 'não conectado'}
+                </span>
               </button>
             )}
 

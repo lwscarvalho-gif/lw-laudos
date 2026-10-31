@@ -16,8 +16,9 @@ export const adminService = {
     assigned_doctor?: string
     allowed_clinics?: string[]
   }): Promise<Invitation> {
-    const token =
-      Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+    const randomBytes = new Uint8Array(24)
+    crypto.getRandomValues(randomBytes)
+    const token = Array.from(randomBytes, (b) => b.toString(16).padStart(2, '0')).join('')
     // 7 days expiration
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7)
@@ -36,8 +37,9 @@ export const adminService = {
   },
 
   async resendInvitation(id: string): Promise<Invitation> {
-    const token =
-      Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+    const randomBytes = new Uint8Array(24)
+    crypto.getRandomValues(randomBytes)
+    const token = Array.from(randomBytes, (b) => b.toString(16).padStart(2, '0')).join('')
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7)
 

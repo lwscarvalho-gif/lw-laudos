@@ -340,7 +340,15 @@ export default function LaudoDetalhes() {
           </Button>
           <div>
             <h1 className="text-xl font-bold text-[#1F2A27]">Visualização de Laudo</h1>
-            <p className="text-xs text-[#5F6E69]">Documento médico oficial assinado digitalmente</p>
+            <p className="text-xs text-[#5F6E69]">
+              {report.signature_status?.includes('ICP-Brasil')
+                ? 'Documento médico oficial assinado digitalmente (ICP-Brasil)'
+                : report.signature_status === 'Assinado'
+                  ? `Documento assinado (${report.signature_provider || 'Identificação Profissional'})`
+                  : report.status === 'Rascunho' || report.is_draft
+                    ? 'Documento em elaboração (Rascunho não assinado)'
+                    : 'Documento concluído sem assinatura digital homologada'}
+            </p>
           </div>
         </div>
 

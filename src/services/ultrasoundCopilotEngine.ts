@@ -125,7 +125,7 @@ export class UltrasoundCopilotEngine {
     if (correctedCount > 0 && correctedText !== trimmed) {
       const pres = validateClinicalPreservation(trimmed, correctedText)
       suggestions.push({
-        id: `sug_spell_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        id: `sug_spell_${Date.now()}_${Math.floor(Date.now() % 10000)}`,
         category: 'redacao',
         title: 'Ajuste de Acentuação e Terminologia Ecográfica',
         explanation: 'Correção de grafia e padronização dos termos ultrassonográficos.',

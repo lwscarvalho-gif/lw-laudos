@@ -51,6 +51,7 @@ export function PatientReportHistoryPanel({
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
   const [selectedReportImages, setSelectedReportImages] = useState<ExamImage[]>([])
   const [loadingImages, setLoadingImages] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Copy feedback state: mapping of piece identifier to boolean
   const [copiedKeys, setCopiedKeys] = useState<Record<string, boolean>>({})
@@ -250,80 +251,109 @@ export function PatientReportHistoryPanel({
             </p>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col lg:flex-row min-h-0 divide-y lg:divide-y-0 lg:divide-x divide-[#E5E9E7]">
-            {/* Left list of prior reports (compact selector) */}
-            <div className="w-full lg:w-72 shrink-0 bg-white flex flex-col min-h-0">
-              {/* Search bar inside prior reports */}
-              <div className="p-3 border-b border-[#E5E9E7] shrink-0">
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[#8A9691]" />
-                  <Input
-                    placeholder="Filtrar por tipo ou texto..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="h-8 pl-8 text-xs"
-                  />
+          <div className="flex-1 flex flex-col lg:flex-row min-h-0 divide-y lg:divide-y-0 lg:divide-x divide-[#E5E9E7] overflow-hidden">
+            {/* Left list of prior reports (compact selector, collapsible to give 100% space to document) */}
+            {sidebarCollapsed ? (
+              <div className="w-10 bg-white flex flex-col items-center py-3 border-r border-[#E5E9E7] shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSidebarCollapsed(false)}
+                  className="p-1.5 text-[#0C6B58] hover:bg-[#E8F3F0] rounded-md transition"
+                  title="Expandir lista de exames anteriores"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <div
+                  className="mt-6 text-[10px] font-bold text-[#8A9691] tracking-wider uppercase"
+                  style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+                >
+                  Exames ({reports.length})
                 </div>
               </div>
-
-              {/* Reports scrollable list */}
-              <div className="flex-1 overflow-y-auto divide-y divide-[#E5E9E7]">
-                {filteredReports.length === 0 ? (
-                  <div className="p-6 text-center text-xs text-[#8A9691]">
-                    Nenhum laudo corresponde ao filtro.
+            ) : (
+              <div className="w-full lg:w-64 shrink-0 bg-white flex flex-col min-h-0">
+                {/* Search bar inside prior reports */}
+                <div className="p-2.5 border-b border-[#E5E9E7] shrink-0 flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[#8A9691]" />
+                    <Input
+                      placeholder="Filtrar exames..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="h-8 pl-8 text-xs"
+                    />
                   </div>
-                ) : (
-                  filteredReports.map((rep) => {
-                    const isSelected = rep.id === selectedReportId
-                    const dateStr = formatDateBR(rep.created)
-                    const isFinal = rep.status === 'Finalizado'
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSidebarCollapsed(true)}
+                    className="h-8 w-8 text-[#5F6E69] hover:text-[#1F2A27] shrink-0 hidden lg:inline-flex"
+                    title="Recolher lista para expandir visualização do documento"
+                  >
+                    <ChevronUp className="w-4 h-4 rotate-270 lg:-rotate-90" />
+                  </Button>
+                </div>
 
-                    return (
-                      <button
-                        key={rep.id}
-                        type="button"
-                        onClick={() => setSelectedReportId(rep.id)}
-                        className={`w-full text-left p-3 transition flex flex-col gap-1.5 ${
-                          isSelected
-                            ? 'bg-[#E8F3F0] border-l-4 border-[#0C6B58]'
-                            : 'hover:bg-[#FAFBFB]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-1 text-[11px]">
-                          <span className="font-mono text-[#5F6E69] flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-[#0C6B58]" />
-                            {dateStr}
-                          </span>
-                          <span
-                            className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
-                              isFinal
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {rep.status || 'Rascunho'}
-                          </span>
-                        </div>
+                {/* Reports scrollable list */}
+                <div className="flex-1 overflow-y-auto divide-y divide-[#E5E9E7]">
+                  {filteredReports.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-[#8A9691]">
+                      Nenhum laudo corresponde ao filtro.
+                    </div>
+                  ) : (
+                    filteredReports.map((rep) => {
+                      const isSelected = rep.id === selectedReportId
+                      const dateStr = formatDateBR(rep.created)
+                      const isFinal = rep.status === 'Finalizado'
 
-                        <span className="text-xs font-bold text-[#1F2A27] line-clamp-1">
-                          {rep.title || 'Laudo sem título'}
-                        </span>
+                      return (
+                        <button
+                          key={rep.id}
+                          type="button"
+                          onClick={() => setSelectedReportId(rep.id)}
+                          className={`w-full text-left p-3 transition flex flex-col gap-1.5 ${
+                            isSelected
+                              ? 'bg-[#E8F3F0] border-l-4 border-[#0C6B58]'
+                              : 'hover:bg-[#FAFBFB]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1 text-[11px]">
+                            <span className="font-mono text-[#5F6E69] flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-[#0C6B58]" />
+                              {dateStr}
+                            </span>
+                            <span
+                              className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
+                                isFinal
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {rep.status || 'Rascunho'}
+                            </span>
+                          </div>
 
-                        <div className="flex items-center justify-between text-[10px] text-[#5F6E69]">
-                          <span className="truncate">{rep.exam_type || 'Ultrassonografia'}</span>
-                          <span className="text-[#0C6B58] font-semibold flex items-center gap-0.5">
-                            Ver íntegra →
+                          <span className="text-xs font-bold text-[#1F2A27] line-clamp-1">
+                            {rep.title || 'Laudo sem título'}
                           </span>
-                        </div>
-                      </button>
-                    )
-                  })
-                )}
+
+                          <div className="flex items-center justify-between text-[10px] text-[#5F6E69]">
+                            <span className="truncate">{rep.exam_type || 'Ultrassonografia'}</span>
+                            <span className="text-[#0C6B58] font-semibold flex items-center gap-0.5">
+                              Ver íntegra →
+                            </span>
+                          </div>
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Right: Full inspection of the selected report */}
-            <div className="flex-1 flex flex-col min-h-0 bg-[#FAFBFB] overflow-y-auto">
+            <div className="flex-1 flex flex-col min-h-0 bg-[#FAFBFB] overflow-y-auto overflow-x-hidden">
               {selectedReport ? (
                 <div className="p-5 space-y-5 select-text">
                   {/* Selected report top card */}

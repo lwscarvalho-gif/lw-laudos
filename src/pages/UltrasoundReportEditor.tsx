@@ -1523,9 +1523,9 @@ export default function UltrasoundReportEditor() {
 
       {/* Split Screen Container: if splitScreenHistoryOpen is true, layout becomes 2 equal columns (50% editor, 50% history panel); otherwise standard 75% editor, 25% side column */}
       {splitScreenHistoryOpen ? (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start w-full max-w-full">
           {/* Lado Esquerdo: Editor do Laudo Atual (50% da tela) */}
-          <div className="space-y-6 min-w-0">
+          <div className="space-y-6 min-w-0 w-full overflow-hidden">
             {/* Metadata Card: Patient, Exam, Title */}
             <div className="bg-white p-5 rounded-xl border border-[#E5E9E7] shadow-sm space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1768,6 +1768,25 @@ export default function UltrasoundReportEditor() {
                           placeholder={`Achados de ${section.label}...`}
                           className="text-xs leading-relaxed font-sans"
                         />
+
+                        {/* Copiloto discreto no modo split */}
+                        <ActiveCopilotWidget
+                          suggestions={copilotSuggestionsByOrgan[section.id] || []}
+                          organLabel={section.label}
+                          onApply={(sug) => {
+                            requestInsertText(section.id, sug.suggestedText)
+                            setCopilotSuggestionsByOrgan((prev) => ({
+                              ...prev,
+                              [section.id]: (prev[section.id] || []).filter((s) => s.id !== sug.id),
+                            }))
+                          }}
+                          onDismiss={(sugId) => {
+                            setCopilotSuggestionsByOrgan((prev) => ({
+                              ...prev,
+                              [section.id]: (prev[section.id] || []).filter((s) => s.id !== sugId),
+                            }))
+                          }}
+                        />
                       </div>
                     )
                   })}
@@ -1847,7 +1866,7 @@ export default function UltrasoundReportEditor() {
           </div>
 
           {/* Lado Direito: Painel de Histórico de Laudos Anteriores da Paciente (50% da tela) */}
-          <div className="sticky top-4 h-[calc(100vh-100px)] min-w-0">
+          <div className="sticky top-4 h-[calc(100vh-100px)] min-w-0 w-full overflow-hidden">
             <PatientReportHistoryPanel
               patientId={patientId}
               currentReportId={currentReportId}
