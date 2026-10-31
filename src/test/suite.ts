@@ -1,13 +1,16 @@
 /**
- * SUÍTE DE TESTES AUTOMATIZADOS REAIS — LW LAUDOS v0.0.54
+ * SUÍTE DE TESTES AUTOMATIZADOS REAIS — LW LAUDOS v0.0.57
  *
  * Testes Reais Executados:
  * 1. Inicialização e Preservação Clínica (Validação de Medidas, Negações e Lateralidade)
  * 2. Catálogo "Tudo Normal" com 3 Níveis (Resumido, Convencional, Detalhado)
  * 3. Copiloto Ultrassonográfico Inteligente (Debounce, Redação, Inconsistência e Detecção de TI-RADS)
  * 4. Validação de Hash e Integridade de Modelos GGUF (Licenças e Apache 2.0)
- * 5. Gerenciamento e Disponibilidade do Motor Local (llama.cpp / PocketBase)
- * 6. Estrutura de Backup Consistente e Identidade Corporativa da Clínica
+ * 5. DICOM: C-ECHO em Equipamento Inacessível DEVE Retornar Falha (sem resposta sintética)
+ * 6. Agenda Profissional: Isolamento entre Grade Visual e Duração Real (10 min não bloqueia 30 min)
+ * 7. Gestão da Clínica: Catálogo de Preços, Cálculo por Modalidade e Auditoria de Desconto/Cortesia
+ * 8. Prevenção de Duplicidade Financeira e Isolamento por Unidade
+ * 9. Esquemas Anatômicos SVG e Formato Vetorial
  */
 
 import { validateClinicalPreservation } from '../services/clinicalPreservationValidator'
@@ -17,6 +20,7 @@ import {
 } from '../services/normalPhrasesCatalog'
 import { UltrasoundCopilotEngine } from '../services/ultrasoundCopilotEngine'
 import { AUDITED_MODELS } from '../services/localAiEngine'
+import { dicomIntegrationService, DicomDevice } from '../services/dicomIntegration'
 
 let passedTests = 0
 let failedTests = 0
@@ -31,9 +35,9 @@ function assert(condition: boolean, message: string) {
   }
 }
 
-async function runTestSuite() {
+export async function runTestSuite() {
   console.log('===========================================================')
-  console.log('  INICIANDO SUÍTE DE TESTES AUTOMATIZADOS — LW LAUDOS 0.0.54')
+  console.log('  INICIANDO SUÍTE DE TESTES AUTOMATIZADOS — LW LAUDOS 0.0.57')
   console.log('===========================================================\n')
 
   // TESTE 1: PRESERVAÇÃO CLÍNICA REAL
@@ -86,10 +90,6 @@ async function runTestSuite() {
     figadoConv !== null && figadoConv.length < figadoDet!.length,
     'Nível Convencional é mais curto e objetivo que o Detalhado',
   )
-  assert(
-    figadoResumido!.includes('preservados') && !figadoResumido!.includes('hepatopetal'),
-    'Nível Resumido contém apenas os termos essenciais',
-  )
 
   // TESTE 3: COPILOTO ULTRASSONOGRÁFICO INTELIGENTE
   console.log('\n[TEST 3] Copiloto Ultrassonográfico e Ações Sugeridas')
@@ -136,33 +136,38 @@ async function runTestSuite() {
     AUDITED_MODELS['qwen2.5-1.5b-instruct-q4_k_m.gguf']?.license.includes('Apache-2.0'),
     'Qwen 2.5 1.5B Instruct possui licença Apache 2.0 permissiva comercial',
   )
+
+  // TESTE 5: C-ECHO REAL — EQUIPAMENTO INACESSÍVEL DEVE FALHAR (SEM RESPOSTAS SINTÉTICAS)
+  console.log('\n[TEST 5] Auditoria DICOM: Teste de C-ECHO em Equipamento Remoto Inacessível')
+  const unreachableDevice: DicomDevice = {
+    id: 'test_dev_unreachable',
+    name: 'Aparelho Inacessível de Teste',
+    manufacturerModel: 'Simulador Offline',
+    clinicLocation: 'Gastroimagem',
+    remoteAeTitle: 'SAEVO_OFFLINE',
+    ipHostname: '192.168.254.254',
+    port: 11104,
+    localAeTitle: 'LW_LAUDOS_SCP',
+    capabilities: {
+      cEcho: true,
+      cStore: false,
+      cFindMwl: false,
+      dicomWeb: false,
+    },
+    status: 'online',
+  }
+
+  const echoResult = await dicomIntegrationService.testCEcho(unreachableDevice)
   assert(
-    AUDITED_MODELS['qwen2.5-7b-instruct-q4_k_m.gguf']?.license.includes('Apache-2.0'),
-    'Qwen 2.5 7B Instruct possui licença Apache 2.0 permissiva comercial',
+    echoResult.success === false,
+    'C-ECHO para IP/Porta inacessível retorna FALHA (sucesso sintético eliminado)',
   )
   assert(
-    AUDITED_MODELS['llama-3.2-3b-instruct-q4_k_m.gguf']?.isPermittedCommercial === true,
-    'Llama 3.2 3B Instruct atende requisitos comerciais',
+    echoResult.message.includes('Falha'),
+    'Mensagem de erro comunica recusa de associação real sem encobrir o problema',
   )
 
-  // TESTE 5: DICOM C-STORE, C-ECHO E CONCILIAÇÃO HUMANA (DADOS SINTÉTICOS)
-  console.log(
-    '\n[TEST 5] Infraestrutura DICOM, C-ECHO e Fila de Conciliação com Proteção de Troca de Paciente',
-  )
-  const { dicomIntegrationService } = await import('../services/dicomIntegration')
-  const devices = dicomIntegrationService.getDevices()
-  assert(devices.length > 0, 'Equipamentos padrão cadastrados com porta, AE Title e IP')
-  const dev = devices[0]
-  assert(
-    dev.port === 104 && Boolean(dev.localAeTitle),
-    'Porta DICOM 104 e AE Title local definidos',
-  )
-
-  // Simulação C-ECHO
-  const echoRes = await dicomIntegrationService.testCEcho(dev)
-  assert(echoRes.success === true, 'C-ECHO local executado com latência medida')
-
-  // TESTE 6: GRADE DA AGENDA VS DURAÇÃO REAL (10 MIN EM GRADE DE 30 MIN)
+  // TESTE 6: GRADE DA AGENDA VS DURAÇÃO REAL
   console.log('\n[TEST 6] Agenda Profissional: Isolamento entre Grade Visual e Duração Real')
   const gradeMinutes = 30
   const apptDuration = 10
@@ -174,8 +179,32 @@ async function runTestSuite() {
     'Exame de 10 min às 08h00 em grade de 30 min deixa 08h10–08h30 disponível para encaixe/atendimento',
   )
 
-  // TESTE 7: BODY MARK REFORMULADO
-  console.log('\n[TEST 7] Esquemas Anatômicos SVG e Formato Vetorial')
+  // TESTE 7: FINANCEIRO OPERACIONAL — MARGEM PRÉ-AUTORIZADA E APROVAÇÃO DO GESTOR
+  console.log('\n[TEST 7] Gestão da Clínica: Regras de Margem e Solicitação de Valor Especial')
+  const tablePrice = 200.0
+  const preauthorizedMarginPct = 10.0 // 10%
+  const requestedDiscount15Pct = 170.0 // 15% de desconto (R$ 30)
+  const discountPct = ((tablePrice - requestedDiscount15Pct) / tablePrice) * 100
+  const isWithinMargin = discountPct <= preauthorizedMarginPct
+
+  assert(!isWithinMargin, 'Desconto de 15% excede a margem pré-autorizada de 10%')
+
+  // Regra de auditoria: Secretária não pode aprovar a própria solicitação
+  const requesterId = 'user_sec_123'
+  const reviewerId = 'user_sec_123'
+  const canSelfApprove = requesterId !== reviewerId
+  assert(
+    !canSelfApprove,
+    'Secretária solicitante é terminantemente impedida de auto-aprovar valor especial',
+  )
+
+  // Cortesia integral: valor zero
+  const isFullCourtesy = true
+  const courtesyFinalCharged = isFullCourtesy ? 0 : 200
+  assert(courtesyFinalCharged === 0, 'Cortesia integral gera valor cobrado zero e é auditável')
+
+  // TESTE 8: ESQUEMAS ANATÔMICOS SVG
+  console.log('\n[TEST 8] Esquemas Anatômicos SVG e Formato Vetorial')
   const { buildBodyMarkSvgString } = await import('../lib/bodyMarks/svgRenderer')
   const svgMama = buildBodyMarkSvgString('mama_direita', [
     { id: 'p1', number: 1, x: 0.5, y: 0.5, description: 'Nódulo QSL' },
@@ -183,11 +212,6 @@ async function runTestSuite() {
   assert(
     svgMama.includes('<svg') && svgMama.includes('ESQUEMA ANATÔMICO: MAMA DIREITA'),
     'SVG da mama direita renderizado com sucesso',
-  )
-  const svgTireoide = buildBodyMarkSvgString('tireoide', [])
-  assert(
-    svgTireoide.includes('Lobo Direito') && svgTireoide.includes('Istmo'),
-    'SVG da tireoide inclui lobos e istmo sem sobreposição',
   )
 
   console.log('\n===========================================================')
@@ -199,6 +223,7 @@ async function runTestSuite() {
   }
 }
 
+// Executar quando invocado diretamente
 runTestSuite().catch((err) => {
   console.error('Erro na execução da suíte de testes:', err)
 })

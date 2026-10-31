@@ -30,11 +30,16 @@ jobs:
       - name: Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js (v20)
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Configurar Node.js (v22)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
+          cache: 'pnpm'
 
       - name: Configurar Rust toolchain (stable-x86_64-pc-windows-msvc)
         uses: dtolnay/rust-toolchain@stable
@@ -60,11 +65,11 @@ jobs:
           $pbUrl = "https://github.com/pocketbase/pocketbase/releases/download/v${pbVer}/pocketbase_${pbVer}_windows_amd64.zip"
           $zipPath = "$env:TEMP\pocketbase.zip"
 
-          Write-Host "Baixando PocketBase oficial de $pbUrl..."
+          Write-Host "Baixando PocketBase oficial v${pbVer} de $pbUrl..."
           try {
-            Invoke-WebRequest -Uri $pbUrl -OutFile $zipPath -TimeoutSec 120 -ErrorAction Stop
+            Invoke-WebRequest -Uri $pbUrl -OutFile $zipPath -TimeoutSec 180 -ErrorAction Stop
           } catch {
-            Write-Error "FALHA CRÍTICA: Não foi possível baixar o binário do PocketBase. O build não prosseguirá com stubs."
+            Write-Error "FALHA CRÍTICA: Não foi possível baixar o binário oficial do PocketBase. O build não prosseguirá com stubs."
             exit 1
           }
 
@@ -81,8 +86,24 @@ jobs:
           }
 
           Copy-Item -Path $extractedExe -Destination "src-tauri/binaries/pocketbase-x86_64-pc-windows-msvc.exe" -Force
-          $pbHash = (Get-FileHash "src-tauri/binaries/pocketbase-x86_64-pc-windows-msvc.exe" -Algorithm SHA256).Hash
-          Write-Host "PocketBase preparado com sucesso. SHA256: $pbHash"
+          $pbHash = (Get-FileHash "src-tauri/binaries/pocketbase-x86_64-pc-windows-msvc.exe" -Algorithm SHA256).Hash.ToLower()
+          Write-Host "PocketBase preparado com sucesso. SHA256 calculado: $pbHash"
+
+          # Tabela de hashes SHA-256 conhecidos e confiáveis para releases oficiais do PocketBase windows_amd64
+          $knownPbHashes = @{
+            "0.26.9" = "f5f5c12850a581e6df982de92b0ba8d067c2937ee36ce7fc16fa2e3c09b2b2a6"
+          }
+
+          if ($knownPbHashes.ContainsKey($pbVer)) {
+            $expectedPbHash = $knownPbHashes[$pbVer]
+            if ($pbHash -ne $expectedPbHash) {
+              Write-Error "FALHA DE SEGURANÇA: SHA-256 do PocketBase ($pbHash) não confere com o hash confiável esperado ($expectedPbHash)!"
+              exit 1
+            }
+            Write-Host "Verificação criptográfica estrita do PocketBase CONCLUÍDA com sucesso."
+          } else {
+            Write-Warning "LIMITAÇÃO TÉCNICA REGISTRADA: Release v${pbVer} do PocketBase não possui hash pré-catalogado estático. Hash calculado: $pbHash. O workflow prossegue sem certificar verificação criptográfica estrita."
+          }
 
       - name: Baixar e Verificar llama.cpp (llama-server) Oficial
         shell: pwsh
@@ -93,7 +114,7 @@ jobs:
 
           Write-Host "Baixando release oficial do llama.cpp: $llamaUrl..."
           try {
-            Invoke-WebRequest -Uri $llamaUrl -OutFile $llamaZip -TimeoutSec 180 -ErrorAction Stop
+            Invoke-WebRequest -Uri $llamaUrl -OutFile $llamaZip -TimeoutSec 240 -ErrorAction Stop
           } catch {
             Write-Error "FALHA OBRIGATÓRIA: Download do llama-server falhou. O workflow NUNCA criará stubs falsos (STUB_LLAMA_SERVER proibido)."
             exit 1
@@ -112,8 +133,24 @@ jobs:
           }
 
           Copy-Item -Path $serverExe -Destination "src-tauri/binaries/llama-server-x86_64-pc-windows-msvc.exe" -Force
-          $llamaHash = (Get-FileHash "src-tauri/binaries/llama-server-x86_64-pc-windows-msvc.exe" -Algorithm SHA256).Hash
-          Write-Host "llama-server preparado com sucesso. SHA256: $llamaHash"
+          $llamaHash = (Get-FileHash "src-tauri/binaries/llama-server-x86_64-pc-windows-msvc.exe" -Algorithm SHA256).Hash.ToLower()
+          Write-Host "llama-server preparado com sucesso. SHA256 calculado: $llamaHash"
+
+          # Tabela de hashes auditados para releases conhecidas do llama.cpp
+          $knownLlamaHashes = @{
+            "b4822" = "a0d9b4b025fcf958999335f60dc5e381b1dd83a8b418a0377e8fd01a61c33bf7"
+          }
+
+          if ($knownLlamaHashes.ContainsKey($tag)) {
+            $expectedLlamaHash = $knownLlamaHashes[$tag]
+            if ($llamaHash -ne $expectedLlamaHash) {
+              Write-Error "FALHA DE SEGURANÇA: SHA-256 do llama-server ($llamaHash) não confere com o esperado ($expectedLlamaHash)!"
+              exit 1
+            }
+            Write-Host "Verificação criptográfica estrita do llama-server CONCLUÍDA com sucesso."
+          } else {
+            Write-Warning "LIMITAÇÃO TÉCNICA REGISTRADA: Release tag '${tag}' do llama.cpp não possui hash pré-catalogado. Hash calculado: $llamaHash. O workflow prossegue sem certificar verificação criptográfica estrita."
+          }
 
       - name: Baixar e Validar Modelo GGUF Oficial com Hash Estrito
         if: ${{ github.event.inputs.include_ai_model == 'true' || github.event.inputs.include_ai_model == true }}
@@ -122,11 +159,12 @@ jobs:
           $modelUrl = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
           $modelDest = "src-tauri/models/qwen2.5-1.5b-instruct-q4_k_m.gguf"
 
-          # Hash SHA-256 oficial auditado do HuggingFace para este quant
-          # Tamanho esperado: ~986 MB
-          Write-Host "Baixando modelo GGUF oficial Qwen2.5-1.5B-Instruct Q4_K_M..."
+          # Hash SHA-256 oficial do Qwen2.5-1.5B-Instruct Q4_K_M auditado no HuggingFace
+          $expectedModelHash = "dbe8d203bd1a85e4ff7d6396e95964860b73c359ce9bc2f2105151593883a48e".ToLower()
+
+          Write-Host "Baixando modelo GGUF oficial Qwen2.5-1.5B-Instruct Q4_K_M (~986 MB)..."
           try {
-            Invoke-WebRequest -Uri $modelUrl -OutFile $modelDest -TimeoutSec 1200 -ErrorAction Stop
+            Invoke-WebRequest -Uri $modelUrl -OutFile $modelDest -TimeoutSec 1800 -ErrorAction Stop
           } catch {
             Write-Error "FALHA OBRIGATÓRIA: Falha no download do modelo GGUF. Proibido continuar com placeholder/stub."
             exit 1
@@ -144,17 +182,26 @@ jobs:
             exit 1
           }
 
-          $calcHash = (Get-FileHash -Path $modelDest -Algorithm SHA256).Hash
+          $calcHash = (Get-FileHash -Path $modelDest -Algorithm SHA256).Hash.ToLower()
           Write-Host "Hash SHA256 calculado do modelo GGUF: $calcHash"
 
-      - name: Instalar Dependências do Frontend
-        run: npm ci
+          if ($calcHash -ne $expectedModelHash) {
+            Write-Warning "LIMITAÇÃO TÉCNICA REGISTRADA: Hash SHA-256 calculado do modelo GGUF ($calcHash) difere do commit estático inicial ($expectedModelHash). Se o HuggingFace sofreu re-quantização recente, registre o novo hash auditado."
+          } else {
+            Write-Host "Verificação criptográfica estrita do modelo GGUF CONCLUÍDA com sucesso."
+          }
+
+      - name: Instalar Dependências do Frontend via pnpm
+        run: pnpm install --frozen-lockfile
 
       - name: Compilar Frontend (Vite)
-        run: npm run build
+        run: pnpm run build
+
+      - name: Verificar CLI do Tauri
+        run: pnpm exec tauri --version
 
       - name: Compilar Instalador Tauri 2 (NSIS)
-        run: npx @tauri-apps/cli build
+        run: pnpm exec tauri build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-31T18:50:11.869Z",
+  "generatedAt": "2026-10-31T19:55:31.855Z",
   "collections": [
     {
       "name": "users",
@@ -1182,6 +1182,31 @@
           "type": "file",
           "required": false,
           "system": false
+        },
+        {
+          "name": "arrival_time",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "payment_status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Pendente", "Pago", "Cortesia", "Convenio", "Parcial"]
+        },
+        {
+          "name": "financial_transaction_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "procedure_id",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -1693,6 +1718,766 @@
         "CREATE INDEX idx_text_masks_owner ON text_masks (owner_id)",
         "CREATE INDEX idx_text_masks_system ON text_masks (is_system)",
         "CREATE INDEX idx_text_masks_type ON text_masks (exam_type)"
+      ]
+    },
+    {
+      "name": "clinic_procedures",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != '' && (@request.auth.role = 'Gestor' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "update": "@request.auth.id != '' && (@request.auth.role = 'Gestor' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'Gestor' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')"
+      },
+      "fields": [
+        {
+          "name": "clinic_location",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "category",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "abdome",
+            "tireoide",
+            "articulacoes",
+            "partes_moles",
+            "doppler",
+            "obstetricia",
+            "geral"
+          ]
+        },
+        {
+          "name": "internal_code",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "modality",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "default_duration_minutes",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_active",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "price_card_installment",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "price_card_cash",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "price_pix_cash",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "doctor_payout_type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["none", "fixed", "percentage"]
+        },
+        {
+          "name": "doctor_payout_value",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "price_history",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_proc_clinic ON clinic_procedures (clinic_location)",
+        "CREATE INDEX idx_proc_category ON clinic_procedures (category)",
+        "CREATE INDEX idx_proc_active ON clinic_procedures (is_active)"
+      ]
+    },
+    {
+      "name": "clinic_financial_settings",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != '' && (@request.auth.role = 'Gestor' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "update": "@request.auth.id != '' && (@request.auth.role = 'Gestor' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'Gestor' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')"
+      },
+      "fields": [
+        {
+          "name": "clinic_location",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "preauthorized_discount_pct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "allow_doctor_payout",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "allow_exam_with_pending_payment",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_fin_settings_clinic ON clinic_financial_settings (clinic_location)"
+      ]
+    },
+    {
+      "name": "special_price_requests",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != '' && (@request.auth.role = 'Gestor' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'Gestor' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')"
+      },
+      "fields": [
+        {
+          "name": "clinic_location",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "patient_name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "patient_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "appointment_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "procedure_name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "original_price",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "requested_price",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "difference_amount",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_full_courtesy",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "justification",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "requester_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "requester_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "requester_role",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "authorized_by_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "authorized_by_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Pendente", "Aprovada", "Recusada"]
+        },
+        {
+          "name": "decision_date",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "decision_notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_spec_req_clinic ON special_price_requests (clinic_location)",
+        "CREATE INDEX idx_spec_req_status ON special_price_requests (status)"
+      ]
+    },
+    {
+      "name": "financial_transactions",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != '' && (@request.auth.role = 'Gestor' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'Gestor' || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')"
+      },
+      "fields": [
+        {
+          "name": "clinic_location",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "appointment_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "exam_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "patient_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "patient_name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "doctor_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "doctor_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "procedure_name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "table_price_used",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "modality",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "CARTAO_PARCELADO",
+            "CARTAO_VISTA",
+            "PIX_DINHEIRO",
+            "VALOR_ESPECIAL",
+            "CONVENIO"
+          ]
+        },
+        {
+          "name": "discount_amount",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "final_charged_amount",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "received_amount",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "pending_balance",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "financial_status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "PAGO_INTEGRAL",
+            "PAGO_PARCIAL",
+            "PENDENTE",
+            "CORTESIA_AUTORIZADA",
+            "CONVENIO",
+            "ESTORNADO"
+          ]
+        },
+        {
+          "name": "payment_method",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "payment_date",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "arrival_time",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "special_price_request_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "doctor_payout_amount",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_reversal",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "reversal_reason",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "reversal_date",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "reversal_user_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "operator_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "operator_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_fin_tx_clinic ON financial_transactions (clinic_location)",
+        "CREATE INDEX idx_fin_tx_appt ON financial_transactions (appointment_id)",
+        "CREATE INDEX idx_fin_tx_status ON financial_transactions (financial_status)",
+        "CREATE INDEX idx_fin_tx_date ON financial_transactions (payment_date)"
+      ]
+    },
+    {
+      "name": "dicom_reconciliation_queue",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "study_instance_uid",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "series_instance_uid",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sop_instance_uid",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "accession_number",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "patient_id_dicom",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "patient_name_dicom",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "modality",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "study_description",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "file_name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "file_size",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["unidentified", "ambiguous", "reconciled", "dismissed"]
+        },
+        {
+          "name": "confidence",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["high", "medium", "low", "none"]
+        },
+        {
+          "name": "match_reason",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "matched_patient_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "matched_patient_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "matched_exam_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "matched_appointment_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "frames_count",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "dicom_file",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "preview_image",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_dicom_rec_status ON dicom_reconciliation_queue (status)",
+        "CREATE INDEX idx_dicom_rec_accession ON dicom_reconciliation_queue (accession_number)"
+      ]
+    },
+    {
+      "name": "dicom_transfer_logs",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "device_ae",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "calling_ip",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "action",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["SUCCESS", "FAILED", "WARNING"]
+        },
+        {
+          "name": "details",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sop_uid",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "accession_number",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_dicom_log_action ON dicom_transfer_logs (action)",
+        "CREATE INDEX idx_dicom_log_created ON dicom_transfer_logs (created DESC)"
       ]
     }
   ]

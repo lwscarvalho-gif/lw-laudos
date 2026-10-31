@@ -14,6 +14,7 @@ import ConfirmEmailChange from '@/pages/ConfirmEmailChange'
 
 // Authenticated Pages
 import Painel from '@/pages/Painel'
+import GestaoClinica from '@/pages/GestaoClinica'
 import Pacientes from '@/pages/Pacientes'
 import PacienteDetalhes from '@/pages/PacienteDetalhes'
 import Agenda from '@/pages/Agenda'
@@ -63,6 +64,9 @@ export default function App() {
             {/* Pacientes */}
             <Route path="/pacientes" element={<Pacientes />} />
             <Route path="/pacientes/:id" element={<PacienteDetalhes />} />
+
+            {/* Gestão da Clínica (Financeiro Operacional) */}
+            <Route path="/gestao-clinica" element={<GestaoClinica />} />
 
             {/* Agenda Individual do Médico */}
             <Route path="/agenda" element={<Agenda />} />

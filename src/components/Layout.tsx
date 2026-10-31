@@ -15,6 +15,7 @@ import {
   Bell,
   ChevronRight,
   UserCheck,
+  DollarSign,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { APP_RELEASE_NAME } from '@/lib/version'
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { path: '/painel', label: 'Painel', icon: LayoutDashboard },
   { path: '/pacientes', label: 'Pacientes', icon: Users },
   { path: '/agenda', label: 'Agenda', icon: Calendar },
+  { path: '/gestao-clinica', label: 'Gestão da Clínica', icon: DollarSign },
   { path: '/exames', label: 'Exames', icon: ClipboardList },
   { path: '/laudos', label: 'Laudos', icon: FileText },
   { path: '/modelos', label: 'Modelos', icon: Layers },
@@ -61,21 +63,32 @@ export default function Layout() {
       return item.path === '/agenda' || item.path === '/pacientes'
     }
     if (isSecretary) {
-      // Secretaria: agenda + pacientes + configuracoes basicas
-      return item.path === '/agenda' || item.path === '/pacientes' || item.path === '/configuracoes'
+      // Secretaria: agenda + pacientes + gestao da clinica + configuracoes basicas
+      return (
+        item.path === '/agenda' ||
+        item.path === '/pacientes' ||
+        item.path === '/gestao-clinica' ||
+        item.path === '/configuracoes'
+      )
     }
     if (isManager) {
-      // Gestor: painel + agenda + pacientes + configuracoes (sem laudos)
+      // Gestor: painel + agenda + pacientes + gestao da clinica + configuracoes (sem laudos)
       return (
         item.path === '/painel' ||
         item.path === '/agenda' ||
         item.path === '/pacientes' ||
+        item.path === '/gestao-clinica' ||
         item.path === '/configuracoes'
       )
     }
     if (isAccounting) {
-      // Contabilidade: painel + agenda (relatórios/listagens financeiras sem laudos)
-      return item.path === '/painel' || item.path === '/agenda' || item.path === '/configuracoes'
+      // Contabilidade: painel + gestao clinica + relatórios
+      return (
+        item.path === '/painel' ||
+        item.path === '/agenda' ||
+        item.path === '/gestao-clinica' ||
+        item.path === '/configuracoes'
+      )
     }
     // Médico / Administrador / Administrador Geral: acessam o menu completo
     return true
@@ -91,6 +104,7 @@ export default function Layout() {
     if (path.startsWith('/painel')) return 'Painel'
     if (path.startsWith('/pacientes')) return 'Pacientes'
     if (path.startsWith('/agenda')) return 'Agenda Médica'
+    if (path.startsWith('/gestao-clinica')) return 'Gestão da Clínica'
     if (path.startsWith('/exames')) return 'Exames'
     if (path.startsWith('/laudos/ultrassom')) return 'Laudo de Ultrassonografia'
     if (path.startsWith('/laudos')) return 'Laudos'

@@ -1402,8 +1402,8 @@ export default function Agenda() {
                             Horário livre ({slotIntervalMinutes}m) — clique para agendar às{' '}
                             {hourStr}
                           </span>
-                          <span className="opacity-0 group-hover:opacity-100 transition text-[#0C6B58] font-semibold text-xs flex items-center gap-1">
-                            <Plus className="w-3.5 h-3.5" /> Agendar
+                          <span className="opacity-0 group-hover:opacity-100 transition text-[#0C6B58] font-semibold text-xs flex items-center gap-1 shrink-0">
+                            <Plus className="w-3.5 h-3.5" /> Agendar / Encaixe
                           </span>
                         </div>
                       )}

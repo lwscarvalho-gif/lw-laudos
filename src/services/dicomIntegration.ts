@@ -137,22 +137,49 @@ class DicomIntegrationService {
   }
 
   /**
-   * Executa C-ECHO real em direção ao equipamento ou ao Orthanc/SCP local
+   * Executa C-ECHO real em direção ao equipamento ou ao Orthanc/SCP local.
+   * REGRA DE SEGURANÇA E AUDITORIA: NUNCA retornar sucesso sintético quando o
+   * equipamento ou servidor estiver inacessível. Falhas de conexão devem
+   * registrar status 'offline' e erro explícito.
    */
   async testCEcho(
     device: DicomDevice,
   ): Promise<{ success: boolean; latencyMs: number; message: string }> {
     const start = performance.now()
+
+    // 1. Validar formato dos parâmetros mínimos de rede
+    if (!device.ipHostname || !device.port || !device.remoteAeTitle) {
+      const latency = Math.round(performance.now() - start)
+      this.updateDevice(device.id, {
+        status: 'offline',
+        lastEchoAt: new Date().toISOString(),
+        lastEchoLatencyMs: latency,
+      })
+      this.logTransfer({
+        deviceAe: device.remoteAeTitle || 'UNKNOWN',
+        callingIp: device.ipHostname || '0.0.0.0',
+        action: 'C-ECHO',
+        status: 'FAILED',
+        details: 'Configuração incompleta: IP, porta ou Remote AE Title ausente.',
+      })
+      return {
+        success: false,
+        latencyMs: latency,
+        message: 'Falha: Endereço IP, porta ou AE Title remoto não foram configurados.',
+      }
+    }
+
     try {
-      // 1. Tentar ping HTTP / REST se apontado para porta HTTP ou gateway Orthanc local
-      const res = await pb.send<{ reachable?: boolean; message?: string }>(
+      // 2. Consulta ao gateway de status DICOM / Orthanc real
+      const res = await pb.send<{ reachable?: boolean; dicomEchoOk?: boolean; message?: string }>(
         '/backend/v1/pacs/orthanc/status',
         {
           method: 'GET',
         },
       )
       const latency = Math.round(performance.now() - start)
-      if (res && res.reachable) {
+
+      if (res && (res.dicomEchoOk || res.reachable)) {
         this.updateDevice(device.id, {
           status: 'online',
           lastEchoAt: new Date().toISOString(),
@@ -163,7 +190,7 @@ class DicomIntegrationService {
           callingIp: device.ipHostname,
           action: 'C-ECHO',
           status: 'SUCCESS',
-          details: `C-ECHO verificado com sucesso. Latência: ${latency} ms.`,
+          details: `Associação C-ECHO confirmada com sucesso. Latência: ${latency} ms.`,
         })
         return {
           success: true,
@@ -172,13 +199,13 @@ class DicomIntegrationService {
         }
       }
     } catch {
-      /* ignore */
+      /* Falha de comunicação real com o endpoint */
     }
 
-    const latency = Math.round(performance.now() - start) + 12
-    // Se não há Orthanc externo respondendo, validar conectividade local sintética do SCP
+    // 3. Equipamento inacessível ou servidor local offline: FALHA OBRIGATÓRIA (sem respostas sintéticas)
+    const latency = Math.round(performance.now() - start)
     this.updateDevice(device.id, {
-      status: 'online',
+      status: 'offline',
       lastEchoAt: new Date().toISOString(),
       lastEchoLatencyMs: latency,
     })
@@ -186,13 +213,14 @@ class DicomIntegrationService {
       deviceAe: device.remoteAeTitle,
       callingIp: device.ipHostname,
       action: 'C-ECHO',
-      status: 'SUCCESS',
-      details: `C-ECHO verificado via Storage SCP interno. Latência: ${latency} ms.`,
+      status: 'FAILED',
+      details: `Falha na associação C-ECHO com ${device.remoteAeTitle} (${device.ipHostname}:${device.port}). Equipamento remoto inacessível.`,
     })
+
     return {
-      success: true,
+      success: false,
       latencyMs: latency,
-      message: `C-ECHO bem-sucedido. O serviço local responde ao AE Title "${device.localAeTitle}" na porta ${device.port}.`,
+      message: `Falha na associação DICOM: O equipamento ${device.remoteAeTitle} em ${device.ipHostname}:${device.port} não respondeu ao C-ECHO. Verifique a rede física, o firewall e se o AE Title está autorizado no aparelho.`,
     }
   }
 
@@ -221,12 +249,24 @@ class DicomIntegrationService {
   }
 
   /**
-   * Fila de Conciliação Humana
+   * Fila de Conciliação Humana.
+   * Persistida com segurança em localStorage (com migração de sessionStorage anterior)
+   * para evitar perda de estudos pendentes ao reiniciar o aplicativo desktop ou fechar a aba.
    */
   getReconciliationQueue(): DicomReconciliationItem[] {
     try {
-      const raw = sessionStorage.getItem(RECONCILIATION_STORAGE_KEY)
-      if (raw) return JSON.parse(raw)
+      // 1. Tenta recuperar do armazenamento persistente
+      const rawLocal = localStorage.getItem(RECONCILIATION_STORAGE_KEY)
+      if (rawLocal) return JSON.parse(rawLocal)
+
+      // 2. Fallback de migração transparente se existia algo em sessionStorage
+      const rawSession = sessionStorage.getItem(RECONCILIATION_STORAGE_KEY)
+      if (rawSession) {
+        const parsed = JSON.parse(rawSession)
+        localStorage.setItem(RECONCILIATION_STORAGE_KEY, rawSession)
+        sessionStorage.removeItem(RECONCILIATION_STORAGE_KEY)
+        return parsed
+      }
     } catch {
       /* ignore */
     }
@@ -234,7 +274,11 @@ class DicomIntegrationService {
   }
 
   saveReconciliationQueue(items: DicomReconciliationItem[]): void {
-    sessionStorage.setItem(RECONCILIATION_STORAGE_KEY, JSON.stringify(items))
+    try {
+      localStorage.setItem(RECONCILIATION_STORAGE_KEY, JSON.stringify(items))
+    } catch (err) {
+      console.warn('Aviso: Armazenamento local da fila de conciliação excedeu limite:', err)
+    }
   }
 
   /**
