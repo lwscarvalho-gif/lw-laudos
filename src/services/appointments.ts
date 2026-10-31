@@ -44,7 +44,7 @@ export interface UpdateAppointmentInput {
   request_images?: File[]
 }
 
-// Generate unique accession number prefix LW-YYYYMMDD-XXXX
+// Generate unique accession number prefix LW-YYYYMMDD-XXXX using cryptographically secure random bytes
 function generateClientAccession(): string {
   const now = new Date()
   const y = now.getFullYear()
@@ -52,8 +52,16 @@ function generateClientAccession(): string {
   const d = String(now.getDate()).padStart(2, '0')
   const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
   let suffix = ''
-  for (let i = 0; i < 4; i++) {
-    suffix += chars.charAt(Math.floor(Math.random() * chars.length))
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const bytes = new Uint8Array(4)
+    crypto.getRandomValues(bytes)
+    for (let i = 0; i < 4; i++) {
+      suffix += chars.charAt(bytes[i] % chars.length)
+    }
+  } else {
+    for (let i = 0; i < 4; i++) {
+      suffix += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
   }
   return `LW-${y}${m}${d}-${suffix}`
 }

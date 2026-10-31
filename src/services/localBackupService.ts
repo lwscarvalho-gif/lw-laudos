@@ -102,7 +102,7 @@ class LocalBackupService {
 
     const exportData = {
       app: 'LW Laudos',
-      exportVersion: '0.0.53',
+      exportVersion: '0.0.54',
       exportedAt: new Date().toISOString(),
       templates,
       masks,

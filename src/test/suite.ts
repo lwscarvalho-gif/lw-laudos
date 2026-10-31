@@ -1,5 +1,5 @@
 /**
- * SUÍTE DE TESTES AUTOMATIZADOS REAIS — LW LAUDOS v0.0.53
+ * SUÍTE DE TESTES AUTOMATIZADOS REAIS — LW LAUDOS v0.0.54
  *
  * Testes Reais Executados:
  * 1. Inicialização e Preservação Clínica (Validação de Medidas, Negações e Lateralidade)
@@ -33,7 +33,7 @@ function assert(condition: boolean, message: string) {
 
 async function runTestSuite() {
   console.log('===========================================================')
-  console.log('  INICIANDO SUÍTE DE TESTES AUTOMATIZADOS — LW LAUDOS 0.0.53')
+  console.log('  INICIANDO SUÍTE DE TESTES AUTOMATIZADOS — LW LAUDOS 0.0.54')
   console.log('===========================================================\n')
 
   // TESTE 1: PRESERVAÇÃO CLÍNICA REAL

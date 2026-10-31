@@ -1,82 +1,91 @@
-# Guia de Compilação do Instalador Windows (Tauri 2 + PocketBase Offline)
+# Guia de Compilação do Instalador Windows (Tauri 2 + PocketBase Offline + IA Local)
 
-Este documento contém o passo a passo exato para compilar e gerar o instalador executável (.exe / NSIS) do **LW Laudos** em uma máquina Windows 10 ou Windows 11.
+Este documento descreve os dois métodos para compilar e gerar o instalador executável (.exe / NSIS) do **LW Laudos**:
 
----
-
-## 1. Pré-requisitos no Windows
-
-Instale os seguintes componentes uma única vez na máquina de build:
-
-1. **Rust e Cargo**
-   - Baixe o instalador oficial `rustup-init.exe` em [https://rustup.rs](https://rustup.rs)
-   - Durante a instalação, selecione a opção padrão (MSVC x64).
-   - Requer o _Visual Studio C++ Build Tools_ (instalado automaticamente pelo rustup ou manualmente via Visual Studio Installer com a carga de trabalho "Desenvolvimento para Desktop com C++").
-
-2. **Node.js (v18+)**
-   - Baixe a versão LTS de [https://nodejs.org](https://nodejs.org).
-
-3. **NSIS (Nullsoft Scriptable Install System)**
-   - O Tauri 2 gerencia o empacotamento NSIS nativamente. Caso prefira instalar previamente, baixe de [https://nsis.sourceforge.io/](https://nsis.sourceforge.io/).
-
-4. **WebView2 Runtime**
-   - Já vem pré-instalado em todas as versões modernas do Windows 10 e Windows 11.
-   - O instalador configurado no `tauri.conf.json` utiliza `webviewInstallMode: offlineInstaller` para permitir instalação offline em computadores sem conexão.
+1. **Via GitHub Actions (Recomendado — Na nuvem, sem instalar compiladores no seu PC)**
+2. **Via Compilação Local em Máquina Windows 10/11**
 
 ---
 
-## 2. Preparação do Binário do PocketBase (Sidecar)
+## 1. Método 1: GitHub Actions (Automatizado na Nuvem)
 
-Antes de gerar o build, o executável do PocketBase para Windows precisa estar posicionado na pasta `src-tauri/binaries/`:
+O repositório conta com o workflow oficial `.github/workflows/build-windows.yml` que roda em máquina virtual Windows da Microsoft, instala o Rust, Node.js, obtém os binários oficiais do PocketBase e llama.cpp, baixa o modelo GGUF escolhido e empacota o instalador NSIS completo.
 
-1. Baixe o `pocketbase_..._windows_amd64.zip` em [https://github.com/pocketbase/pocketbase/releases](https://github.com/pocketbase/pocketbase/releases).
-2. Extraia o `pocketbase.exe`.
-3. Renomeie o arquivo para:
+### Como Acionar o Workflow (Passo a Passo)
+
+1. Acesse o repositório no GitHub: [https://github.com/lwscarvalho-gif/lw-laudos](https://github.com/lwscarvalho-gif/lw-laudos)
+2. No menu superior, clique na aba **Actions**.
+3. Na lista de workflows à esquerda, selecione **Build Windows Installer (NSIS)**.
+4. À direita da tela, clique no botão **Run workflow**:
+   - **Branch**: selecione `main` (ou a branch de release).
+   - **Baixar e empacotar o modelo GGUF Qwen2.5-Instruct Q4_K_M**: marque como `true` para incluir a IA offline no instalador.
+   - **Versão oficial do PocketBase**: `0.26.9` (padrão).
+   - **Release tag oficial do llama.cpp**: `b4822` (padrão).
+5. Clique no botão verde **Run workflow**.
+
+### Como Baixar o Instalador Gerado
+
+1. Aguarde a execução do pipeline (o processo leva de 8 a 15 minutos dependendo do download do modelo GGUF).
+2. Quando o workflow finalizar com ícone verde de sucesso, clique sobre o card da execução.
+3. No final da página, na seção **Artifacts**, localize o artefato:
+   ```
+   LW-Laudos-Windows-Setup-x64.zip
+   ```
+4. Clique para baixar o arquivo zip.
+5. Descompacte o zip para obter o instalador:
+   ```
+   LW Laudos_0.0.54_x64-setup.exe
+   ```
+6. O arquivo pode ser copiado diretamente para um **pendrive** e instalado em qualquer máquina Windows 10 ou 11.
+
+---
+
+## 2. Método 2: Compilação Local no Windows do Proprietário
+
+Caso prefira compilar no próprio notebook ou desktop de desenvolvimento:
+
+### Pré-requisitos
+
+1. **Rust e Cargo**: [https://rustup.rs](https://rustup.rs) (MSVC x64 + Visual Studio Build Tools C++).
+2. **Node.js (v18+)**: [https://nodejs.org](https://nodejs.org).
+3. **NSIS**: Gerenciado automaticamente pelo Tauri 2.
+4. **WebView2 Runtime**: Já incluído no Windows 10/11.
+
+### Posicionamento de Binários (Sidecars)
+
+1. **PocketBase**: Baixe o `pocketbase_0.26.9_windows_amd64.zip` oficial. Extraia e coloque em:
    ```
    src-tauri/binaries/pocketbase-x86_64-pc-windows-msvc.exe
    ```
-4. Se desejar testar a execução antes do empacotamento, coloque uma cópia também em `bin/pocketbase.exe`.
+2. **llama-server**: Baixe o release oficial do llama.cpp para Windows x64. Extraia e coloque em:
+   ```
+   src-tauri/binaries/llama-server-x86_64-pc-windows-msvc.exe
+   ```
+3. **Modelo GGUF (Opcional para IA)**: Coloque o arquivo `qwen2.5-1.5b-instruct-q4_k_m.gguf` em:
+   ```
+   src-tauri/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
+   ```
 
----
+### Executar Compilação
 
-## 3. Comandos de Compilação
-
-Abra o terminal (PowerShell ou Prompt de Comando) na raiz do projeto:
+Na raiz do projeto:
 
 ```powershell
-# 1. Instalar dependências do frontend
 npm install
-
-# 2. Gerar o build do frontend e o instalador Windows NSIS
-npm run tauri:build
-```
-
-> **Aviso de Compilação de Instalador**: O instalador `.exe` (NSIS) requer compilação nativa em máquina Windows 10/11 com Rust (`cargo`) e o pacote Visual Studio C++ Build Tools instalado. Não declare o instalador pronto sem a compilação e teste real do arquivo `.exe` gerado.
-
-_(Ou diretamente via cargo tauri)_:
-
-```powershell
+npm run build
 npx @tauri-apps/cli build
 ```
 
----
-
-## 4. Localização do Instalador Gerado
-
-Após a compilação bem-sucedida, o instalador do Windows estará localizado em:
+O instalador NSIS gerado estará em:
 
 ```
-src-tauri/target/release/bundle/nsis/LW Laudos_0.0.51_x64-setup.exe
+src-tauri/target/release/bundle/nsis/LW Laudos_0.0.54_x64-setup.exe
 ```
-
-Este arquivo único pode ser copiado para um **pendrive** e instalado em qualquer computador com Windows 10 ou 11 sem necessidade de internet, sem Node.js e sem ferramentas de desenvolvimento.
 
 ---
 
-## 5. Estratégia de Distribuição por Pendrive
+## 3. Segurança e Segredos de Assinatura
 
-No pendrive, organize:
-
-1. `LW Laudos_Setup.exe` (o instalador gerado).
-2. Pasta opcional `Backup_Modelos/` contendo arquivos JSON de modelos ultrassonográficos para importação inicial.
-3. Pasta `Documentacao/` com o manual rápido do usuário.
+- **Sem credenciais expostas**: O workflow não possui chaves nem dados sensíveis.
+- **Assinatura de Código Opcional**: Caso configure o segredo `TAURI_SIGNING_PRIVATE_KEY` nas configurações do repositório (Settings → Secrets and variables → Actions), o Tauri assinará os executáveis. Se ausente, o pipeline degrada com aviso claro e gera o instalador self-contained perfeitamente funcional.
+- **Nenhum Dado de Paciente**: O instalador não contém banco de dados de pacientes nem informações clínicas — o banco SQLite do PocketBase é criado do zero no primeiro lançamento da aplicação na máquina do médico.

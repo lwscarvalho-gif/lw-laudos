@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.53** (Fechada — Desktop Tauri 2 PocketBase Local, Copiloto Ultrassonográfico Ativo, Tudo Normal com 3 Níveis, Identidade LW LAUDOS, Backup PocketBase e Validação de Preservação Clínica Real)  
+> **Versão do Projeto**: **v0.0.54** (Fechada — Workflow GitHub Actions NSIS Windows, Segredos Criptográficos crypto.getRandomValues, Alinhamento de Versão Única v0.0.54, Desktop Tauri 2 PocketBase Local e Validação de Preservação Clínica)  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,11 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.54 — Fecho do Ciclo: Workflow GitHub Actions para Instalador Windows NSIS, Geração Criptográfica Forte e Versão Única**:
+  - **Workflow GitHub Actions (`.github/workflows/build-windows.yml`)**: pipeline automatizado Windows x64 com compilação Tauri 2 + Vite, download verificável do PocketBase e llama.cpp, empacotamento do modelo GGUF Qwen2.5 e geração do instalador NSIS.
+  - **Substituição de Math.random**: erradicação de `Math.random` em tokens de segurança, convites de administração (`admin.ts`) e identificadores UUID de sync (`syncFoundation.ts`) e números de accession (`appointments.ts`) com `crypto.getRandomValues`.
+  - **Alinhamento Estrito de Versão `0.0.54`**: fonte única em `src/lib/version.ts`, idêntico em `package.json`, `Cargo.toml` e `tauri.conf.json`.
 
 - **v0.0.53 — Desktop Tauri 2 com Sidecar PocketBase Local, Copiloto Ultrassonográfico Ativo, 3 Níveis de Tudo Normal, Identidade LW LAUDOS e Backup Seguro**:
   - **1. Estrutura Desktop Real (Tauri 2 + PocketBase Local)**:

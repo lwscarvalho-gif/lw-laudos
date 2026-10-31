@@ -17,7 +17,11 @@ export const adminService = {
     allowed_clinics?: string[]
   }): Promise<Invitation> {
     const randomBytes = new Uint8Array(24)
-    crypto.getRandomValues(randomBytes)
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      crypto.getRandomValues(randomBytes)
+    } else {
+      throw new Error('Fonte de entropia criptográfica segura indisponível.')
+    }
     const token = Array.from(randomBytes, (b) => b.toString(16).padStart(2, '0')).join('')
     // 7 days expiration
     const expiresAt = new Date()
@@ -38,7 +42,11 @@ export const adminService = {
 
   async resendInvitation(id: string): Promise<Invitation> {
     const randomBytes = new Uint8Array(24)
-    crypto.getRandomValues(randomBytes)
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      crypto.getRandomValues(randomBytes)
+    } else {
+      throw new Error('Fonte de entropia criptográfica segura indisponível.')
+    }
     const token = Array.from(randomBytes, (b) => b.toString(16).padStart(2, '0')).join('')
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7)

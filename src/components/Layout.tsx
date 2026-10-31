@@ -17,6 +17,7 @@ import {
   UserCheck,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { APP_RELEASE_NAME } from '@/lib/version'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -424,7 +425,7 @@ export default function Layout() {
         <footer className="py-4 px-6 border-t border-[#E5E9E7] text-center text-xs text-[#8A9691] bg-white flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>LW LAUDOS — Sistema Médico de Ultrassonografia © 2025</span>
           <span className="text-[11px] bg-[#F4F6F5] text-[#5F6E69] px-2.5 py-0.5 rounded-full border border-[#E5E9E7]">
-            v0.0.53 • LW LAUDOS
+            {APP_RELEASE_NAME}
           </span>
         </footer>
       </div>

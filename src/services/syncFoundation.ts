@@ -54,6 +54,8 @@ export function generateGlobalUuid(): string {
   const bytes = new Uint8Array(16)
   if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
     crypto.getRandomValues(bytes)
+  } else {
+    throw new Error('Ambiente sem suporte a geração criptográfica segura (crypto.getRandomValues).')
   }
   bytes[6] = (bytes[6] & 0x0f) | 0x40 // v4
   bytes[8] = (bytes[8] & 0x3f) | 0x80 // variant
