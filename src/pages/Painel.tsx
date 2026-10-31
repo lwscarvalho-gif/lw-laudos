@@ -135,8 +135,7 @@ export default function Painel() {
       {/* Switch Assinatura Digital (médico / administrador) */}
       {(user?.role === 'Médico' ||
         user?.role === 'Administrador' ||
-        user?.role === 'Administrador Geral' ||
-        !user?.role) && <DigitalSignatureCard />}
+        user?.role === 'Administrador Geral') && <DigitalSignatureCard />}
 
       {/* 4 Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

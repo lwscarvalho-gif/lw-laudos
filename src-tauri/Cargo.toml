@@ -1,0 +1,20 @@
+[package]
+name = "lw-laudos"
+version = "0.0.51"
+description = "LW Laudos - Sistema Médico de Ultrassonografia Desktop 100% Offline"
+authors = ["LW Laudos <suporte@lwlaudos.com.br>"]
+license = "Proprietary"
+repository = "https://github.com/lwscarvalho-gif/lw-laudos"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-os = "2"
+tauri-plugin-process = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

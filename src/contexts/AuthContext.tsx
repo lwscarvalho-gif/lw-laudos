@@ -146,7 +146,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const isAdmin = user?.role === 'Administrador' || user?.role === 'Administrador Geral'
-  const isDoctor = user?.role === 'Médico' || !user?.role
+  // Correção de segurança estrita: sem conceder perfil médico automaticamente para usuários sem role
+  const isDoctor = user?.role === 'Médico'
   const isSecretary = user?.role === 'Secretaria'
   const isManager = user?.role === 'Gestor'
   const isAccounting = user?.role === 'Contabilidade'
