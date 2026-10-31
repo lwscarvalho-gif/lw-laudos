@@ -15,8 +15,8 @@ import {
   aiAssistantService,
   type AiActionType,
   type AiAssistantStatus,
-  type AiSuggestionResult,
 } from '@/services/aiAssistant'
+import { localLlamaCppService } from '@/services/localAiEngine'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -43,14 +43,34 @@ export default function AiAssistantPanel({
   const [status, setStatus] = useState<AiAssistantStatus | null>(null)
   const [selectedTarget, setSelectedTarget] = useState<string>('conclusao')
   const [selectedAction, setSelectedAction] = useState<AiActionType>('corrigir_ortografia')
-  const [suggestion, setSuggestion] = useState<AiSuggestionResult | null>(null)
+  const [suggestion, setSuggestion] = useState<{
+    originalText: string
+    suggestedText: string
+    targetField: string
+    requiresReview?: boolean
+    riskSummary?: string | null
+  } | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    aiAssistantService
-      .getStatus()
-      .then(setStatus)
-      .catch(() => {})
+    // Consulta status real do llama.cpp local
+    localLlamaCppService
+      .checkAvailability()
+      .then((res) => {
+        setStatus({
+          connected: res.isEngineRunning,
+          providerName: res.isEngineRunning ? 'llama.cpp local (127.0.0.1:8080)' : 'Desconectado',
+          modelName: res.modelName,
+          statusMessage: res.statusMessage,
+          ready: res.isEngineRunning,
+        })
+      })
+      .catch(() => {
+        aiAssistantService
+          .getStatus()
+          .then(setStatus)
+          .catch(() => {})
+      })
   }, [])
 
   const getTargetText = (): string => {
@@ -72,18 +92,45 @@ export default function AiAssistantPanel({
 
     setLoading(true)
     try {
-      const res = await aiAssistantService.processText({
-        action: selectedAction,
-        targetField: selectedTarget,
-        originalText: text,
-      })
-      setSuggestion(res)
+      // 1. Tentar execução real no llama.cpp local
+      const llamaStatus = await localLlamaCppService.checkAvailability()
+      if (llamaStatus.isEngineRunning) {
+        const out = await localLlamaCppService.requestSuggestion({
+          textToReview: text,
+          sectionName: selectedTarget,
+          task:
+            selectedAction === 'corrigir_ortografia'
+              ? 'orthography'
+              : selectedAction === 'melhorar_redacao'
+                ? 'clarity'
+                : 'structure',
+        })
+
+        setSuggestion({
+          originalText: out.originalText,
+          suggestedText: out.proposedText,
+          targetField: selectedTarget,
+          requiresReview: out.requiresExplicitDoctorReview,
+          riskSummary: out.preservationResult.riskSummary,
+        })
+      } else {
+        const res = await aiAssistantService.processText({
+          action: selectedAction,
+          targetField: selectedTarget,
+          originalText: text,
+        })
+        setSuggestion({
+          originalText: res.originalText,
+          suggestedText: res.suggestedText,
+          targetField: res.targetField,
+        })
+      }
     } catch (err: any) {
       toast({
-        title: 'Assistente não conectado',
+        title: 'Assistente IA',
         description:
           err.message ||
-          'O assistente de IA está em modo não configurado. Nenhuma chamada externa é realizada.',
+          'O motor de IA local não está ativo. O editor continua 100% funcional sem IA.',
         variant: 'destructive',
       })
     } finally {
@@ -116,9 +163,19 @@ export default function AiAssistantPanel({
         </div>
 
         {/* Real Status Badge (No faking) */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-semibold">
-          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          <span>Status: Não conectado</span>
+        <div
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+            status?.connected
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+              : 'bg-amber-50 border-amber-200 text-amber-800'
+          }`}
+        >
+          <span
+            className={`w-2 h-2 rounded-full ${
+              status?.connected ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
+            }`}
+          />
+          <span>{status?.connected ? `Ativo: ${status.modelName}` : 'Status: Desconectado'}</span>
         </div>
       </div>
 
@@ -251,6 +308,12 @@ export default function AiAssistantPanel({
               <p className="text-[#33413B] whitespace-pre-wrap leading-relaxed">
                 {suggestion.suggestedText}
               </p>
+              {suggestion.requiresReview && (
+                <div className="mt-2 p-2 bg-amber-100 border border-amber-300 rounded text-[11px] text-amber-900 font-medium">
+                  ⚠ Atenção clínica:{' '}
+                  {suggestion.riskSummary || 'Revisão explícita obrigatória antes da aplicação.'}
+                </div>
+              )}
             </div>
           </div>
 

@@ -49,6 +49,26 @@ export function getDesktopEnvironmentInfo(): DesktopEnvironmentInfo {
 }
 
 /**
+ * Consulta status real do sidecar via invoke Tauri se disponível
+ */
+export async function getTauriPocketBaseStatus(): Promise<{
+  running: boolean
+  port: number
+  url: string
+} | null> {
+  if (!isTauriEnvironment()) return null
+  try {
+    const tauri = (window as any).__TAURI__
+    if (tauri?.core?.invoke) {
+      return await tauri.core.invoke('get_pocketbase_status')
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Testa conectividade com a instância local do PocketBase
  */
 export async function checkLocalPocketBaseHealth(

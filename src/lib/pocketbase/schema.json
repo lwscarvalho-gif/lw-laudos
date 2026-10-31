@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-31T15:15:08.032Z",
+  "generatedAt": "2026-10-31T15:37:43.306Z",
   "collections": [
     {
       "name": "users",
@@ -146,6 +146,18 @@
         },
         {
           "name": "signature_session",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "doctor_ai_preferences",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "clinic_corporate_identity",
           "type": "json",
           "required": false,
           "system": false
@@ -407,11 +419,11 @@
       "name": "reports",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && @request.auth.role != 'Operador' && owner_id = @request.auth.id",
-        "view": "@request.auth.id != '' && @request.auth.role != 'Operador' && owner_id = @request.auth.id",
-        "create": "@request.auth.id != '' && @request.auth.role != 'Operador' && owner_id = @request.auth.id",
-        "update": "@request.auth.id != '' && @request.auth.role != 'Operador' && owner_id = @request.auth.id",
-        "delete": "@request.auth.id != '' && @request.auth.role != 'Operador' && owner_id = @request.auth.id"
+        "list": "@request.auth.id != '' && @request.auth.role != 'Operador' && @request.auth.role != 'Secretaria' && (owner_id = @request.auth.id || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "view": "@request.auth.id != '' && @request.auth.role != 'Operador' && @request.auth.role != 'Secretaria' && (owner_id = @request.auth.id || @request.auth.role = 'Administrador' || @request.auth.role = 'Administrador Geral')",
+        "create": "@request.auth.id != '' && @request.auth.role != 'Operador' && @request.auth.role != 'Secretaria' && owner_id = @request.auth.id",
+        "update": "@request.auth.id != '' && @request.auth.role != 'Operador' && @request.auth.role != 'Secretaria' && owner_id = @request.auth.id",
+        "delete": "@request.auth.id != '' && @request.auth.role != 'Operador' && @request.auth.role != 'Secretaria' && owner_id = @request.auth.id"
       },
       "fields": [
         {

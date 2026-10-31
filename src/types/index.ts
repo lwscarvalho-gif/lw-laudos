@@ -27,6 +27,28 @@ export interface UserClinicItem {
   logo?: string
 }
 
+export interface DoctorAiPreferences {
+  mode: 'active' | 'discrete' | 'manual' // ativo (background), discreto (badge só), manual (sob demanda)
+  style: 'resumido' | 'convencional' | 'detalhado' // padrão resumido
+  preferredTerminology?: string // ex: "termo ecotextura homogênea"
+  conclusionOrganization?: 'consecutive_lines' | 'bullet_points' | 'single_paragraph'
+  customInstructions?: string // ex: "Prefiro conclusões objetivas", "Não quero frases excessivamente longas"
+  suggestionFrequency?: 'normal' | 'low' | 'high'
+  acceptedSuggestionsCount?: number
+  rejectedSuggestionsCount?: number
+}
+
+export interface ClinicCorporateIdentity {
+  fantasyName?: string
+  corporateReason?: string
+  cnpj?: string
+  address?: string
+  phone?: string
+  headerText?: string
+  footerText?: string
+  logoDataUrl?: string
+}
+
 export interface User {
   id: string
   email: string
@@ -49,6 +71,8 @@ export interface User {
   digital_signature_enabled?: boolean
   cpf?: string
   signature_session?: CloudSignatureSession | null | string
+  doctor_ai_preferences?: DoctorAiPreferences | string | null
+  clinic_corporate_identity?: ClinicCorporateIdentity | string | null
   created?: string
   updated?: string
 }

@@ -58,8 +58,8 @@ export default function Login() {
           <div className="w-14 h-14 rounded-2xl bg-[#0C6B58] flex items-center justify-center text-white text-2xl font-bold shadow-md mb-3">
             ⚕
           </div>
-          <h1 className="text-xl font-bold text-[#1F2A27]">Sistema Médico Multiperfil</h1>
-          <p className="text-sm text-[#5F6E69] mt-1">Acesse sua conta para continuar</p>
+          <h1 className="text-xl font-bold text-[#1F2A27]">LW LAUDOS</h1>
+          <p className="text-sm text-[#5F6E69] mt-1">Sistema Médico de Ultrassonografia e Laudos</p>
         </div>
 
         {/* Error Banner */}

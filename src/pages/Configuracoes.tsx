@@ -60,6 +60,9 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { ExamPreparation } from '@/types'
 import { examPreparationsService } from '@/services/examPreparations'
+import { DoctorAiPreferencesPanel } from '@/components/DoctorAiPreferencesPanel'
+import { ClinicCorporateIdentityPanel } from '@/components/ClinicCorporateIdentityPanel'
+import { LocalBackupPanel } from '@/components/LocalBackupPanel'
 
 const BRAZILIAN_STATES = [
   'AC',
@@ -984,6 +987,15 @@ export default function Configuracoes() {
           </div>
         </form>
       </div>
+
+      {/* 1.5 Identidade Institucional da Clínica */}
+      <ClinicCorporateIdentityPanel user={user} onUpdated={refreshUser} />
+
+      {/* 1.6 Preferências do Copiloto Ultrassonográfico */}
+      <DoctorAiPreferencesPanel user={user} onUpdated={refreshUser} />
+
+      {/* 1.7 Backup e Restauração Local PocketBase/SQLite */}
+      <LocalBackupPanel />
 
       {/* 2. Perfil & Senha */}
       <div className="bg-white p-6 sm:p-8 rounded-xl border border-[#E5E9E7] shadow-sm space-y-6">

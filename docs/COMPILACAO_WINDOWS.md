@@ -51,6 +51,8 @@ npm install
 npm run tauri:build
 ```
 
+> **Aviso de Compilação de Instalador**: O instalador `.exe` (NSIS) requer compilação nativa em máquina Windows 10/11 com Rust (`cargo`) e o pacote Visual Studio C++ Build Tools instalado. Não declare o instalador pronto sem a compilação e teste real do arquivo `.exe` gerado.
+
 _(Ou diretamente via cargo tauri)_:
 
 ```powershell

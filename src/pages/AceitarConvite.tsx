@@ -162,7 +162,7 @@ export default function AceitarConvite() {
             ⚕
           </div>
           <h1 className="text-xl font-bold text-[#1F2A27]">Criar sua conta</h1>
-          <p className="text-sm text-[#5F6E69] mt-1">Convite para o Sistema Médico Multiperfil</p>
+          <p className="text-sm text-[#5F6E69] mt-1">Convite para acesso ao LW LAUDOS</p>
         </div>
 
         {loadingInvite ? (

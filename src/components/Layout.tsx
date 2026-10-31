@@ -117,9 +117,9 @@ export default function Layout() {
             ⚕
           </div>
           <div className="flex flex-col">
-            <span className="font-bold text-sm leading-tight text-[#1F2A27]">Sistema Médico</span>
-            <span className="text-[11px] text-[#5F6E69] font-medium tracking-wide uppercase">
-              Multiperfil
+            <span className="font-bold text-sm leading-tight text-[#1F2A27]">LW LAUDOS</span>
+            <span className="text-[11px] text-[#0C6B58] font-semibold tracking-wide uppercase">
+              Ultrassonografia
             </span>
           </div>
         </div>
@@ -232,7 +232,7 @@ export default function Layout() {
                 <div className="w-8 h-8 rounded-lg bg-[#0C6B58] text-white flex items-center justify-center font-bold">
                   ⚕
                 </div>
-                <span className="font-bold text-sm text-[#1F2A27]">Sistema Médico</span>
+                <span className="font-bold text-sm text-[#1F2A27]">LW LAUDOS</span>
               </div>
               <button
                 onClick={() => setMobileDrawerOpen(false)}
@@ -416,9 +416,9 @@ export default function Layout() {
 
         {/* Slim Footer */}
         <footer className="py-4 px-6 border-t border-[#E5E9E7] text-center text-xs text-[#8A9691] bg-white flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Sistema Médico Multiperfil © 2025</span>
+          <span>LW LAUDOS — Sistema Médico de Ultrassonografia © 2025</span>
           <span className="text-[11px] bg-[#F4F6F5] text-[#5F6E69] px-2.5 py-0.5 rounded-full border border-[#E5E9E7]">
-            v0.0.18 • Sistema Médico Multiperfil
+            v0.0.53 • LW LAUDOS
           </span>
         </footer>
       </div>

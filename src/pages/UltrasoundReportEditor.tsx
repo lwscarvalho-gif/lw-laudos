@@ -93,6 +93,9 @@ import { computeSha256Hex } from '@/lib/cryptoDigest'
 import FindingsLibraryModal from '@/components/ultrasound/FindingsLibraryModal'
 import ExamImagesManager from '@/components/ultrasound/ExamImagesManager'
 import AiAssistantPanel from '@/components/ultrasound/AiAssistantPanel'
+import { ActiveCopilotWidget } from '@/components/ultrasound/ActiveCopilotWidget'
+import { ultrasoundCopilotEngine, type CopilotSuggestion } from '@/services/ultrasoundCopilotEngine'
+import { getNormalPhraseForOrgan, type TudoNormalLevel } from '@/services/normalPhrasesCatalog'
 import BodyMarkEditor from '@/components/ultrasound/BodyMarkEditor'
 import BodyMarkModal from '@/components/ultrasound/BodyMarkModal'
 import { ANATOMICAL_SCHEMES } from '@/lib/bodyMarks/schemes'
@@ -183,11 +186,18 @@ export default function UltrasoundReportEditor() {
     newText: string
   } | null>(null)
 
-  // Dialog state for "Tudo Normal"
+  // Dialog state for "Tudo Normal" com 3 Níveis
   const [tudoNormalConfirmOpen, setTudoNormalConfirmOpen] = useState(false)
   const [tudoNormalLoading, setTudoNormalLoading] = useState(false)
   const [tudoNormalFilledCount, setTudoNormalFilledCount] = useState(0)
   const [tudoNormalMode, setTudoNormalMode] = useState<'empty_only' | 'overwrite_all'>('empty_only')
+  const [selectedNormalLevel, setSelectedNormalLevel] = useState<TudoNormalLevel>('resumido')
+
+  // Copiloto ativo em segundo plano
+  const [copilotSuggestionsByOrgan, setCopilotSuggestionsByOrgan] = useState<
+    Record<string, CopilotSuggestion[]>
+  >({})
+  const copilotDebounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   // Undo memory map per section: organId -> previousText
   const [historyUndo, setHistoryUndo] = useState<Record<string, string>>({})
@@ -456,10 +466,30 @@ export default function UltrasoundReportEditor() {
     }
   }
 
-  // Update section text
+  // Update section text com disparo do Copiloto inteligente em background
   const handleSectionTextChange = (id: string, text: string) => {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, text } : s)))
     setHasUnsavedChanges(true)
+
+    // Debounce inteligente para o Copiloto (1000ms após parar de digitar)
+    if (copilotDebounceTimers.current[id]) {
+      clearTimeout(copilotDebounceTimers.current[id])
+    }
+
+    copilotDebounceTimers.current[id] = setTimeout(() => {
+      const sec = sections.find((s) => s.id === id)
+      const label = sec ? sec.label : id
+      const prefs =
+        typeof user?.doctor_ai_preferences === 'string'
+          ? JSON.parse(user.doctor_ai_preferences || '{}')
+          : user?.doctor_ai_preferences || null
+
+      const suggestions = ultrasoundCopilotEngine.analyzeOrganText(id, label, text, prefs)
+      setCopilotSuggestionsByOrgan((prev) => ({
+        ...prev,
+        [id]: suggestions,
+      }))
+    }, 1000)
   }
 
   // Quick insertion helper from history panel into the active organ or free text
@@ -784,23 +814,16 @@ export default function UltrasoundReportEditor() {
   const executeApplyTudoNormal = async (strategy: 'empty_only' | 'overwrite_all') => {
     setTudoNormalLoading(true)
     try {
-      // 1. Fetch all normal phrases in one call for the ABDOME_TOTAL scope (single source of truth)
-      const allFindings = await ultrasoundFindingsService.getAllForScope('ABDOME_TOTAL')
-
-      // Build a map of organ -> default normal text
+      // 1. Prioriza o catálogo de 3 níveis (resumido / convencional / detalhado)
       const normalMap: Record<string, string> = {}
-      for (const finding of allFindings) {
-        if (!finding.organ || !finding.text_content) continue
-
-        // If it's explicitly marked as default normal, prioritize it
-        if (finding.is_default_normal) {
-          normalMap[finding.organ] = finding.text_content
-        } else if (finding.finding_type === 'normal' && !normalMap[finding.organ]) {
-          normalMap[finding.organ] = finding.text_content
+      for (const sec of sections) {
+        const phrase = getNormalPhraseForOrgan(sec.id, selectedNormalLevel)
+        if (phrase) {
+          normalMap[sec.id] = phrase
         }
       }
 
-      // Fallback: for any section where normalMap wasn't found in bulk, query individually
+      // 2. Fallback ao banco caso não mapeado no catálogo
       for (const sec of sections) {
         if (!normalMap[sec.id]) {
           const fallbackFinding = await ultrasoundFindingsService.getDefaultNormal(sec.id)
@@ -840,18 +863,20 @@ export default function UltrasoundReportEditor() {
         }
       })
 
-      // Also fill conclusion if it's empty, or overwrite if requested
-      const conclusionFinding =
+      // Preencher também a conclusão
+      const normalConclusion =
+        getNormalPhraseForOrgan('conclusao', selectedNormalLevel) ||
         normalMap['conclusao'] ||
         (await ultrasoundFindingsService.getDefaultNormal('conclusao'))?.text_content
-      if (conclusionFinding) {
+
+      if (normalConclusion) {
         if (strategy === 'empty_only' && !conclusion.trim()) {
           newHistory['conclusao'] = conclusion
-          setConclusion(conclusionFinding)
+          setConclusion(normalConclusion)
           appliedCount++
-        } else if (strategy === 'overwrite_all' && conclusion.trim() !== conclusionFinding) {
+        } else if (strategy === 'overwrite_all' && conclusion.trim() !== normalConclusion) {
           newHistory['conclusao'] = conclusion
-          setConclusion(conclusionFinding)
+          setConclusion(normalConclusion)
           appliedCount++
         }
       }
@@ -2166,6 +2191,25 @@ export default function UltrasoundReportEditor() {
                           placeholder={`Descreva os achados de ${section.label} (vazio = não laudado)...`}
                           className="text-xs leading-relaxed font-sans"
                         />
+
+                        {/* Indicador discreto do Copiloto ativo em segundo plano */}
+                        <ActiveCopilotWidget
+                          suggestions={copilotSuggestionsByOrgan[section.id] || []}
+                          organLabel={section.label}
+                          onApply={(sug) => {
+                            requestInsertText(section.id, sug.suggestedText)
+                            setCopilotSuggestionsByOrgan((prev) => ({
+                              ...prev,
+                              [section.id]: (prev[section.id] || []).filter((s) => s.id !== sug.id),
+                            }))
+                          }}
+                          onDismiss={(sugId) => {
+                            setCopilotSuggestionsByOrgan((prev) => ({
+                              ...prev,
+                              [section.id]: (prev[section.id] || []).filter((s) => s.id !== sugId),
+                            }))
+                          }}
+                        />
                       </div>
                     )
                   })}
@@ -2612,59 +2656,115 @@ export default function UltrasoundReportEditor() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 py-2">
-            <label
-              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${
-                tudoNormalMode === 'empty_only'
-                  ? 'border-[#0C6B58] bg-[#E8F3F0]/50 ring-1 ring-[#0C6B58]/30'
-                  : 'border-[#E5E9E7] hover:bg-gray-50'
-              }`}
-            >
-              <input
-                type="radio"
-                name="tudo_normal_mode"
-                value="empty_only"
-                checked={tudoNormalMode === 'empty_only'}
-                onChange={() => setTudoNormalMode('empty_only')}
-                className="mt-1 text-[#0C6B58] focus:ring-[#0C6B58]"
-              />
-              <div className="space-y-0.5">
-                <span className="text-xs font-bold text-[#1F2A27] block">
-                  Preencher apenas as seções vazias (Recomendado)
-                </span>
-                <p className="text-[11px] text-[#5F6E69] leading-relaxed">
-                  Preserva integralmente o que você já digitou e preenche apenas as estruturas que
-                  estão em branco como normais.
-                </p>
-              </div>
-            </label>
+          <div className="space-y-4 py-2">
+            {/* Escolha do Nível de Profundidade (3 Níveis) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[#1F2A27] block">
+                Nível de Profundidade do Texto Normal:
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedNormalLevel('resumido')}
+                  className={`p-2 rounded-lg border text-left transition ${
+                    selectedNormalLevel === 'resumido'
+                      ? 'border-[#0C6B58] bg-[#E8F3F0] ring-1 ring-[#0C6B58]'
+                      : 'border-[#E5E9E7] hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="font-bold text-xs text-[#0C6B58] block">Resumido</span>
+                  <span className="text-[10px] text-[#5F6E69] leading-tight block mt-0.5">
+                    Padrão curto e direto
+                  </span>
+                </button>
 
-            <label
-              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${
-                tudoNormalMode === 'overwrite_all'
-                  ? 'border-amber-600 bg-amber-50/50 ring-1 ring-amber-600/30'
-                  : 'border-[#E5E9E7] hover:bg-gray-50'
-              }`}
-            >
-              <input
-                type="radio"
-                name="tudo_normal_mode"
-                value="overwrite_all"
-                checked={tudoNormalMode === 'overwrite_all'}
-                onChange={() => setTudoNormalMode('overwrite_all')}
-                className="mt-1 text-amber-600 focus:ring-amber-600"
-              />
-              <div className="space-y-0.5">
-                <span className="text-xs font-bold text-amber-900 block flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                  Preencher tudo e sobrescrever o conteúdo existente
-                </span>
-                <p className="text-[11px] text-amber-800/80 leading-relaxed">
-                  Substitui todos os campos pelo texto padrão normal de cada estrutura. (Você poderá
-                  desfazer individualmente nas caixas se precisar).
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedNormalLevel('convencional')}
+                  className={`p-2 rounded-lg border text-left transition ${
+                    selectedNormalLevel === 'convencional'
+                      ? 'border-[#0C6B58] bg-[#E8F3F0] ring-1 ring-[#0C6B58]'
+                      : 'border-[#E5E9E7] hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="font-bold text-xs text-[#1F2A27] block">Convencional</span>
+                  <span className="text-[10px] text-[#5F6E69] leading-tight block mt-0.5">
+                    Padrão ambulatorial
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedNormalLevel('detalhado')}
+                  className={`p-2 rounded-lg border text-left transition ${
+                    selectedNormalLevel === 'detalhado'
+                      ? 'border-[#0C6B58] bg-[#E8F3F0] ring-1 ring-[#0C6B58]'
+                      : 'border-[#E5E9E7] hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="font-bold text-xs text-[#1F2A27] block">Detalhado</span>
+                  <span className="text-[10px] text-[#5F6E69] leading-tight block mt-0.5">
+                    Descritivo minucioso
+                  </span>
+                </button>
               </div>
-            </label>
+            </div>
+
+            {/* Opções de substituição */}
+            <div className="space-y-2 pt-1 border-t border-gray-100">
+              <label
+                className={`flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition ${
+                  tudoNormalMode === 'empty_only'
+                    ? 'border-[#0C6B58] bg-[#E8F3F0]/50 ring-1 ring-[#0C6B58]/30'
+                    : 'border-[#E5E9E7] hover:bg-gray-50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="tudo_normal_mode"
+                  value="empty_only"
+                  checked={tudoNormalMode === 'empty_only'}
+                  onChange={() => setTudoNormalMode('empty_only')}
+                  className="mt-1 text-[#0C6B58] focus:ring-[#0C6B58]"
+                />
+                <div className="space-y-0.5">
+                  <span className="text-xs font-bold text-[#1F2A27] block">
+                    Preencher apenas as seções vazias (Recomendado)
+                  </span>
+                  <p className="text-[11px] text-[#5F6E69] leading-relaxed">
+                    Preserva integralmente o que você já digitou e preenche apenas as estruturas que
+                    estão em branco como normais.
+                  </p>
+                </div>
+              </label>
+
+              <label
+                className={`flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition ${
+                  tudoNormalMode === 'overwrite_all'
+                    ? 'border-amber-600 bg-amber-50/50 ring-1 ring-amber-600/30'
+                    : 'border-[#E5E9E7] hover:bg-gray-50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="tudo_normal_mode"
+                  value="overwrite_all"
+                  checked={tudoNormalMode === 'overwrite_all'}
+                  onChange={() => setTudoNormalMode('overwrite_all')}
+                  className="mt-1 text-amber-600 focus:ring-amber-600"
+                />
+                <div className="space-y-0.5">
+                  <span className="text-xs font-bold text-amber-900 block flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    Preencher tudo e sobrescrever o conteúdo existente
+                  </span>
+                  <p className="text-[11px] text-amber-800/80 leading-relaxed">
+                    Substitui todos os campos pelo texto selecionado. (Pode ser desfeito nas
+                    caixas).
+                  </p>
+                </div>
+              </label>
+            </div>
           </div>
 
           <DialogFooter className="pt-2">

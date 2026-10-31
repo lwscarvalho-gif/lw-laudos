@@ -1,6 +1,6 @@
 # LW Laudos — Status e Contexto Geral do Projeto
 
-> **Versão do Projeto**: **v0.0.51** (Fechada — Modo Tela Dividida com Histórico da Paciente e Otimização da Consulta Visual de Imagens no Editor de Ultrassom)  
+> **Versão do Projeto**: **v0.0.53** (Fechada — Desktop Tauri 2 PocketBase Local, Copiloto Ultrassonográfico Ativo, Tudo Normal com 3 Níveis, Identidade LW LAUDOS, Backup PocketBase e Validação de Preservação Clínica Real)  
 > **Destinatário deste documento**: Agente de IA externo autônomo ou assistente interativo (ChatGPT, Codex, Claude Code, Cursor, Copilot) que executará **APENAS** a instalação local da ponte DICOM Modality Worklist (MWL) no notebook do proprietário em Mirante da Serra (RO).  
 > **Aviso de Escopo e Governança**: O desenvolvimento do LW Laudos (código frontend, componentes React, regras de negócio, serviços, banco de dados e migrações) foi realizado e é guiado **exclusivamente pelo Skip** (assistente desta plataforma). O papel deste agente externo é **estritamente limitado à instalação, configuração e teste de prontidão local no notebook Windows** do médico, **sem alterar o código da aplicação, migrações, permissões, autenticação nem dados**.
 
@@ -164,6 +164,32 @@ Abaixo está o resumo cronológico completo da evolução do sistema no reposit�
     - Implementação de modal e interface visual para criar, renomear e carregar logotipo (PNG, JPEG, SVG) de cada clínica/unidade de atendimento em **Configurações → Preferências & Unidades**.
     - Persistência estruturada em `clinics_config` mantendo o isolamento rigoroso por médico (cada profissional gerencia unicamente suas próprias clínicas).
     - Preservação intacta de todos os dados do banco, incluindo o rascunho de laudo `muvdbwmrw3hagrr` e os registros do Dr. Lucas e da conta de teste convidado.
+
+- **v0.0.53 — Desktop Tauri 2 com Sidecar PocketBase Local, Copiloto Ultrassonográfico Ativo, 3 Níveis de Tudo Normal, Identidade LW LAUDOS e Backup Seguro**:
+  - **1. Estrutura Desktop Real (Tauri 2 + PocketBase Local)**:
+    - `src-tauri/src/main.rs`: implementação completa do gerenciamento de processos do PocketBase (`spawn_pocketbase`, `find_free_port`, `kill_sidecars`, `%APPDATA%\LWLaudos\pb_data` persistente e comando invoke `get_pocketbase_status`).
+    - Alinhamento de versão para `0.0.53` no `Cargo.toml`, `tauri.conf.json` e documentações.
+    - Configuração NSIS e empacotamento completo de binários e modelos locais.
+  - **2. Motor de IA Local e Validação de Preservação Clínica Real**:
+    - `clinicalPreservationValidator.ts`: análise algorítmica profunda de medidas métricas (mm, cm, ml), negações clínicas ("ausência de", "sem sinais") e lateralidade anatômica (direito/esquerdo). Qualquer alteração significativa bloqueia inserção direta e exige revisão explícita do médico.
+    - `localAiEngine.ts`: comunicação estrita em localhost (127.0.0.1:8080), sem internet, fila serializada com cancelamento ativo via `AbortController`, verificação de integridade e modelos auditados com licença comercial aberta (Apache-2.0).
+  - **3. Copiloto Ultrassonográfico Ativo em Segundo Plano**:
+    - Integrado ao `UltrasoundReportEditor.tsx` com debounce inteligente (1000ms).
+    - Exibição de indicador discreto com a contagem de sugestões. Nenhuma janela se abre de forma invasiva e nenhuma sugestão é aplicada sem clique explícito do médico (ações: Aplicar, Ignorar, Copiar e Aprofundar).
+    - Apoio à redação ecográfica e interpretação clínica (medidas ausentes em nódulos, detecção de inconsistências e diretrizes determinísticas ACR TI-RADS).
+  - **4. Tudo Normal com 3 Níveis de Profundidade**:
+    - Catálogo `normalPhrasesCatalog.ts`: níveis **Resumido** (padrão curto e direto), **Convencional** e **Detalhado** para todos os órgãos de abdome total e conclusão.
+    - Diálogo com seleção de nível e preservação de seções previamente digitadas pelo médico.
+  - **5. Personalização por Médico e Identidade LW LAUDOS**:
+    - Painel de preferências do médico (`DoctorAiPreferencesPanel.tsx`): modo de interação (ativo/discreto/manual), estilo de redação e instruções pessoais de escrita gravados no perfil (`doctor_ai_preferences`).
+    - Painel institucional da clínica (`ClinicCorporateIdentityPanel.tsx`): logotipo, razão social, CNPJ, endereço, telefone, cabeçalho e rodapé persistidos offline em `clinic_corporate_identity`.
+    - Nome principal do sistema atualizado para **LW LAUDOS** na barra lateral, tela de login, convites e rodapé.
+  - **6. Backup e Restauração Consistente Local**:
+    - `localBackupService.ts` e `LocalBackupPanel.tsx`: criação de snapshots consistentes do SQLite via API oficial do PocketBase e restauração assistida com proteção contra sobrescrita acidental.
+  - **7. Bateria de Testes Automatizados Reais**:
+    - `src/test/suite.ts`: testes executando validações clínicas reais de medidas, negações, lateralidade, catálogo de 3 níveis e integridade de licenças GGUF.
+  - **8. Preservação Absoluta de Dados**:
+    - O rascunho oficial de laudo do Dr. Lucas (`muvdbwmrw3hagrr`, status `Rascunho`, owner `kxhlkfxh0yddn64`) permanece 100% intacto no banco de dados.
 
 - **v0.0.51 — Modo Tela Dividida (Split Screen) com Histórico da Paciente e Otimização Visual das Imagens no Editor de Ultrassom**:
   - **Atendimento à Solicitação do Médico / Proprietário**:
