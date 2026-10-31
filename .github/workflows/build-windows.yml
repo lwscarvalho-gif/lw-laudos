@@ -39,7 +39,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'pnpm'
 
       - name: Configurar Rust toolchain (stable-x86_64-pc-windows-msvc)
         uses: dtolnay/rust-toolchain@stable
