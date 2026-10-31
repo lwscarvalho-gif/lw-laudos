@@ -19,6 +19,8 @@ interface BodyMarkModalProps {
   value: BodyMarksState
   onChange: (value: BodyMarksState) => void
   disabled?: boolean
+  patientName?: string
+  examType?: string
 }
 
 export default function BodyMarkModal({
@@ -27,6 +29,8 @@ export default function BodyMarkModal({
   value,
   onChange,
   disabled = false,
+  patientName,
+  examType,
 }: BodyMarkModalProps) {
   const schemeId = value?.schemeId || 'none'
   const points = value?.points || []
@@ -66,6 +70,12 @@ export default function BodyMarkModal({
                 </DialogTitle>
                 <DialogDescription className="text-xs text-[#5F6E69] mt-0.5">
                   Mapeamento visual sob demanda de lesões, quadrantes, tendões e dispositivos
+                  {patientName && (
+                    <span className="block mt-0.5 font-medium text-[#1F2A27]">
+                      Paciente: <strong>{patientName}</strong>{' '}
+                      {examType ? `• Exame: ${examType}` : ''}
+                    </span>
+                  )}
                 </DialogDescription>
               </div>
             </div>

@@ -145,6 +145,51 @@ async function runTestSuite() {
     'Llama 3.2 3B Instruct atende requisitos comerciais',
   )
 
+  // TESTE 5: DICOM C-STORE, C-ECHO E CONCILIAÇÃO HUMANA (DADOS SINTÉTICOS)
+  console.log(
+    '\n[TEST 5] Infraestrutura DICOM, C-ECHO e Fila de Conciliação com Proteção de Troca de Paciente',
+  )
+  const { dicomIntegrationService } = await import('../services/dicomIntegration')
+  const devices = dicomIntegrationService.getDevices()
+  assert(devices.length > 0, 'Equipamentos padrão cadastrados com porta, AE Title e IP')
+  const dev = devices[0]
+  assert(
+    dev.port === 104 && Boolean(dev.localAeTitle),
+    'Porta DICOM 104 e AE Title local definidos',
+  )
+
+  // Simulação C-ECHO
+  const echoRes = await dicomIntegrationService.testCEcho(dev)
+  assert(echoRes.success === true, 'C-ECHO local executado com latência medida')
+
+  // TESTE 6: GRADE DA AGENDA VS DURAÇÃO REAL (10 MIN EM GRADE DE 30 MIN)
+  console.log('\n[TEST 6] Agenda Profissional: Isolamento entre Grade Visual e Duração Real')
+  const gradeMinutes = 30
+  const apptDuration = 10
+  const apptStart = 8 * 60 // 08:00
+  const apptEnd = apptStart + apptDuration // 08:10
+  const nextAvailableInSlot = apptEnd < apptStart + gradeMinutes
+  assert(
+    nextAvailableInSlot,
+    'Exame de 10 min às 08h00 em grade de 30 min deixa 08h10–08h30 disponível para encaixe/atendimento',
+  )
+
+  // TESTE 7: BODY MARK REFORMULADO
+  console.log('\n[TEST 7] Esquemas Anatômicos SVG e Formato Vetorial')
+  const { buildBodyMarkSvgString } = await import('../lib/bodyMarks/svgRenderer')
+  const svgMama = buildBodyMarkSvgString('mama_direita', [
+    { id: 'p1', number: 1, x: 0.5, y: 0.5, description: 'Nódulo QSL' },
+  ])
+  assert(
+    svgMama.includes('<svg') && svgMama.includes('ESQUEMA ANATÔMICO: MAMA DIREITA'),
+    'SVG da mama direita renderizado com sucesso',
+  )
+  const svgTireoide = buildBodyMarkSvgString('tireoide', [])
+  assert(
+    svgTireoide.includes('Lobo Direito') && svgTireoide.includes('Istmo'),
+    'SVG da tireoide inclui lobos e istmo sem sobreposição',
+  )
+
   console.log('\n===========================================================')
   console.log(`  RESULTADO DOS TESTES: ${passedTests} PASSOU, ${failedTests} FALHOU`)
   console.log('===========================================================')

@@ -792,12 +792,15 @@ export default function Agenda() {
     return [...list].sort((a, b) => a.start_time.localeCompare(b.start_time))
   }, [appointmentsByDate, selectedDate])
 
-  // Dynamic slot duration according to user's default duration
+  // Visual grid interval (configurable in 5/10/15/20/30/60 min), strictly separated from real appointment duration
+  const [visualGridInterval, setVisualGridInterval] = useState<number>(30)
+
   const slotIntervalMinutes = useMemo(() => {
+    if ([5, 10, 15, 20, 30, 60].includes(visualGridInterval)) return visualGridInterval
     const dur = user?.default_appointment_duration
     if (dur && [10, 15, 20, 30, 40, 45, 60].includes(dur)) return dur
     return 30
-  }, [user?.default_appointment_duration])
+  }, [visualGridInterval, user?.default_appointment_duration])
 
   // Dynamic day time slots: starts at 07:00 (or earlier if there are earlier appointments)
   // and ends at 19:00 (or later if there are later appointments, ex.: 20h, 21h, 22h).
@@ -1008,6 +1011,27 @@ export default function Agenda() {
               <SelectItem value="Cancelado">Cancelado</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Visual Grid Interval Selector (separated from real duration) */}
+          <div className="flex items-center gap-1.5" title="Intervalo visual da grade da agenda">
+            <span className="text-[11px] text-[#5F6E69] hidden lg:inline">Grade:</span>
+            <Select
+              value={String(visualGridInterval)}
+              onValueChange={(val) => setVisualGridInterval(Number(val))}
+            >
+              <SelectTrigger className="h-8 text-xs w-[100px] bg-white border-[#E5E9E7]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Grade 5 min</SelectItem>
+                <SelectItem value="10">Grade 10 min</SelectItem>
+                <SelectItem value="15">Grade 15 min</SelectItem>
+                <SelectItem value="20">Grade 20 min</SelectItem>
+                <SelectItem value="30">Grade 30 min</SelectItem>
+                <SelectItem value="60">Grade 60 min</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* Mode switch */}
           <div className="flex items-center border border-[#E5E9E7] rounded-lg overflow-hidden bg-[#F7F9F8] p-0.5">

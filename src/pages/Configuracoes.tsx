@@ -63,6 +63,7 @@ import { examPreparationsService } from '@/services/examPreparations'
 import { DoctorAiPreferencesPanel } from '@/components/DoctorAiPreferencesPanel'
 import { ClinicCorporateIdentityPanel } from '@/components/ClinicCorporateIdentityPanel'
 import { LocalBackupPanel } from '@/components/LocalBackupPanel'
+import { DicomEquipmentSettingsPanel } from '@/components/DicomEquipmentSettingsPanel'
 
 const BRAZILIAN_STATES = [
   'AC',
@@ -996,6 +997,23 @@ export default function Configuracoes() {
 
       {/* 1.7 Backup e Restauração Local PocketBase/SQLite */}
       <LocalBackupPanel />
+
+      {/* 1.8 Equipamentos e DICOM (Storage SCP + Modality Worklist + C-ECHO) */}
+      <div className="bg-white p-6 sm:p-8 rounded-xl border border-[#E5E9E7] shadow-sm space-y-6">
+        <div className="flex items-center gap-3 border-b border-[#E5E9E7] pb-4">
+          <div className="w-9 h-9 rounded-lg bg-[#E8F3F0] text-[#0C6B58] flex items-center justify-center font-bold">
+            <Radio className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="font-bold text-base text-[#1F2A27]">Equipamentos e DICOM</h2>
+            <p className="text-xs text-[#5F6E69]">
+              Recepção C-STORE de aparelhos, Modality Worklist (C-FIND), teste C-ECHO e conciliação
+              humana
+            </p>
+          </div>
+        </div>
+        <DicomEquipmentSettingsPanel />
+      </div>
 
       {/* 2. Perfil & Senha */}
       <div className="bg-white p-6 sm:p-8 rounded-xl border border-[#E5E9E7] shadow-sm space-y-6">

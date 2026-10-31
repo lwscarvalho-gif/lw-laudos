@@ -64,6 +64,89 @@ fn get_pocketbase_status(state: State<'_, SidecarState>) -> Result<serde_json::V
     }))
 }
 
+/// Comando Tauri para o frontend checar o status do servidor de IA local (llama-server)
+#[tauri::command]
+fn get_llama_status(state: State<'_, SidecarState>) -> Result<serde_json::Value, String> {
+    let port = *state.llama_port.lock().map_err(|e| e.to_string())?;
+    let child_guard = state.llama_child.lock().map_err(|e| e.to_string())?;
+    let is_running = child_guard.is_some();
+
+    Ok(serde_json::json!({
+        "running": is_running,
+        "port": port,
+        "url": format!("http://127.0.0.1:{}", port),
+        "health_endpoint": format!("http://127.0.0.1:{}/health", port)
+    }))
+}
+
+/// Inicia o executável do llama-server local com o modelo GGUF empacotado
+fn spawn_llama_server(app: &AppHandle, state: &SidecarState) {
+    let port = find_free_port(8080);
+    {
+        if let Ok(mut p) = state.llama_port.lock() {
+            *p = port;
+        }
+    }
+
+    let binary_candidates = vec![
+        app.path().resolve("binaries/llama-server.exe", tauri::path::BaseDirectory::Resource).ok(),
+        app.path().resolve("binaries/llama-server", tauri::path::BaseDirectory::Resource).ok(),
+        Some(PathBuf::from("src-tauri/binaries/llama-server.exe")),
+        Some(PathBuf::from("bin/llama-server.exe")),
+        Some(PathBuf::from("bin/llama-server")),
+    ];
+
+    let mut found_bin: Option<PathBuf> = None;
+    for candidate in binary_candidates.into_iter().flatten() {
+        if candidate.exists() {
+            found_bin = Some(candidate);
+            break;
+        }
+    }
+
+    let model_candidates = vec![
+        app.path().resolve("models/qwen2.5-1.5b-instruct-q4_k_m.gguf", tauri::path::BaseDirectory::Resource).ok(),
+        app.path().resolve("models/llama-3.2-3b-instruct-q4_k_m.gguf", tauri::path::BaseDirectory::Resource).ok(),
+        Some(PathBuf::from("src-tauri/models/qwen2.5-1.5b-instruct-q4_k_m.gguf")),
+    ];
+
+    let mut found_model: Option<PathBuf> = None;
+    for candidate in model_candidates.into_iter().flatten() {
+        if candidate.exists() {
+            found_model = Some(candidate);
+            break;
+        }
+    }
+
+    if let (Some(bin_path), Some(model_path)) = (found_bin, found_model) {
+        println!("[LW Laudos] Iniciando Llama Server na porta {} com modelo {}", port, model_path.display());
+        match Command::new(bin_path)
+            .arg("-m")
+            .arg(format!("{}", model_path.display()))
+            .arg("--port")
+            .arg(port.to_string())
+            .arg("--host")
+            .arg("127.0.0.1")
+            .arg("-c")
+            .arg("2048")
+            .arg("--threads")
+            .arg("4")
+            .spawn()
+        {
+            Ok(child) => {
+                if let Ok(mut guard) = state.llama_child.lock() {
+                    *guard = Some(child);
+                }
+            }
+            Err(err) => {
+                eprintln!("[LW Laudos] Erro ao iniciar processo Llama Server: {:?}", err);
+            }
+        }
+    } else {
+        println!("[LW Laudos] Binário llama-server ou modelo GGUF não presente. A aplicação continua 100% funcional offline sem IA.");
+    }
+}
+
 /// Inicia o executável do PocketBase local isolado, passando o diretório de dados persistente
 fn spawn_pocketbase(app: &AppHandle, state: &SidecarState) {
     let port = find_free_port(8090);
@@ -148,11 +231,12 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![get_pocketbase_status])
+        .invoke_handler(tauri::generate_handler![get_pocketbase_status, get_llama_status])
         .setup(|app| {
             let handle = app.handle();
             let state: State<SidecarState> = handle.state();
             spawn_pocketbase(handle, &state);
+            spawn_llama_server(handle, &state);
             Ok(())
         })
         .build(tauri::generate_context!())

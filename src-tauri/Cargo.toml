@@ -1,6 +1,6 @@
 [package]
 name = "lw-laudos"
-version = "0.0.54"
+version = "0.0.56"
 description = "LW Laudos - Sistema Médico de Ultrassonografia Desktop 100% Offline"
 authors = ["LW Laudos <suporte@lwlaudos.com.br>"]
 license = "Proprietary"
