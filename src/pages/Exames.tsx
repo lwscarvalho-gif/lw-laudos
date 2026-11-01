@@ -149,15 +149,17 @@ export default function Exames() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1F2A27]">Exames</h1>
-          <p className="text-sm text-[#5F6E69] mt-0.5">Acompanhe o fluxo de exames diagnósticos</p>
+          <h1 className="text-2xl font-bold text-[#1F2A27]">Atendimentos</h1>
+          <p className="text-sm text-[#5F6E69] mt-0.5">
+            Acompanhe o fluxo de atendimentos clínicos
+          </p>
         </div>
         <Button
           onClick={() => navigate('/exames/novo')}
           className="bg-[#0C6B58] hover:bg-[#0A5949] text-white shadow-sm shrink-0"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Novo Exame
+          Novo Atendimento
         </Button>
       </div>
 

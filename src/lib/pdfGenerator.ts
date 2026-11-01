@@ -398,29 +398,32 @@ function drawRunningFooter(
   // Top line separator do rodapé
   page.drawLine(marginX, bottomY + 22, rightX, bottomY + 22, COLOR_BORDER, 0.5)
 
-  // Linha 1 do rodapé: Declaração de validade nos moldes exigidos
-  const validityDays =
-    typeof props.validityDays === 'number' && props.validityDays > 0 ? props.validityDays : 90
-  const { statementText } = formatReportValidityStatement(
-    props.issueDate || props.signatureDate,
-    validityDays,
-  )
+  // Rodapé formal médico sem afirmação arbitrária de validade de 90 dias
+  // Linha 1 do rodapé: Identificação profissional e integridade do documento
+  const authLine = props.authorName
+    ? `Documento médico emitido por Dr(a). ${props.authorName}${props.authorCrm ? ` - CRM ${props.authorCrm}` : ''}`
+    : 'Documento médico original emitido via LW Laudos'
 
-  page.drawText(statementText, marginX, bottomY + 11, {
+  page.drawText(authLine, marginX, bottomY + 11, {
     fontSize: 7,
     color: COLOR_TEXT_MAIN,
   })
 
-  // Linha 2 do rodapé: Aviso preliminar (apenas se assinatura real NÃO estiver ativa) + Paginação
+  // Linha 2 do rodapé: Se houver assinatura digital ativa declarada
   const isRealActive = Boolean(
     props.digitalSignature?.enabled && props.digitalSignature?.isRealSignature,
   )
-  if (!isRealActive) {
-    page.drawText(PRELIMINARY_VERSION_DISCLAIMER, marginX, bottomY, {
-      fontSize: 6.5,
-      italic: true,
-      color: COLOR_MUTED,
-    })
+  if (isRealActive) {
+    page.drawText(
+      'Documento assinado eletronicamente nos termos da legislação vigente.',
+      marginX,
+      bottomY,
+      {
+        fontSize: 6.5,
+        italic: true,
+        color: COLOR_MUTED,
+      },
+    )
   }
 
   // Pagination
@@ -445,18 +448,16 @@ function drawAnnexRunningFooter(
   // Top line separator do rodapé
   page.drawLine(marginX, bottomY + 22, rightX, bottomY + 22, COLOR_BORDER, 0.5)
 
-  // Linha 1 do rodapé: Declaração de validade do documento
-  const validityDays =
-    typeof props.validityDays === 'number' && props.validityDays > 0 ? props.validityDays : 90
-  const { statementText } = formatReportValidityStatement(
-    props.issueDate || props.signatureDate,
-    validityDays,
+  // Linha 1 do rodapé: Documentação anexa ao exame
+  page.drawText(
+    'Anexo de Documentação Fotográfica do Exame Ultrassonográfico',
+    marginX,
+    bottomY + 11,
+    {
+      fontSize: 7,
+      color: COLOR_TEXT_MAIN,
+    },
   )
-
-  page.drawText(statementText, marginX, bottomY + 11, {
-    fontSize: 7,
-    color: COLOR_TEXT_MAIN,
-  })
 
   // Linha 2 do rodapé: Se houver imagens ilustrativas, exibe a nota; se forem frames reais do exame DICOM/PACS, omite/declara frames reais
   const hasOnlyRealFrames =

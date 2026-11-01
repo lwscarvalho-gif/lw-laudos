@@ -2371,7 +2371,9 @@ export default function Agenda() {
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel
-              onClick={() => {
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
                 setPendingPrepReplacement(null)
                 setPrepConfirmDialogOpen(false)
               }}
@@ -2379,7 +2381,9 @@ export default function Agenda() {
               Manter meu texto atual
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
                 if (pendingPrepReplacement) {
                   setFormNotes(pendingPrepReplacement.newText)
                 }

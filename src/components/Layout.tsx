@@ -36,7 +36,7 @@ const NAV_ITEMS = [
   { path: '/pacientes', label: 'Pacientes', icon: Users },
   { path: '/agenda', label: 'Agenda', icon: Calendar },
   { path: '/gestao-clinica', label: 'Gestão da Clínica', icon: DollarSign },
-  { path: '/exames', label: 'Exames', icon: ClipboardList },
+  { path: '/exames', label: 'Atendimentos', icon: ClipboardList },
   { path: '/laudos', label: 'Laudos', icon: FileText },
   { path: '/modelos', label: 'Modelos', icon: Layers },
   { path: '/integracoes', label: 'Integrações', icon: Layers },
@@ -105,7 +105,7 @@ export default function Layout() {
     if (path.startsWith('/pacientes')) return 'Pacientes'
     if (path.startsWith('/agenda')) return 'Agenda Médica'
     if (path.startsWith('/gestao-clinica')) return 'Gestão da Clínica'
-    if (path.startsWith('/exames')) return 'Exames'
+    if (path.startsWith('/exames')) return 'Atendimentos'
     if (path.startsWith('/laudos/ultrassom')) return 'Laudo de Ultrassonografia'
     if (path.startsWith('/laudos')) return 'Laudos'
     if (path.startsWith('/modelos')) return 'Modelos'

@@ -76,7 +76,7 @@ export function ActiveCopilotWidget({
           title="Copiloto ativo em segundo plano — nenhuma observação pendente"
         >
           <Sparkles className="w-3 h-3 text-[#8A9691]" />
-          <span>Copiloto ativo</span>
+          <span>Copiloto local (regras)</span>
         </button>
       )}
 

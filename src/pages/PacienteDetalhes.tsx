@@ -334,17 +334,6 @@ export default function PacienteDetalhes() {
 
         {/* Quick action buttons: New Appointment + New Report + Delete */}
         <div className="flex flex-wrap items-center gap-2 pt-2 sm:pt-0">
-          {!isOperator && (
-            <Button
-              onClick={() => setAuditModalOpen(true)}
-              variant="outline"
-              className="border-[#0C6B58]/30 text-[#0C6B58] hover:bg-[#E8F3F0] text-xs font-semibold"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />
-              Auditoria LGPD
-            </Button>
-          )}
-
           <Button
             onClick={() => navigate(`/agenda?paciente=${patient.id}`)}
             variant="outline"

@@ -191,7 +191,54 @@ export class UltrasoundCopilotEngine {
       })
     }
 
-    // C. Critério estruturado determinístico: Tireoide (ACR TI-RADS)
+    // C. Verificação de Ausência de Unidade Métrica em Dimensões (ex: "8X5X4" sem cm ou mm)
+    if (
+      /\b\d+([.,]\d+)?\s*[xX]\s*\d+([.,]\d+)?(\s*[xX]\s*\d+([.,]\d+)?)?\b(?!\s*(mm|cm|m)\b)/i.test(
+        trimmed,
+      )
+    ) {
+      suggestions.push({
+        id: `sug_missing_unit_${Date.now()}`,
+        category: 'medida_ausente',
+        title: 'Ausência de Unidades de Medida (mm ou cm)',
+        explanation:
+          'Identificada menção a eixos dimensionais sem especificação explícita da unidade métrica (ex.: cm ou mm). Recomenda-se explicitar a unidade.',
+        suggestedText: trimmed,
+        originalText: trimmed,
+        targetOrganId: organId,
+        targetOrganLabel: organLabel,
+        confidence: 0.95,
+        deterministicCriteria:
+          'Regra de padronização métrica médica: dimensões devem conter unidade explícita.',
+        requiresReview: true,
+      })
+    }
+
+    // D. Detecção de Ambiguidade Anatômica de Ectasia Ductal em Contexto Renal
+    if (
+      (organId.includes('rim') ||
+        organLabel.toLowerCase().includes('rim') ||
+        lower.includes('rim')) &&
+      (lower.includes('ectasia ductal') || lower.includes('dilatacao ductal'))
+    ) {
+      suggestions.push({
+        id: `sug_ambiguity_ductal_renal_${Date.now()}`,
+        category: 'inconsistencia',
+        title: 'Ambiguidade Terminológica: "Ectasia Ductal" em Contexto Renal',
+        explanation:
+          'O termo "ectasia ductal" refere-se tipicamente a ductos mamários ou biliares. No contexto renal, a terminologia anatômica padronizada é "ectasia/dilatação pielocalicial" ou "hidronefrose".',
+        suggestedText: trimmed.replace(/ectasia ductal/gi, 'ectasia pielocalicial'),
+        originalText: trimmed,
+        targetOrganId: organId,
+        targetOrganLabel: organLabel,
+        confidence: 0.98,
+        deterministicCriteria:
+          'Terminologia anatômica ultrassonográfica: rins apresentam sistema pielocalicial.',
+        requiresReview: true,
+      })
+    }
+
+    // E. Critério estruturado determinístico: Tireoide (ACR TI-RADS)
     if (
       organId === 'tireoide' ||
       organLabel.toLowerCase().includes('tireoide') ||
