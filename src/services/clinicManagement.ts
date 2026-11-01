@@ -117,10 +117,11 @@ export interface FinancialTransaction {
 
 class ClinicManagementService {
   // 1. Catálogo de Procedimentos
-  async getProcedures(clinicLocation: string): Promise<ClinicProcedure[]> {
+  async getProcedures(clinicLocation?: string): Promise<ClinicProcedure[]> {
     try {
+      const filter = clinicLocation ? `clinic_location = "${clinicLocation}"` : ''
       const records = await pb.collection('clinic_procedures').getFullList<ClinicProcedure>({
-        filter: `clinic_location = "${clinicLocation}"`,
+        filter: filter || undefined,
         sort: 'name',
       })
       return records

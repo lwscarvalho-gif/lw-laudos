@@ -9,6 +9,7 @@ import {
 import { clinicManagementService, type ClinicProcedure } from '@/services/clinicManagement'
 import { Star, Loader2, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface UnifiedProcedureSelectProps {
   clinicLocation?: string
@@ -16,6 +17,7 @@ interface UnifiedProcedureSelectProps {
   onChange: (value: string, procedure?: ClinicProcedure) => void
   className?: string
   placeholder?: string
+  disabled?: boolean
 }
 
 const FAVORITES_STORAGE_KEY = 'lw_laudos_procedure_favorites'
@@ -26,7 +28,9 @@ export function UnifiedProcedureSelect({
   onChange,
   className = '',
   placeholder = 'Selecione ou busque o procedimento...',
+  disabled = false,
 }: UnifiedProcedureSelectProps) {
+  const { user } = useAuth()
   const [procedures, setProcedures] = useState<ClinicProcedure[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -39,16 +43,63 @@ export function UnifiedProcedureSelect({
     }
   })
 
+  // Resolução rigorosa da unidade clínica a partir do contexto do usuário e da licença
+  const resolvedClinic = useMemo(() => {
+    if (clinicLocation && clinicLocation.trim()) {
+      return clinicLocation.trim()
+    }
+    // Contexto de clínicas permitidas / configuradas do usuário autenticado
+    if (
+      user?.allowed_clinics &&
+      Array.isArray(user.allowed_clinics) &&
+      user.allowed_clinics.length > 0
+    ) {
+      return user.allowed_clinics[0]
+    }
+    if (user?.clinics_config) {
+      let clist: any[] = []
+      if (Array.isArray(user.clinics_config)) {
+        clist = user.clinics_config
+      } else if (typeof user.clinics_config === 'string') {
+        try {
+          clist = JSON.parse(user.clinics_config)
+        } catch {
+          /* ignore */
+        }
+      }
+      if (clist.length > 0) {
+        const first = clist[0]
+        return typeof first === 'string' ? first : first?.name || ''
+      }
+    }
+    return ''
+  }, [clinicLocation, user])
+
   useEffect(() => {
     let active = true
     setLoading(true)
-    const effectiveClinic = clinicLocation || 'HM Samuel Marques dos Santos'
+
+    // Se uma clínica for resolvida, buscar para ela; se não houver unidade restrita,
+    // buscar procedimentos ativos globais ou pela primeira unidade disponível sem fallback forçado
     clinicManagementService
-      .getProcedures(effectiveClinic)
+      .getProcedures(resolvedClinic || undefined)
       .then((list) => {
         if (!active) return
         const activeOnly = list.filter((p) => p.is_active)
-        setProcedures(activeOnly)
+        // Se a busca por clínica específica estiver vazia, buscar catálogo geral ativo
+        if (activeOnly.length === 0 && resolvedClinic) {
+          clinicManagementService
+            .getProcedures()
+            .then((allList) => {
+              if (!active) return
+              setProcedures(allList.filter((p) => p.is_active))
+            })
+            .catch(() => {
+              if (active) setProcedures([])
+            })
+        } else {
+          setProcedures(activeOnly)
+        }
       })
       .catch(() => {
         if (active) setProcedures([])
@@ -60,7 +111,7 @@ export function UnifiedProcedureSelect({
     return () => {
       active = false
     }
-  }, [clinicLocation])
+  }, [resolvedClinic])
 
   const toggleFavorite = (procName: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -117,6 +168,7 @@ export function UnifiedProcedureSelect({
       ) : (
         <Select
           value={value}
+          disabled={disabled}
           onValueChange={(val) => {
             const found = procedures.find((p) => p.name === val)
             onChange(val, found)

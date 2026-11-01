@@ -1191,6 +1191,12 @@ export const CLINICAL_MASKS_REGISTRY: Record<string, ClinicalMaskDefinition> = {
   },
 }
 
+import { EXTENDED_MASKS_REGISTRY } from './clinicalMasksExtended'
+import { MSK_SPECIFIC_MASKS_REGISTRY } from './clinicalMasksMsk'
+
+// Fusão de todas as máscaras no registro global
+Object.assign(CLINICAL_MASKS_REGISTRY, EXTENDED_MASKS_REGISTRY, MSK_SPECIFIC_MASKS_REGISTRY)
+
 /**
  * RESOLVEDOR UNIVERSAL DE PROCEDIMENTO PARA MÁSCARA CLÍNICA
  *
@@ -1458,7 +1464,175 @@ export function resolveProcedureMask(procedureName: string): {
     }
   }
 
-  if (norm.includes('abdome') || norm.includes('abdominal')) {
+  if (norm.includes('parede abdominal') || norm.includes('hernia') || norm.includes('inguinal')) {
+    const mask = CLINICAL_MASKS_REGISTRY.mask_parede_abdominal_hernias
+    return {
+      mask,
+      mode: 'structured',
+      title: 'Laudo de Ultrassonografia de Parede Abdominal / Região Inguinal',
+      sections: mask.sections.map((s) => ({ id: s.id, label: s.label, text: '' })),
+      initialFreeText: '',
+      bodyMarkSchemeId: 'none',
+      hasValidatedNormalPhrases: true,
+      status: mask.status,
+    }
+  }
+
+  if (norm.includes('abdome superior') || norm.includes('abdominal superior')) {
+    const mask = CLINICAL_MASKS_REGISTRY.mask_abdome_superior
+    return {
+      mask,
+      mode: 'structured',
+      title: 'Laudo de Ultrassonografia de Abdome Superior',
+      sections: mask.sections.map((s) => ({ id: s.id, label: s.label, text: '' })),
+      initialFreeText: '',
+      bodyMarkSchemeId: 'none',
+      hasValidatedNormalPhrases: true,
+      status: mask.status,
+    }
+  }
+
+  if (norm.includes('gemelar')) {
+    const mask = CLINICAL_MASKS_REGISTRY.mask_gestacao_gemelar
+    return {
+      mask,
+      mode: 'structured',
+      title: 'Laudo de Ultrassonografia Obstétrica em Gestação Gemelar',
+      sections: mask.sections.map((s) => ({ id: s.id, label: s.label, text: '' })),
+      initialFreeText: '',
+      bodyMarkSchemeId: 'none',
+      hasValidatedNormalPhrases: true,
+      status: mask.status,
+    }
+  }
+
+  if (norm.includes('perfil biofisico') || norm.includes('pbf')) {
+    const mask = CLINICAL_MASKS_REGISTRY.mask_perfil_biofisico_fetal
+    return {
+      mask,
+      mode: 'structured',
+      title: 'Laudo de Perfil Biofísico Fetal (PBF)',
+      sections: mask.sections.map((s) => ({ id: s.id, label: s.label, text: '' })),
+      initialFreeText: '',
+      bodyMarkSchemeId: 'none',
+      hasValidatedNormalPhrases: true,
+      status: mask.status,
+    }
+  }
+
+  if (norm.includes('penis') || norm.includes('peniano')) {
+    const mask = CLINICAL_MASKS_REGISTRY.mask_penis_doppler
+    return {
+      mask,
+      mode: 'structured',
+      title: 'Laudo de Ultrassonografia Peniana',
+      sections: mask.sections.map((s) => ({ id: s.id, label: s.label, text: '' })),
+      initialFreeText: '',
+      bodyMarkSchemeId: 'none',
+      hasValidatedNormalPhrases: true,
+      status: mask.status,
+    }
+  }
+
+  if (norm.includes('salivar') || norm.includes('parotida') || norm.includes('submandibular')) {
+    const mask = CLINICAL_MASKS_REGISTRY.mask_glandulas_salivares
+    return {
+      mask,
+      mode: 'structured',
+      title: 'Laudo de Ultrassonografia de Glândulas Salivares',
+      sections: mask.sections.map((s) => ({ id: s.id, label: s.label, text: '' })),
+      initialFreeText: '',
+      bodyMarkSchemeId: 'none',
+      hasValidatedNormalPhrases: true,
+      status: mask.status,
+    }
+  }
+
+  if (norm.includes('cotovelo')) {
+    const mask = CLINICAL_MASKS_REGISTRY.mask_cotovelo
+    return {
+      mask,
+      mode: 'structured',
+      title: 'Laudo de Ultrassonografia de Cotovelo',
+      sections: mask.sections.map((s) => ({ id: s.id, label: s.label, text: '' })),
+      initialFreeText: '',
+      bodyMarkSchemeId: 'none',
+      hasValidatedNormalPhrases: true,
+      status: mask.status,
+    }
+  }
+
+  if (norm.includes('punho')) {
+    const mask = CLINICAL_MASKS_REGISTRY.mask_punho
+    return {
+      mask,
+      mode: 'structured',
+      title: 'Laudo de Ultrassonografia de Punho',
+      sections: mask.sections.map((s) => ({ id: s.id, label: s.label, text: '' })),
+      initialFreeText: '',
+      bodyMarkSchemeId: 'none',
+      hasValidatedNormalPhrases: true,
+      status: mask.status,
+    }
+  }
+
+  if (norm.includes('tornozelo')) {
+    const mask = CLINICAL_MASKS_REGISTRY.mask_tornozelo
+    return {
+      mask,
+      mode: 'structured',
+      title: 'Laudo de Ultrassonografia de Tornozelo',
+      sections: mask.sections.map((s) => ({ id: s.id, label: s.label, text: '' })),
+      initialFreeText: '',
+      bodyMarkSchemeId: 'none',
+      hasValidatedNormalPhrases: true,
+      status: mask.status,
+    }
+  }
+
+  if (norm.includes('aquiles') || norm.includes('calcaneo')) {
+    const mask = CLINICAL_MASKS_REGISTRY.mask_tendao_aquiles
+    return {
+      mask,
+      mode: 'structured',
+      title: 'Laudo de Ultrassonografia do Tendão de Aquiles',
+      sections: mask.sections.map((s) => ({ id: s.id, label: s.label, text: '' })),
+      initialFreeText: '',
+      bodyMarkSchemeId: 'none',
+      hasValidatedNormalPhrases: true,
+      status: mask.status,
+    }
+  }
+
+  if (norm.includes('doppler') && norm.includes('venoso')) {
+    const mask = CLINICAL_MASKS_REGISTRY.mask_doppler_venoso_membros
+    return {
+      mask,
+      mode: 'structured',
+      title: 'Laudo de Doppler Venoso de Membros',
+      sections: mask.sections.map((s) => ({ id: s.id, label: s.label, text: '' })),
+      initialFreeText: '',
+      bodyMarkSchemeId: 'none',
+      hasValidatedNormalPhrases: true,
+      status: mask.status,
+    }
+  }
+
+  if (norm.includes('doppler') && norm.includes('arterial')) {
+    const mask = CLINICAL_MASKS_REGISTRY.mask_doppler_arterial_membros
+    return {
+      mask,
+      mode: 'structured',
+      title: 'Laudo de Doppler Arterial de Membros',
+      sections: mask.sections.map((s) => ({ id: s.id, label: s.label, text: '' })),
+      initialFreeText: '',
+      bodyMarkSchemeId: 'none',
+      hasValidatedNormalPhrases: true,
+      status: mask.status,
+    }
+  }
+
+  if (norm.includes('abdome total') || norm.includes('abdome') || norm.includes('abdominal')) {
     const mask = CLINICAL_MASKS_REGISTRY.mask_abdome_total
     return {
       mask,
