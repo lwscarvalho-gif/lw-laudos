@@ -44,7 +44,7 @@ export interface PrintReportProps {
     signedAt?: string
     hashSha256?: string
   }
-  validityDays?: number // Período de validade configurável (padrão 90 dias)
+  technicalLimitations?: string // Limitações técnicas observadas durante o exame
   issueDate?: string // Data de emissão oficial (ISO string ou YYYY-MM-DD)
 }
 
@@ -495,7 +495,9 @@ function drawAnnexRunningFooter(
 function drawPatientBox(page: PdfPage, props: PrintReportProps, topY: number): number {
   const marginX = 40
   const width = 515
-  const hasExtraLine = Boolean(props.referringPhysician || props.clinicLocation)
+  const hasExtraLine = Boolean(
+    props.referringPhysician || props.clinicLocation || props.technicalLimitations,
+  )
   const height = hasExtraLine ? 56 : 44
 
   page.drawRect(marginX, topY - height, width, height, {
@@ -554,6 +556,16 @@ function drawPatientBox(page: PdfPage, props: PrintReportProps, topY: number): n
       fontSize: 8,
       bold: true,
       color: COLOR_PRIMARY,
+    })
+  }
+
+  // Limitações técnicas se registradas
+  if (props.technicalLimitations) {
+    const lim = wrapText(`Limitações Técnicas: ${props.technicalLimitations}`, 45)[0] || ''
+    page.drawText(lim, marginX + 10, topY - height + 3, {
+      fontSize: 7.5,
+      italic: true,
+      color: COLOR_MUTED,
     })
   }
 
@@ -777,8 +789,11 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
   }
 
   // Signature Block (posicionado logo acima do rodapé, antes das páginas de anexos)
-  const isDigital = Boolean(props.digitalSignature?.enabled)
-  const sigHeight = isDigital ? 105 : 75
+  const isDigitalVerified = Boolean(
+    props.digitalSignature?.enabled &&
+    (props.digitalSignature?.isRealSignature || props.digitalSignature?.hashSha256),
+  )
+  const sigHeight = isDigitalVerified ? 105 : 75
   if (cursorY - sigHeight < pageBottomLimit + 15) {
     currentPage = doc.addPage()
     textPages.push(currentPage)
@@ -789,7 +804,7 @@ export async function generateReportPdfBlob(props: PrintReportProps): Promise<Bl
   cursorY -= 16
   const sigCenterX = marginX + contentWidth / 2
 
-  if (isDigital) {
+  if (isDigitalVerified) {
     // Carimbo Visual Oficial de Assinatura Digital (ICP-Brasil PAdES compliant visual representation)
     const stampW = 360
     const stampH = 72
@@ -1743,11 +1758,12 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
         <span>Paciente: <strong>${props.patientName}</strong></span>
         ${props.patientDocument ? `<br/><span style="color:#5F6E69;">CPF: <strong>${props.patientDocument}</strong></span>` : ''}
         ${props.referringPhysician ? `<br/><span style="color:#33413B; font-style: italic;">Médico Solicitante: <strong>${props.referringPhysician}</strong></span>` : ''}
+        ${props.technicalLimitations ? `<br/><span style="color:#5F6E69; font-style: italic;">Limitações Técnicas: <strong>${props.technicalLimitations}</strong></span>` : ''}
       </div>
       <div style="text-align: right;">
         ${props.examDate ? `<span>Data do Exame: <strong>${props.examDate}</strong></span>` : ''}
-        ${props.indication ? `<br/><span style="color:#5F6E69;">Indicação: ${props.indication}</span>` : ''}
-        ${props.clinicLocation ? `<br/><span style="color:#0C6B58; font-weight: bold;">Local: ${props.clinicLocation}</span>` : ''}
+        ${props.indication ? `<br/><span style="color:#5F6E69;">Indicação Clínica: ${props.indication}</span>` : ''}
+        ${props.clinicLocation ? `<br/><span style="color:#0C6B58; font-weight: bold;">Local de Realização: ${props.clinicLocation}</span>` : ''}
       </div>
     </div>
 
@@ -1767,7 +1783,8 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
     }
 
     ${
-      props.digitalSignature?.enabled
+      props.digitalSignature?.enabled &&
+      (props.digitalSignature?.isRealSignature || props.digitalSignature?.hashSha256)
         ? `
       <div style="margin-top: 28px; page-break-inside: avoid; border: 1.5px solid #0C6B58; border-radius: 6px; padding: 12px 16px; background: #F4F9F7; font-family: -apple-system, sans-serif; text-align: left; max-width: 440px; margin-left: auto; margin-right: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <div style="color: #0C6B58; font-weight: 800; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #D1E5DE; padding-bottom: 4px; margin-bottom: 6px;">
@@ -1932,7 +1949,7 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
 
       <div style="margin-top: 20px; padding-top: 6px; border-top: 1px solid #E5E9E7; font-family: -apple-system, sans-serif; display: flex; justify-content: space-between; align-items: flex-end; font-size: 7.5pt; color: #5F6E69;">
         <div>
-          <div>${formatReportValidityStatement(props.issueDate || props.signatureDate, typeof props.validityDays === 'number' && props.validityDays > 0 ? props.validityDays : 90).statementText}</div>
+          <div style="color: #1F2A27; font-weight: 500;">Documento médico original emitido via LW Laudos</div>
           <div style="font-style: italic; color: #8A9691; margin-top: 2px;">
             ${
               props.images &&
@@ -1961,11 +1978,12 @@ export function buildReportHTML(props: PrintReportProps & { autoPrint?: boolean 
 
   <div class="footer">
     <div style="font-size: 7.5pt; color: #1F2A27; margin-bottom: 2px;">
-      ${formatReportValidityStatement(props.issueDate || props.signatureDate, typeof props.validityDays === 'number' && props.validityDays > 0 ? props.validityDays : 90).statementText}
+      Documento médico original emitido por ${props.authorName}${props.authorCrm ? ` • CRM ${props.authorCrm}` : ''}
     </div>
     ${
-      !props.digitalSignature?.enabled || !props.digitalSignature?.isRealSignature
-        ? `<div style="font-size: 7pt; font-style: italic; color: #8A9691;">${PRELIMINARY_VERSION_DISCLAIMER}</div>`
+      !props.digitalSignature?.enabled ||
+      (!props.digitalSignature?.isRealSignature && !props.digitalSignature?.hashSha256)
+        ? `<div style="font-size: 7pt; font-style: italic; color: #8A9691;">Identificação profissional registrada eletronicamente.</div>`
         : ''
     }
   </div>

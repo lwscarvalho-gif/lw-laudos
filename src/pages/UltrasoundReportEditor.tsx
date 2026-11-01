@@ -95,6 +95,8 @@ import ExamImagesManager from '@/components/ultrasound/ExamImagesManager'
 import AiAssistantPanel from '@/components/ultrasound/AiAssistantPanel'
 import { ActiveCopilotWidget } from '@/components/ultrasound/ActiveCopilotWidget'
 import { ultrasoundCopilotEngine, type CopilotSuggestion } from '@/services/ultrasoundCopilotEngine'
+import { resolveProcedureMask, type ClinicalMaskDefinition } from '@/services/clinicalMasksRegistry'
+import { UnifiedProcedureSelect } from '@/components/UnifiedProcedureSelect'
 import { getNormalPhraseForOrgan, type TudoNormalLevel } from '@/services/normalPhrasesCatalog'
 import BodyMarkEditor from '@/components/ultrasound/BodyMarkEditor'
 import BodyMarkModal from '@/components/ultrasound/BodyMarkModal'
@@ -104,20 +106,14 @@ import PatientReportHistoryPanel from '@/components/ultrasound/PatientReportHist
 import { Columns, SplitSquareVertical } from 'lucide-react'
 import type { BodyMarksState } from '@/types'
 
-// Default structured sections for Abdome Total
-const DEFAULT_ABDOME_SECTIONS: Array<{ id: string; label: string }> = [
-  { id: 'figado', label: 'Fígado' },
-  { id: 'vias_biliares', label: 'Vias Biliares' },
-  { id: 'vesicula', label: 'Vesícula Biliar' },
-  { id: 'pancreas', label: 'Pâncreas' },
-  { id: 'baco', label: 'Baço' },
-  { id: 'rim_direito', label: 'Rim Direito' },
-  { id: 'rim_esquerdo', label: 'Rim Esquerdo' },
-  { id: 'bexiga', label: 'Bexiga' },
-  { id: 'vasos', label: 'Grandes Vasos (Aorta e Cava)' },
-  { id: 'retroperitonio', label: 'Retroperitônio e Cavidade' },
-  { id: 'observacoes', label: 'Observações Técnicas e Preparo' },
-]
+// Helper: converte seções da ClinicalMaskDefinition para UltrasoundSectionData
+function buildSectionsFromMask(mask: ClinicalMaskDefinition): UltrasoundSectionData[] {
+  return mask.sections.map((sec) => ({
+    id: sec.id,
+    label: sec.title,
+    text: '',
+  }))
+}
 
 export default function UltrasoundReportEditor() {
   const navigate = useNavigate()
@@ -135,20 +131,30 @@ export default function UltrasoundReportEditor() {
   const [exams, setExams] = useState<Exam[]>([])
   const [loadingInitial, setLoadingInitial] = useState(true)
 
+  // Máscara clínica ativa e procedimento selecionado
+  const [selectedProcedureName, setSelectedProcedureName] = useState<string>(
+    'Ultrassonografia de Abdome Total',
+  )
+  const [activeMask, setActiveMask] = useState<ClinicalMaskDefinition | null>(() =>
+    resolveProcedureMask('Ultrassonografia de Abdome Total'),
+  )
+
   // Report Form State
   const [currentReportId, setCurrentReportId] = useState<string>(reportIdParam)
-  const [title, setTitle] = useState('Laudo de Ultrassonografia de Abdome Total')
+  const [title, setTitle] = useState(() => {
+    const initMask = resolveProcedureMask('Ultrassonografia de Abdome Total')
+    return initMask?.title || 'Laudo de Ultrassonografia de Abdome Total'
+  })
   const [patientId, setPatientId] = useState(prefilledPatientId)
   const [examId, setExamId] = useState(prefilledExamId)
   const [referringPhysician, setReferringPhysician] = useState<string>('')
   const [clinicLocation, setClinicLocation] = useState<string>('')
-  const [sections, setSections] = useState<UltrasoundSectionData[]>(() =>
-    DEFAULT_ABDOME_SECTIONS.map((sec) => ({
-      id: sec.id,
-      label: sec.label,
-      text: '',
-    })),
-  )
+  const [sections, setSections] = useState<UltrasoundSectionData[]>(() => {
+    const initMask = resolveProcedureMask('Ultrassonografia de Abdome Total')
+    return initMask
+      ? buildSectionsFromMask(initMask)
+      : [{ id: 'observacoes', label: 'Observações', text: '' }]
+  })
   const [conclusion, setConclusion] = useState('')
   const [mode, setMode] = useState<'structured' | 'freetext'>('structured')
   const [freeTextBody, setFreeTextBody] = useState('')
@@ -162,8 +168,18 @@ export default function UltrasoundReportEditor() {
   const [imagesPerPage, setImagesPerPage] = useState<2 | 4 | 6>(4)
 
   // Active Organ for Ctrl+N / Normal button / Library
-  const [activeOrganId, setActiveOrganId] = useState<string>('figado')
-  const [activeOrganLabel, setActiveOrganLabel] = useState<string>('Fígado')
+  const [activeOrganId, setActiveOrganId] = useState<string>(() => {
+    const initMask = resolveProcedureMask('Ultrassonografia de Abdome Total')
+    return initMask?.sections[0]?.id || 'observacoes'
+  })
+  const [activeOrganLabel, setActiveOrganLabel] = useState<string>(() => {
+    const initMask = resolveProcedureMask('Ultrassonografia de Abdome Total')
+    return initMask?.sections[0]?.title || 'Observações'
+  })
+
+  // Confirmação para troca de procedimento quando há texto digitado
+  const [procedureChangeConfirmOpen, setProcedureChangeConfirmOpen] = useState(false)
+  const [pendingProcedureName, setPendingProcedureName] = useState<string | null>(null)
 
   // Replacement confirmation state
   // PDF inside app preview state
@@ -1191,7 +1207,6 @@ export default function UltrasoundReportEditor() {
         signature_date: new Date().toISOString(),
         signature_status: sigStatus,
         signature_provider: sigProvider || undefined,
-        validity_days: 90,
       }
 
       if (currentReportId) {
