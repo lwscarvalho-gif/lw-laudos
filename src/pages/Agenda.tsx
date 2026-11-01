@@ -367,6 +367,7 @@ export default function Agenda() {
   }
 
   // Auto-fill or ask before replacing notes with exam preparation, and prefill exam duration
+  // Preserva paciente, data, horário, solicitante e anexos já preenchidos
   const handleExamTypeChange = (newType: string) => {
     setFormExamType(newType)
     const effectiveType = newType === 'Outro (personalizado)' ? customExamType : newType
@@ -384,19 +385,33 @@ export default function Agenda() {
 
     // Find in prepCatalog
     const found = prepCatalog.find((p) => p.exam_type.toLowerCase() === effectiveType.toLowerCase())
-    if (!found || !found.instructions) return
+    const newInstructions = found?.instructions?.trim() || ''
 
     const currentNotes = formNotes.trim()
+    if (!newInstructions) {
+      return
+    }
+
     if (!currentNotes) {
       // Empty -> auto fill directly
-      setFormNotes(found.instructions)
-    } else if (currentNotes !== found.instructions) {
-      // Already has text -> ask confirmation before replacing
-      setPendingPrepReplacement({
-        newExam: effectiveType,
-        newText: found.instructions,
-      })
-      setPrepConfirmDialogOpen(true)
+      setFormNotes(newInstructions)
+    } else if (currentNotes !== newInstructions) {
+      // Verifica se o texto atual correspondia a um preparo automático prévio de outro exame
+      const wasPreviousAutomaticPrep = prepCatalog.some(
+        (p) => p.instructions && p.instructions.trim() === currentNotes,
+      )
+
+      if (wasPreviousAutomaticPrep) {
+        // Se era preparo automático do exame anterior, substitui diretamente pelo novo preparo
+        setFormNotes(newInstructions)
+      } else {
+        // Se foi editado manualmente pelo usuário, pergunta se deseja preservar ou substituir
+        setPendingPrepReplacement({
+          newExam: effectiveType,
+          newText: newInstructions,
+        })
+        setPrepConfirmDialogOpen(true)
+      }
     }
   }
 
@@ -980,23 +995,25 @@ export default function Agenda() {
 
         {/* View Mode & Filters */}
         <div className="flex flex-wrap items-center gap-3">
-          {/* Clinic filter */}
-          <div className="flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-[#8A9691]" />
-            <Select value={selectedClinicFilter} onValueChange={setSelectedClinicFilter}>
-              <SelectTrigger className="h-8 text-xs w-[160px] bg-white border-[#E5E9E7]">
-                <SelectValue placeholder="Clínica / Local" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Todas">Todas as Unidades</SelectItem>
-                {doctorClinics.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Clinic filter (oculto quando há apenas 1 unidade vinculada) */}
+          {doctorClinics.length > 1 && (
+            <div className="flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-[#8A9691]" />
+              <Select value={selectedClinicFilter} onValueChange={setSelectedClinicFilter}>
+                <SelectTrigger className="h-8 text-xs w-[160px] bg-white border-[#E5E9E7]">
+                  <SelectValue placeholder="Clínica / Local" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todas">Todas as Unidades</SelectItem>
+                  {doctorClinics.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Status filter */}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -1830,24 +1847,35 @@ export default function Agenda() {
                 )}
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Clínica / Local de Atendimento *</Label>
-                <Select value={formClinic} onValueChange={setFormClinic}>
-                  <SelectTrigger className="text-xs bg-white">
-                    <SelectValue placeholder="Selecione a unidade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {doctorClinics.map((c) => (
-                      <SelectItem key={c} value={c} className="text-xs">
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-[#8A9691]">
-                  Unidades configuráveis em Configurações → Worklist DICOM.
-                </p>
-              </div>
+              {doctorClinics.length > 1 ? (
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Clínica / Local de Atendimento *</Label>
+                  <Select value={formClinic} onValueChange={setFormClinic}>
+                    <SelectTrigger className="text-xs bg-white">
+                      <SelectValue placeholder="Selecione a unidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {doctorClinics.map((c) => (
+                        <SelectItem key={c} value={c} className="text-xs">
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-[#8A9691]">
+                    Unidades configuráveis em Configurações → Worklist DICOM.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Clínica / Local de Atendimento</Label>
+                  <Input
+                    value={formClinic || doctorClinics[0] || 'Unidade Principal'}
+                    disabled
+                    className="text-xs bg-[#F7F9F8] text-[#5F6E69] border-[#E5E9E7]"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Status & Referring physician */}
@@ -2356,8 +2384,16 @@ export default function Agenda() {
       </AlertDialog>
 
       {/* ALERT DIALOG CONFIRMAR SUBSTITUIÇÃO DE PREPARO CLÍNICO */}
-      <AlertDialog open={prepConfirmDialogOpen} onOpenChange={setPrepConfirmDialogOpen}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={prepConfirmDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingPrepReplacement(null)
+            setPrepConfirmDialogOpen(false)
+          }
+        }}
+      >
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
           <AlertDialogHeader>
             <AlertDialogTitle>Substituir texto de preparo do exame?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -2371,6 +2407,7 @@ export default function Agenda() {
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel
+              type="button"
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -2381,6 +2418,7 @@ export default function Agenda() {
               Manter meu texto atual
             </AlertDialogCancel>
             <AlertDialogAction
+              type="button"
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
