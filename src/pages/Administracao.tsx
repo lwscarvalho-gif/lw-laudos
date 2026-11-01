@@ -56,23 +56,7 @@ export default function Administracao() {
   const { user: currentAdmin, isAdmin } = useAuth()
   const { toast } = useToast()
 
-  // Bloqueio de rota em nível de componente para não-administradores
-  if (!isAdmin) {
-    return (
-      <div className="max-w-2xl mx-auto py-24 px-4 text-center space-y-4">
-        <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
-          <Shield className="w-6 h-6" />
-        </div>
-        <h2 className="text-xl font-bold text-[#1F2A27]">Acesso Restrito à Administração</h2>
-        <p className="text-sm text-[#5F6E69]">
-          Você não possui privilégios de Administrador para gerenciar a equipe ou convites do
-          sistema.
-        </p>
-      </div>
-    )
-  }
-
-  // Invitations state
+  // Invitations state (declared unconditionally at top level)
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [loadingInvites, setLoadingInvites] = useState(true)
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
@@ -374,6 +358,21 @@ export default function Administracao() {
     } finally {
       setDeletingUser(false)
     }
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="max-w-2xl mx-auto py-24 px-4 text-center space-y-4">
+        <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+          <Shield className="w-6 h-6" />
+        </div>
+        <h2 className="text-xl font-bold text-[#1F2A27]">Acesso Restrito à Administração</h2>
+        <p className="text-sm text-[#5F6E69]">
+          Você não possui privilégios de Administrador para gerenciar a equipe ou convites do
+          sistema.
+        </p>
+      </div>
+    )
   }
 
   return (

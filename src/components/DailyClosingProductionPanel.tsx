@@ -77,7 +77,7 @@ export function DailyClosingProductionPanel({
           patient_name: appt.expand?.patient_id?.name || 'Paciente ausente',
           procedure_name: appt.exam_type || 'Ultrassonografia',
           referring_physician: appt.referring_physician || 'Não informado',
-          executing_doctor: appt.expand?.doctor_id?.name || 'Corpo Clínico',
+          executing_doctor: appt.expand?.owner_id?.name || appt.created_by_name || 'Corpo Clínico',
           appointment_id: appt.id,
           status: 'Falta do Paciente',
           time: appt.start_time ? appt.start_time.slice(11, 16) : undefined,

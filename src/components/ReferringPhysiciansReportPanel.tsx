@@ -10,7 +10,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Download, FileText, Filter, Users, TrendingUp, Calendar, Search } from 'lucide-react'
-import type { Report, ClinicProcedure } from '@/types'
+import type { Report } from '@/types'
+import type { ClinicProcedure } from '@/services/clinicManagement'
 
 interface ReferringReportItem {
   physician: string

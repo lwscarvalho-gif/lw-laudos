@@ -209,25 +209,21 @@ export function PriceTableImportPanel({
           continue
         }
 
-        const validCat: ProcedureCategory = (
-          [
-            'abdome',
-            'pelvico_obstetrico',
-            'mamas',
-            'tireoide_cervical',
-            'musculoesqueletico',
-            'vascular_doppler',
-            'procedimentos_guiados',
-            'outros',
-          ].includes(row.rawCategory.toLowerCase())
-            ? row.rawCategory.toLowerCase()
-            : 'abdome'
-        ) as ProcedureCategory
+        const rawCat = row.rawCategory.toLowerCase()
+        let validCat: ProcedureCategory = 'geral'
+        if (rawCat === 'abdome') validCat = 'abdome'
+        else if (rawCat === 'tireoide' || rawCat.includes('cervical')) validCat = 'tireoide'
+        else if (rawCat.includes('articul') || rawCat.includes('musculo')) validCat = 'articulacoes'
+        else if (rawCat.includes('partes_moles') || rawCat.includes('moles'))
+          validCat = 'partes_moles'
+        else if (rawCat.includes('doppler') || rawCat.includes('vascular')) validCat = 'doppler'
+        else if (rawCat.includes('obstetr') || rawCat.includes('pelvic')) validCat = 'obstetricia'
 
         try {
           if (row.action === 'atualizar' && row.existingId) {
             // Preserva histórico: o PocketBase mantém updated e histórico de pagamentos passados
-            await clinicManagementService.updateProcedure(row.existingId, {
+            await clinicManagementService.saveProcedure({
+              id: row.existingId,
               price_pix_cash: row.rawPricePix,
               price_card_cash: row.rawPriceCardCash,
               price_card_installment: row.rawPriceCardInstallment,
@@ -236,7 +232,7 @@ export function PriceTableImportPanel({
             })
             updatedCount++
           } else if (row.action === 'cadastrar') {
-            await clinicManagementService.createProcedure({
+            await clinicManagementService.saveProcedure({
               clinic_location: clinicLocation || 'HM Samuel Marques dos Santos',
               name: row.rawName,
               internal_code: row.rawCode || undefined,
@@ -399,7 +395,9 @@ export function PriceTableImportPanel({
                         {row.isValid ? (
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                         ) : (
-                          <XCircle className="w-3.5 h-3.5 text-red-600" title={row.error} />
+                          <span title={row.error} className="inline-flex">
+                            <XCircle className="w-3.5 h-3.5 text-red-600" />
+                          </span>
                         )}
                       </td>
                       <td className="p-2.5 font-mono">{row.rawCode || '—'}</td>
